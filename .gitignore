@@ -21,6 +21,9 @@ packages/contracts/broadcast/
 # Turbo
 .turbo/
 
+# Auto-generated ABIs (regenerate via `pnpm --filter @verex/sdk sync-abis`)
+packages/sdk/src/abis/
+
 # Misc
 .DS_Store
 *.log

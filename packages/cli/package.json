@@ -1,20 +1,24 @@
 {
-  "name": "@verex/sdk",
+  "name": "@verex/cli",
   "version": "0.0.1",
   "private": true,
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "bin": {
+    "verex": "dist/index.js"
+  },
   "scripts": {
-    "sync-abis": "node scripts/sync-abis.mjs",
-    "prebuild": "pnpm sync-abis",
     "build": "tsc",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist src/abis"
+    "clean": "rm -rf dist",
+    "demo": "node dist/demo.js"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "@verex/sdk": "workspace:*",
+    "commander": "^12.1.0",
     "viem": "^2.21.0"
   }
 }
