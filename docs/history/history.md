@@ -26,3 +26,32 @@ This file records each day's work in KST.
 ### Next Task
 - Phase 1 W1 착수: `packages/contracts`에 `Market.sol` + `MarketFactory.sol` (fixed-price escrow, 수동 resolve) + Foundry 테스트. Day 3까지 `forge test` 통과가 M1.
 - Phase 2 진입 전 준비 작업으로 §11.2 "다음 액션" 3개 (Polymarket CTF reading note, SDK 표면 design doc, MM v0 인터페이스에 CTF order signing 가능성 염두) 일정 잡기.
+
+## 2026-05-07 (KST)
+
+### Todo
+- [x] Phase 1 W1 — `packages/contracts` 컨트랙트 + Foundry 테스트 (M1)
+- [x] Phase 1 W1 — `packages/sdk` viem 래퍼 + ABI 자동 sync
+- [x] Phase 1 W1 — `packages/cli` 신규 패키지 (commander 기반) + end-to-end demo (M2)
+- [x] Plan 문서 v1/v2 백본 분리 정합성 — `§4.5` 신설 / `§11.2` 트림 / `§2.2.6` Polymarket-style UI 방향 명시 / `01-phase-1-core.md` 동기화
+- [x] Polymarket UI mockup 보관 + plan에 embed (`packages/web/public/mockups/polymarket-reference.png`)
+
+### Achievement
+- **Phase 1 W1 완주 (M1 + M2 통과)** — anvil 위에서 deploy → createMarket → 양쪽 베팅 → resolve → claim end-to-end가 SDK CLI로 한 번에 도는 상태. 자세한 구현/테스트/구조는 [`2026-05-07-phase1-w1-implementation.md`](./2026-05-07-phase1-w1-implementation.md) 참고.
+  - Foundry 테스트 17/17 통과 (plan 5개 시나리오 + factory + sanity)
+  - SDK는 forge build 산출물에서 ABI 자동 sync (`scripts/sync-abis.mjs` → `src/abis/*.ts as const`) — 수동 복사 0줄
+  - 신규 `packages/cli/` 패키지 — `verex create/list/info/buy/resolve/claim/position` + `demo.ts` (one-shot 시연)
+- **plan 구조 정합성 정리** — 4월 28일에 §11.2를 "Phase 2 W6 결정 지점"으로 둔 것을 운영자(jay) prior CTF Exchange 경험을 반영해 **v1/v2 백본 분리 (확정 플랜)**으로 격상. v1=fixed-price escrow / v2=Polymarket CTF Exchange. UI는 v1부터 Polymarket-style로 가되 백엔드가 못 채우는 데이터는 placeholder.
+  - `§4.5 백엔드 버전 분리 (v1/v2)` 신설 — 비교 표 7행 (Backend/Collateral/Pricing/Resolve/Maker/SDK 표면/UI 레이아웃)
+  - `§2.2.6 Frontend` — Polymarket-style 방향 + 차용 범위 (layout/density만 영감, 브랜드 컬러/타이포는 자체) + mockup embed
+  - `§11.2` 트림 — 비교 표·이유 등은 §4.5로 이동, 이제 "v2 통합 시 결정할 4개 항목 + 사전 액션 3개"만 남김
+  - `01-phase-1-core.md` 동기화 — "AMM/CLOB 욕심 금지" 줄을 v1/v2 어조로 갱신, Web 컴포넌트 v1/v2 모드 분리 주의 추가
+
+### Post Mortem
+- **잘된 점**: scaffold가 plan과 안 맞는 걸 코딩 들어가기 전에 명시적으로 surface하고 (Factory + per-market vs 단일 컨트랙트) 사용자 결정을 받은 후 진행. 중간에 viem TS 컴파일 에러(DOM lib 누락, payable/non-payable value 타입 충돌, ES2020 → 2022 target)를 만났을 때도 우회보다 root-cause fix. 마일스톤 단위로 검증 (M1 = forge test pass, M2 = demo 완주) — 추측 아닌 실증.
+- **개선점**: 첫 forge install 시 user는 "installed"라고 했는데 PATH에 안 잡혀 있었음. 도구 설치 상태는 사용자 말 믿고 넘기기보다 첫 명령 실행으로 직접 확인하는 게 빨랐을 것. 또 SDK build에서 viem .d.ts 컴파일 에러는 `skipLibCheck` 빠뜨려서 발생 — 새 TS 패키지 만들 때 default tsconfig 템플릿에 `skipLibCheck: true` 박아두는 게 좋겠음.
+
+### Next Task
+- **Phase 1 W2** 진입 — `packages/mcp-server` 스캐폴딩 + 4개 read tool 선언 (`list_markets`, `get_market`, `get_position`, `get_market_stats`) 중 2개 구현 (`list_markets`, `get_market`). M2.5 (Day 11): Claude Desktop에서 anvil markets 조회.
+- W2 병렬 트랙: Web MVP 페이지 골격 (`/markets`, `/markets/[addr]`) — Polymarket-style layout (placeholder data로). v1 단계에 backend가 못 채우는 호가창/시계열은 단순화된 표현.
+- ADR 작성: `docs/history/0001-mcp-server-as-canonical-agent-interface.md` (W2 plan 요구 사항).

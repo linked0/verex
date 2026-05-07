@@ -93,11 +93,12 @@ Runs in parallel with Web MVP. MCP server work is time-boxed — if it slips, We
 
 ## 리스크 & 주의
 
-- **AMM/CLOB 욕심 금지.** Phase 1은 fixed-price escrow에서 stop. Pricing 정교화 ([Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합 포함)는 Phase 2 W6 결정 지점에서 — 자세한 사항은 `docs/plan/README.md` §11.2 참고.
+- **AMM/CLOB 욕심 금지.** Phase 1 = **v1 백본** (fixed-price escrow). [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB는 **v2 백본** (Phase 2 W6~) — 확정 플랜이며 결정 사항이 아님. v1을 거치는 이유와 v1/v2 비교는 `docs/plan/README.md` §11.2 참고.
 - Owner resolve 모델임을 README에 명시 (보안 가정 명확화).
 - Contracts ABI를 web/sdk에 수동 복사하지 말 것 → workspace import.
 - Phase 2를 미리 끌어오지 말 것 (DB, indexer, oracle 전부 후순위).
-- **SDK API 설계 시 미래 CLOB 전환 고려**: `buyYes/buyNo` escrow API가 Phase 2에서 `fillOrder` 류로 갈 가능성이 있음. 강제 결합은 아니되 인터페이스 명명/위치가 어색해지지 않게 둘 것.
+- **SDK API 설계 시 v2 (CLOB) 전환 고려**: v1의 `buyYes/buyNo` escrow API가 v2에서 `fillOrder` 류로 교체됨. 강제 결합은 아니되 인터페이스 명명/위치가 어색해지지 않게 둘 것.
+- **Web 컴포넌트 v1/v2 모드 분리**: Polymarket-style UI를 v1부터 적용하되 (§2.2.6), v1엔 backend가 못 채우는 데이터는 placeholder로 (예: 실거래량 → 누적 escrow, 호가창 → 풀 비율). v2 전환 시 layout 그대로, 데이터 소스만 교체되도록 컴포넌트 분리.
 
 ---
 
@@ -105,8 +106,8 @@ Runs in parallel with Web MVP. MCP server work is time-boxed — if it slips, We
 
 각 phase는 별도 `02-*.md`, `03-*.md`로 확장 예정.
 
-- **Phase 2 (Week 4~6):** API + Postgres + indexer(Pub/Sub), Chainlink price feed 자동 resolve, USDC escrow 전환, **W6에 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합 go/no-go 결정** (§11.2)
-- **Phase 3 (Week 7~9):** ERC-4337 AA wallet, CCIP/LayerZero cross-chain 참여, Stripe → test USDC mock UX, GCP 배포 (Cloud Run → GKE). CTF go 시 MM Agent v1이 EIP-712 order 기반 maker로 진화
+- **Phase 2 (Week 4~6):** API + Postgres + indexer(Pub/Sub), Chainlink price feed 자동 resolve, USDC escrow 전환, **W6에 v2 백본 시작 — [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합** (§11.2 — 확정 플랜)
+- **Phase 3 (Week 7~9):** ERC-4337 AA wallet, CCIP/LayerZero cross-chain 참여, Stripe → test USDC mock UX, GCP 배포 (Cloud Run → GKE). MM Agent v1이 v2 위에서 EIP-712 order signing 기반 maker로 동작
 - **Phase 4 (Week 10):** ZK 검증 (optional), UI polish, demo
 
 ---

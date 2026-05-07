@@ -40,7 +40,7 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 
 - 완전한 탈중앙화 오라클 설계
 - 실제 법정 화폐 → 암호화폐 온램프
-- 고급 트레이딩 기능 (CLOB 등) — Phase 1~2 초기 제외. **Phase 2 W6에 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합 결정 지점** (§11.2 참고)
+- 고급 트레이딩 기능 (CLOB 등) — **v1 (Phase 1)** fixed-price 1:1 escrow / **v2 (Phase 2 W6~)** [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB로 백본 교체 (§11.2 — 확정 플랜). UI는 v1부터 Polymarket-style (§2.2.6)
 
 ### 1.4 주간 일정 (10주)
 
@@ -53,7 +53,7 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 | **Phase 1 — Core** · **W3** | • Web `/markets`, `/markets/[addr]`<br>• 베팅·claim UI<br>• 두 지갑 수동 테스트<br>• README 'Run locally' 갱신 | • M3 (Day 14): 메타마스크 플로우 완주<br>• M4 (Day 21): demo 영상 |
 | **Phase 2 — Infra+Data** · **W4** | • `packages/api` Fastify (`/markets`, `/markets/:id`, `/positions/:user`)<br>• Postgres 스키마 (Markets/Trades/Positions)<br>• 로컬 docker-compose | • API 스모크 테스트 통과 |
 | **Phase 2 — Infra+Data** · **W5** | • Indexer 워커 (`MarketCreated/Bought/Resolved/Claimed` → Postgres)<br>• Pub/Sub 로컬 에뮬레이터<br>• genesis 백필 | • 체인 ↔ DB 동기화 검증 |
-| **Phase 2 — Infra+Data** · **W6** | • Chainlink price feed 자동 resolve<br>• USDC(ERC-20) escrow 전환<br>• `packages/mm-agent` v0 (paper-trading, constant-probability quote)<br>• **CTF Exchange 통합 결정 (§11.2)** | • MM Agent paper 모드 양방향 호가 유지<br>• CTF go/no-go 문서화 |
+| **Phase 2 — Infra+Data** · **W6** | • Chainlink price feed 자동 resolve<br>• USDC(ERC-20) escrow 전환<br>• `packages/mm-agent` v0 (paper-trading, constant-probability quote)<br>• **v2 백본 시작 — CTF Exchange 통합 (§11.2)** | • MM Agent paper 모드 양방향 호가 유지<br>• v2 컨트랙트 anvil 배포 |
 | **Phase 3 — Advanced** · **W7** | • ERC-4337 AA wallet (smart wallet, paymaster sandbox)<br>• Web AA 통합<br>• **session key 권한 모델 확정** (§11.1 미결 1번) | • 사용자가 AA wallet으로 베팅 |
 | **Phase 3 — Advanced** · **W8** | • CCIP/LayerZero 크로스체인 참여<br>• MM Agent v1 (실거래 + 리스크 한도 + 서킷 브레이커)<br>• MCP write-path tool 활성화 (`buy_yes/no`, `claim` — session key 경유) | • 다른 체인에서 베팅<br>• MCP로 베팅 시연 |
 | **Phase 3 — Advanced** · **W9** | • Stripe checkout → backend → mock USDC 지급<br>• GCP Cloud Run 배포 (API + MM Agent)<br>• GitHub Actions CI/CD | • Stripe 결제 → 베팅 가능<br>• staging 환경 가동 |
@@ -141,10 +141,24 @@ PostgreSQL (Cloud SQL).
 - Next.js
 - wagmi + viem
 
+**디자인 방향: Polymarket-style CLOB UI (v1부터 적용)**
+
+UI 레이아웃과 시각적 밀도는 v1 backend가 fixed-price escrow임에도 [Polymarket](https://polymarket.com) 메인 피드 스타일을 처음부터 노린다 — 카드 그리드 피드, 카테고리/검색 네비게이션, 멀티해상도 마켓 그룹화, 트렌딩 사이드바, 추천 마켓 hero 카드.
+
+v1 단계에 백엔드가 채울 수 없는 요소(실거래량 시계열, 양방향 호가창, 다해상도 확률 차트)는 **placeholder 또는 단순화된 표현**으로 둔다 — 예: 실거래량 → 누적 escrow, 다해상도 차트 → 단일 확률 막대, 호가창 → "현재 풀 비율" 표시. v2 (CTF Exchange) 전환 시 같은 layout이 자연스럽게 fully-functional해지도록 컴포넌트를 처음부터 분리해 둔다 (§4.5).
+
+**차용 범위**: layout/density/카드 구조에 대한 영감만. 브랜드 컬러, 타이포, 카피, 아이콘 세트는 자체 결정 (Polymarket의 시각 identity를 그대로 복사하지 않음).
+
+UI 레퍼런스 (한국어 로컬라이즈, 2026-05-07):
+
+![Polymarket reference](../../packages/web/public/mockups/polymarket-reference.png)
+
+원본 파일: [`packages/web/public/mockups/polymarket-reference.png`](../../packages/web/public/mockups/)
+
 기능:
 
 - wallet connect
-- market list
+- market list (피드)
 - buy/sell
 - position 확인
 
@@ -248,14 +262,14 @@ GitHub Actions.
 - Indexer
 - Oracle
 - **MM Agent v0** (paper-trading, 단일 market)
-- **CTF Exchange 통합 결정 지점** (W6, §11.2) — go 시 fixed-price escrow를 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB로 교체
+- **v2 백본 시작 (W6, §11.2)** — fixed-price escrow를 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB로 교체. 운영자 prior experience 있음 → 일정 신뢰도 높음
 
 ### Phase 3: Advanced (Week 7~9)
 
 - AA wallet
 - Cross-chain
 - Stripe UX
-- **MM Agent v1** (실거래 + 리스크 한도) — CTF 통합 시 EIP-712 order signing 기반 maker로 진화
+- **MM Agent v1** (실거래 + 리스크 한도) — v2 위에서 EIP-712 order signing 기반 maker로 동작
 - GCP infra
 
 ### Phase 4: Final (Week 10)
@@ -263,6 +277,34 @@ GitHub Actions.
 - ZK (optional)
 - UI polish
 - Demo
+
+### 4.5 백엔드 버전 분리 (v1 / v2)
+
+위 phase들을 가로지르는 **백본 버전 축**. Phase 1은 v1 백본을 만들고, Phase 2 W6에 v2 백본으로 교체. 두 백본 모두 같은 Polymarket-style UI를 띄운다 (§2.2.6).
+
+| 구분 | v1 (Phase 1) | v2 (Phase 2 W6~) |
+|------|--------------|-------------------|
+| Backend | fixed-price 1:1 escrow (parimutuel) | [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) + [Gnosis CTF](https://docs.gnosis.io/conditionaltokens/) (ERC-1155) |
+| Collateral | native ETH | USDC (ERC-20) |
+| Pricing | 풀 비율 (가격 발견 없음) | EIP-712 signed order, off-chain match · on-chain settle |
+| Resolve | owner manual | Chainlink/UMA (단계적) |
+| Maker | 불필요 | MM Agent v0 → v1 (필수) |
+| SDK 표면 | `buyYes/buyNo` (escrow) | `fillOrder/fillOrders` (CLOB) |
+| **UI 레이아웃** | **Polymarket-style (placeholder data 일부)** | **Polymarket-style (full data)** |
+
+**왜 v1을 거치는가**
+
+- Phase 1 가치 = "3주 안에 풀스택 한 바퀴 돌려 어디서 막히는지 본다". CTF + maker + USDC + order signing UI 동시 도입은 그 신호를 죽임
+- v1 fixed-price의 backend 단순함이 web/sdk/MCP 인터페이스를 빠르게 안정화 → v2 교체 시 그 레이어들은 변경 최소화
+- v1을 production에 띄우는 단계가 없으므로 "롤백" 부담 없음 — 학습용 단계
+
+운영자(jay)가 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange)로 prediction market을 구축한 prior experience가 있어 통합 일정 신뢰도 높음. 이론상 v1을 건너뛰고 처음부터 CTF로 갈 수 있으나 위 이유로 plan은 v1→v2 분리 유지.
+
+**v1 → v2 전환 시점**
+
+기본 W6. 단 Phase 2 W4~5 인프라(API, 인덱서, USDC 전환)가 밀리면 W7~8로 자연스럽게 후행 가능. v1 production 단계가 없으므로 시점 유연성 있음.
+
+전환 시점에 결정할 구체 항목과 다음 액션은 §11.2 참고.
 
 ---
 
@@ -462,42 +504,22 @@ verex/
 2. `packages/openclaw-skill/` 폴더 추가 검토 (skill 매니페스트 + tool 정의)
 3. Phase 3 로드맵에 "Personal agent 통합" 항목 추가 후 본문 §2.2.x로 승격
 
-### 11.2 CTF Exchange 통합 (신규, **Phase 2 W6 결정**)
+### 11.2 CTF Exchange (v2) 통합 — 결정할 항목 추적
 
-**의도**
+> v1/v2 백본 분리 자체는 확정 플랜. 비교 표·왜-v1-거치는가·전환 시점은 **§4.5**에 정의. 본 절은 v2 통합 시 결정할 구체 항목과 사전 준비 작업만 추적.
 
-Phase 1은 fixed-price 1:1 escrow(parimutuel 구조)로 시작해 풀스택 동선을 빠르게 검증한다. 이 구조는 **가격 발견(price discovery)이 없고**, MM Agent가 호가를 내도 의미 있는 시장 미시구조가 만들어지지 않는다. Phase 2 W6에 USDC(ERC-20) 전환 + MM Agent v0가 들어오는 시점에, escrow 컨트랙트를 [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB + [Gnosis Conditional Tokens Framework](https://docs.gnosis.io/conditionaltokens/) (ERC-1155)로 교체할지 결정한다.
-
-**왜 Polymarket CTF Exchange (upstream)**
-
-- 운영 중인 production-grade 예측시장의 정식 구현 — 보안/엣지케이스가 검증됨
-- ERC-20 콜래터럴 ↔ ERC-1155 conditional token 간 atomic swap을 EIP-712 signed order로 처리 (off-chain match, on-chain settle)
-- Phase 3의 AA + session key 설계가 "함수 화이트리스트"에서 "order 객체 서명 위임"으로 자연스럽게 확장됨
-
-**Phase 1~2 초반에 안 하는 이유**
-
-- CLOB는 maker 없이는 UX가 0 — Web에서 buy 버튼이 빈 호가창을 보게 됨. MM Agent가 안정적으로 양방향 호가를 내는 시점(W6 paper-trading 검증 후)이 통합 적기
-- Phase 1 목표는 "3주 안에 한 바퀴 돌려서 어디서 막히는지 본다" — CTF + maker + USDC + order signing UI를 동시에 넣으면 그 신호가 사라짐
-- ERC-20 콜래터럴 전제이므로 W6 USDC 전환과 한 묶음으로 진행해야 일관됨
-
-**Go/No-go 결정 기준 (W6)**
-
-- MM Agent v0가 paper-trading에서 안정적으로 양방향 호가 유지 → go
-- Phase 1~2 fixed-price escrow에서 사용자 피드백상 가격 발견/슬리피지 문제가 명확 → go
-- Phase 2 일정이 밀려 있고 풀스택 데모 자체가 위협받음 → no-go, Phase 3로 미룸
-
-**해결해야 할 질문**
+**v2 통합 시 결정할 항목** (전환 시점에 정함)
 
 1. CTF Exchange를 그대로 import할 것인가, 일부 fork해서 fee/admin 모델만 조정할 것인가
-2. ResolutionOracle은 owner manual → Chainlink → UMA 중 어느 단계까지 W6에 들어올지
-3. 기존 fixed-price market 컨트랙트와의 마이그레이션 (Phase 1에서 만든 마켓을 어떻게 처리할지 — 단순 deprecate가 가장 현실적)
-4. SDK 표면 — `buyYes/buyNo` (escrow API) → `fillOrder/fillOrders` (CLOB API) 전환. MCP write tool 스펙도 함께 갱신 필요 (§11.1 question 1과 연결)
+2. ResolutionOracle 단계 — owner manual → Chainlink → UMA 중 어디까지 v2 첫 출시에 포함
+3. v1 fixed-price market의 처리 방식 (단순 read-only deprecate가 가장 현실적)
+4. SDK 표면 — `buyYes/buyNo` → `fillOrder/fillOrders` 전환 시 MCP write tool 스펙도 함께 갱신 (§11.1 question 1과 연결)
 
 **다음 액션 (Phase 2 진입 전 미리 준비)**
 
-1. Polymarket CTF Exchange 컨트랙트 구조 + 의존성(Gnosis CTF) 정리한 reading note 작성
-2. SDK API 표면이 escrow → CLOB 전환에 어떻게 영향받는지 짧은 design doc
-3. Phase 1 MM Agent v0 인터페이스 설계 시 "CTF order signing 가능성"을 미리 염두 (강제 결합은 아님, 그저 어색해지지 않게)
+1. Polymarket CTF Exchange 컨트랙트 구조 + 의존성(Gnosis CTF) 정리한 reading note (운영자 prior experience 기반으로 압축 가능)
+2. SDK API 표면이 escrow → CLOB 전환에 어떻게 영향받는지 짧은 design doc — v1 인터페이스를 v2 전환 시 변경 최소화되도록 설계
+3. v1 web 컴포넌트를 placeholder/full 모드 토글 가능하게 분리 — v2 전환 시 layout 그대로, 데이터 소스만 교체
 
 ---
 
