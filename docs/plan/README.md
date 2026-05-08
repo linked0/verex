@@ -521,6 +521,26 @@ verex/
 2. SDK API 표면이 escrow → CLOB 전환에 어떻게 영향받는지 짧은 design doc — v1 인터페이스를 v2 전환 시 변경 최소화되도록 설계
 3. v1 web 컴포넌트를 placeholder/full 모드 토글 가능하게 분리 — v2 전환 시 layout 그대로, 데이터 소스만 교체
 
+### 11.3 v1 Security Audit — 액션 항목
+
+> 셀프 리뷰 산출물: [`docs/history/2026-05-08-v1-security-audit.md`](../history/2026-05-08-v1-security-audit.md). 본 절은 그 audit에서 추적이 필요한 액션 항목만 모음.
+
+**리뷰 결과 요약**: HIGH 0 / MEDIUM 1 / LOW 2 / INFO 6. v1 발견의 ~70%는 v2 (Phase 2 W6 — CTF + UMA) 도입으로 자동 해소.
+
+**액션 항목 (트리거 시점별)**
+
+| # | 항목 | Severity | 트리거 시점 | 위치 |
+|---|------|----------|------------|------|
+| A1 | `PRIVATE_KEY` env fallback 제거 — `vm.envOr` → `vm.envUint` | INFO | testnet/staging deploy 직전 | [`packages/contracts/script/Deploy.s.sol:18`](../../packages/contracts/script/Deploy.s.sol) |
+| A2 | CLI에 chainId 가드 추가 (anvil `31337`만 허용) | INFO | W2 진입 시 함께, 늦어도 testnet 진입 전 | [`packages/cli/src/clients.ts`](../../packages/cli/src/clients.ts) |
+| A3 | 운영 절차 문서화: resolve 직전 `yesPool > 0 && noPool > 0` 확인 | LOW | testnet 진입 시 | `docs/runbooks/` (TBD) |
+| A4 | `MarketFactory.getMarkets()` pagination 함수 추가 | LOW | indexer 작업 (W4~5)에서 마켓 수 100+ 시 | [`packages/contracts/src/MarketFactory.sol`](../../packages/contracts/src/MarketFactory.sol) |
+| A5 | 단일 글로벌 owner SPOF — 별도 mitigation 없이 v2 진입에 의존 | MEDIUM | v2 진입 자동 해소 (UMA optimistic oracle) | n/a — 추적만 |
+
+**원칙**: v1 자체 hardening보다 v2 진입이 우선. A1/A2/A3는 운영 단계(testnet+) 진입 시점에 함께, A4는 트리거 발생(마켓 수 폭증) 시에만, A5는 별도 작업 없이 v2가 해소.
+
+**상세** (severity 판단 근거, mitigation 분석, v2 매핑): [audit 문서 §2 ~ §5](../history/2026-05-08-v1-security-audit.md) 참고.
+
 ---
 
 ## 🎯 최종 한 줄

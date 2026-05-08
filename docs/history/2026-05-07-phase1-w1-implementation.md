@@ -220,6 +220,8 @@ packages/cli/
 
 ### 6.1 CLI 명령
 
+> Run with `pnpm verex <command>` from the repo root (the root `package.json` has a `verex` script). For other ways to invoke (alias, global link), see §7.2.
+
 | 명령 | 인자 | 역할 |
 |------|------|------|
 | `verex create -f <factory> -q <Q> -e <unix-sec> [-a 0]` | factory + question + endTime | 새 마켓 배포 |
@@ -289,15 +291,24 @@ pnpm --filter @verex/cli build
 anvil &
 pnpm --filter @verex/cli demo
 
-# 또는 수동 단계별
-verex create -f 0xFACTORY -q "Will X happen?" -e 1800000000 -a 0
-verex buy -m 0xMARKET -s yes -v 1 -a 1
-verex resolve -m 0xMARKET -o yes -a 0
-verex claim -m 0xMARKET -a 1
+# Or run individual steps. Use `pnpm verex <subcommand>` from the repo root —
+# the root package.json has a `verex` script that delegates to packages/cli/dist/index.js.
+pnpm verex create -f 0xFACTORY -q "Will X happen?" -e 1800000000 -a 0
+pnpm verex buy     -m 0xMARKET -s yes -v 1 -a 1
+pnpm verex resolve -m 0xMARKET -o yes -a 0
+pnpm verex claim   -m 0xMARKET -a 1
 
-# 정리
+# Cleanup
 pkill anvil
 ```
+
+> **Why `pnpm verex` and not just `verex`?** The CLI's `bin: { verex: ... }` field is declared, but
+> because `@verex/cli` is a workspace sibling (not a root dependency), pnpm doesn't create a shim
+> in `node_modules/.bin/verex`. Running plain `verex` from a shell gives `command not found`.
+> The root `verex` script makes `pnpm verex <args>` work from any path under the repo.
+>
+> If you want a shorter command from anywhere on disk, add an alias to your shell rc:
+> `alias verex='node /Users/jay/work/verex/packages/cli/dist/index.js'`
 
 ### 7.3 환경 변수
 
