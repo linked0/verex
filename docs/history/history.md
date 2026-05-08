@@ -55,3 +55,32 @@ This file records each day's work in KST.
 - **Phase 1 W2** 진입 — `packages/mcp-server` 스캐폴딩 + 4개 read tool 선언 (`list_markets`, `get_market`, `get_position`, `get_market_stats`) 중 2개 구현 (`list_markets`, `get_market`). M2.5 (Day 11): Claude Desktop에서 anvil markets 조회.
 - W2 병렬 트랙: Web MVP 페이지 골격 (`/markets`, `/markets/[addr]`) — Polymarket-style layout (placeholder data로). v1 단계에 backend가 못 채우는 호가창/시계열은 단순화된 표현.
 - ADR 작성: `docs/history/0001-mcp-server-as-canonical-agent-interface.md` (W2 plan 요구 사항).
+
+## 2026-05-08 (KST)
+
+### Todo
+- [x] v1 self security audit + dated audit document under `docs/history/`
+- [x] Plan README §11.3 — audit action items as trackable items
+- [x] Detail doc fixes — clarify CLI invocation patterns (the `verex: command not found` confusion)
+- [x] Root `package.json`에 `verex` 스크립트 추가 (`pnpm verex <subcommand>`)
+- [x] MarketFactory를 anvil에 첫 배포
+
+### Achievement
+- **v1 보안 셀프 감사 완료** — [`2026-05-08-v1-security-audit.md`](./2026-05-08-v1-security-audit.md). 7개 섹션, severity HIGH 0 / MEDIUM 1 / LOW 2 / INFO 6.
+  - INFO ×4: forge lint의 `block.timestamp` 비교 경고 — v1엔 시간 단위가 시간/일이라 12초 drift 무관, 수용
+  - MEDIUM 1: 단일 글로벌 owner = SPOF — v2 (UMA optimistic oracle) 도입으로 자동 해소
+  - LOW 2: 한쪽 풀 0인 상태에서 winner 쪽 선택 시 자금 영구 동결 / `getMarkets()` unbounded 배열 (마켓 수 폭증 시 가스 한도 hit)
+  - INFO 2: CLI에 anvil 키 하드코딩, Deploy script `PRIVATE_KEY` env fallback
+  - 검증된 안전 사항 11개 (reentrancy CEI, overflow, ETH `.call`, double-claim 등) 별도 정리
+  - **70% 의 발견은 v2 도입 자체로 자동 해소** → v1 hardening보다 Phase 2 W6 일정 우선
+- **Plan README §11.3** 신설 — audit 발견을 5개 액션 항목 표로 트래킹 (`PRIVATE_KEY` fallback 제거, CLI chainId 가드, 운영 절차, pagination, owner SPOF). 각 항목에 severity / 트리거 시점 / 코드 위치 명시. audit 문서가 owner이고 plan §11.3은 추적용 — 두 곳이 중복되지 않게 분리.
+- **Detail doc 수정** ([`2026-05-07-phase1-w1-implementation.md`](./2026-05-07-phase1-w1-implementation.md) §6.1, §7.2) — `verex` 명령이 `command not found`로 실패하는 원인 (workspace 패키지 bin shim 미생성)과 4가지 우회법 (node 직접 호출, `pnpm exec`, alias, `pnpm link --global`) 정리.
+- **Root `package.json`에 `verex` 스크립트 추가** — `node packages/cli/dist/index.js`로 위임. 이제 `pnpm verex <subcommand> [options]` 로 호출 가능. `-f` 같은 플래그가 pnpm 자체와 충돌하지 않게 위치(서브커맨드 뒤)만 지키면 됨.
+- **MarketFactory 첫 배포 (anvil)** — `0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9`, owner `0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266` (anvil account[0]). `pnpm verex list -f ...`로 빈 상태 확인.
+
+### Post Mortem
+- **잘된 점**: forge lint warning 한 줄(`block.timestamp`)에서 시작해 audit 전체로 자연스럽게 확장. 발견을 단순히 "고친다/안 고친다"가 아니라 v2 도입과의 시간축에 매핑(70% 자동 해소)함으로써, v1 hardening 우선순위를 plan과 일관되게 낮춤. CLI invocation 혼란도 alias/link/script 4가지 옵션을 비교한 뒤 가장 portable한 root script 채택 — 결정 근거를 detail 문서에 남김.
+- **개선점**: detail 문서에 처음부터 `verex create ...` 라고 적어 사용자가 `command not found`를 만났음. 새 CLI 패키지를 만들 땐 처음부터 호출 패턴을 검증/문서화해야 — 코드 작동 = "사람이 호출 가능"은 아님. 또 audit를 W1 직후가 아니라 시간차로 한 게 좋은 점도 있음(코드 익숙해진 뒤): "audit는 implementation 직후가 항상 최선은 아니다" 패턴.
+
+### Next Task
+- 동일 (W2 진입). Audit 액션 항목 중 A1 (`PRIVATE_KEY` fallback 제거) / A2 (CLI chainId 가드)는 W2 작업 중 함께 처리 가능 — quick wins.
