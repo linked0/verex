@@ -84,3 +84,30 @@ This file records each day's work in KST.
 
 ### Next Task
 - 동일 (W2 진입). Audit 액션 항목 중 A1 (`PRIVATE_KEY` fallback 제거) / A2 (CLI chainId 가드)는 W2 작업 중 함께 처리 가능 — quick wins.
+
+## 2026-05-11 (KST)
+
+### Todo
+- [x] Plan 재구성: v2 (CTF) 백본을 W6 → S2로 당김 (운영자 prior CTF 경험 반영)
+- [x] §1.4 단위 전환: Week → Step (W1..W10 → S1..S10), AI 작업 시간 budget 컬럼 추가, GFM checkbox 적용
+- [x] Plan 본문 정합성 (§1.3, §2.2.1, §2.2.6, §4, §4.5, §11.2, §11.3) 재작성
+- [x] `ctf-exchange` 브랜치 생성 (main에서 분기, 미커밋 작업 carry over)
+- [x] S2.1 — `docs/plan/gnosis-ctf-research.md` 작성 (~280줄, 9 섹션)
+- [x] S2 deep-dive Q&A: position/collection/indexSet 정밀 정의, multi-outcome event 처리 (NegRisk 패턴), parentCollectionId 무용성, idempotent 개념, NegRisk 발명 mental process
+
+### Achievement
+- **plan 구조 큰 전환**: 운영자 prior CTF Exchange 경험을 plan 시간축에 반영해 v1 (W1 parimutuel)을 1주짜리 scaffold로 격하하고 v2 (Polymarket CTF Exchange + Gnosis CTF + USDC + MM Agent v0)를 S2 메인 백본으로. v1/v2 비교 표와 trade-off 설명은 §4.5 historical note로 보존, §11.2는 4줄 pointer로 trim. §11.3 audit 액션 항목 중 A3/A4는 v1 parimutuel 전용이라 OBSOLETE 표시.
+- **단위 전환 Week → Step**: AI assistance 하에 W1이 실제로 1일에 끝났던 경험에서 출발. 캘린더 7일 단위가 misleading하다는 인식 → 새 컬럼 "예상 시간 (AI 포함)" 1~5일 range로 추가. 합산: ~25–35일 집중 작업 (캘린더로는 회복일 + 외부 대기 포함 6–8주). 모든 산출물 / 마일스톤 GFM `- [ ]` / `- [x]` 체크박스 적용. S1은 이미 완료라 `[x]` + ✅ 표시.
+- **§1.4 S2 row에 "Gnosis CTF 분석 (~2일)"을 첫 deliverable로 박음**: 모든 다른 S2 작업의 prerequisite. 산출물 명시: `docs/plan/gnosis-ctf-research.md`. 마일스톤: CTF mint→split→merge→redeem 한 사이클이 Foundry 테스트로 통과.
+- **`gnosis-ctf-research.md` 작성** (9 섹션): mental model, 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `reportPayouts` / `redeemPositions`), position ID 유도 (collateral → collectionId → positionId 키체인), event table (S5 indexer 준비), Polymarket Exchange의 CTF 사용 패턴 (`AssetOperations.sol`에서 본 hard-code `parentCollectionId = bytes32(0)` + `partition = [1, 2]`), CTF vs Exchange 경계, open questions 5개, S2.2~S2.6 매핑, 추천 reading order. 자세한 내용은 [`2026-05-11-plan-restructure-and-gnosis-research.md`](./2026-05-11-plan-restructure-and-gnosis-research.md) 참고.
+- **`ctf-exchange` 브랜치 생성** — main에서 분기. 오늘의 모든 작업은 이 브랜치에 commit (push는 안 함, 사용자 미요청).
+- **Q&A 세션** (research note에 부분 반영, 일부는 이번 commit에 포함 안 됨): position/collection/indexSet의 정밀 의미, "event"는 컨트랙트 레이어에 없고 UI/DB 메타데이터라는 인사이트, parentCollectionId가 conditional positions를 위해 존재하지만 실용성 없어 모두가 hard-code, idempotent의 의미와 SDK가 비-idempotent primitive를 idempotent 인터페이스로 래핑해야 한다는 패턴, NegRisk Adapter를 발명하는 mental process 6 move (사용자 고통 → invariant → 막힌 arbitrage → 빠진 primitive → layer 안 modify → market dynamics 신뢰).
+
+### Post Mortem
+- **잘된 점**: 큰 plan 변경을 단계적으로 진행 — 먼저 CTF 시점을 W6에서 S2로 결정, 다음 단위 변경 (Week → Step)을 별도 결정으로 분리. 한 번에 묶어 처리하지 않고 각 결정의 합리성을 따로 확인. plan 변경 후 §1.4 외 모든 종속 섹션도 일관되게 갱신 (§1.3, §2.2.1, §2.2.6, §4, §4.5, §11.2, §11.3). Gnosis CTF research를 스스로 fetch하면서 ConditionalTokens.sol + CTHelpers.sol + Polymarket의 AssetOperations.sol을 cross-reference해서 단순한 함수 시그니처 나열이 아닌 "실제 사용 패턴"까지 담은 reading note 산출. Q&A 세션에서 사용자가 한 마디 던질 때마다 ("idempotent?", "multi-outcome?", "parentCollectionId 쓸모?") 그것이 research note의 어느 섹션과 연결되는지 명시 — 후속 reader도 같은 길로 가도록.
+- **개선점**: research note가 길어서 (~280줄) 사용자가 중간에 멈출 때 작은 chunk (예: 5 핵심 함수만 먼저, position ID는 별도) 단위로 잘라 incremental review하면 더 빨랐을 것. 다음 reference doc 작성 시 chunk-by-chunk 검토 가능한 구조 검토. 또 일부 Q&A 응답이 길었음 — 영어 학습 목적의 부수 효과는 있지만 "본 질문 + 답변"에 가까운 simple 모드를 더 자주 활용해도 좋음.
+
+### Next Task
+- **S2.1 milestone 마무리**: CTF mint → split → merge → redeem Foundry 테스트 작성 → 통과 확인. 동시에 research note §7의 open questions 5개 (loser redeem 동작, post-resolve split 가능성, 재진입 표면, 가스 비용, questionId 컨벤션)에 명시적 assertion으로 답변.
+- **S2.1 review 후 S2.2 진입**: Polymarket CTF Exchange import (또는 vendor as submodule) + Gnosis CTF 배포 + 컨트랙트들이 anvil에서 함께 동작하는지 검증.
+- 운영자 prior CTF Exchange 작업물 (nostra-contracts)을 reference로 활용 가능 — 같은 패턴 한 번 한 경험이 있어 학습/구현 시간 단축 기대.
