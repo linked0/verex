@@ -54,8 +54,8 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 | **Phase 2 — Infra+Data** · **S4** | - [ ] `packages/api` Fastify (`/markets`, `/orders`, `/positions/:user`)<br>- [ ] Postgres 스키마 (Markets/Orders/Fills/Positions)<br>- [ ] 로컬 docker-compose | - [ ] API smoke 테스트 통과 | 1–2일 |
 | **Phase 2 — Infra+Data** · **S5** | - [ ] Indexer (`OrderFilled`, `PositionsMerged`, `PayoutRedemption` → Postgres)<br>- [ ] Pub/Sub 로컬 에뮬레이터<br>- [ ] genesis 백필 | - [ ] 체인 ↔ DB 동기화 검증 | 2–3일 |
 | **Phase 2 — Infra+Data** · **S6** | - [ ] Chainlink price feed (시간 기반 resolve용)<br>- [ ] **UMA optimistic oracle 통합** (owner manual resolve 대체)<br>- [ ] MM Agent v1 (실거래 + 리스크 한도 + 서킷 브레이커) | - [ ] 적어도 한 마켓을 UMA로 resolve<br>- [ ] MM v1 paper → live 전환 체크리스트 통과 | 3–5일 |
-| **Phase 3 — Advanced** · **S7** | - [ ] **AA 전략 결정 — ERC-4337 / EIP-7702 / hybrid (§11.4 B2)** → ADR `0002-aa-strategy.md`<br>- [ ] AA wallet 구현 + Web AA 통합<br>- [ ] **session key 권한 모델 확정** (§11.1 미결 1번)<br>- [ ] 배치 tx PoC — `approve` + `fillOrder` 1 서명 (§11.4 B3) | - [ ] 사용자가 AA wallet으로 베팅<br>- [ ] 1 서명으로 approve+fill 동작 | 3–5일 |
-| **Phase 3 — Advanced** · **S8** | - [ ] CCIP/LayerZero 크로스체인 참여<br>- [ ] MCP write-path tool 활성화 (`buy_yes/no`, `claim` — session key 경유)<br>- [ ] Paymaster 가스 스폰서십 PoC (§11.4 B4) | - [ ] 다른 체인에서 베팅<br>- [ ] MCP로 베팅 시연<br>- [ ] 신규 유저가 ETH 0으로 베팅 완주 | 3–5일 |
+| **Phase 3 — Advanced** · **S7** | - [ ] **AA 전략 결정 — ERC-4337 / EIP-7702 / hybrid (§11.4 B2)** → ADR `0002-aa-strategy.md`<br>- [ ] AA wallet 구현 + Web AA 통합<br>- [ ] **session key 권한 모델 확정** (§11.1 미결 1번)<br>- [ ] **One-click betting (production)** — `approve(USDC)` + `fillOrder` 1 서명 (§11.4 B3)<br>- [ ] **Auto-claim delegate 컨트랙트 + scheduler** (§11.4 B6) — 사용자 EOA에 대해 ONLY `redeemPositions` 허용하는 최소 delegate; backend scheduler가 resolved 마켓 watch하고 자동 트리거 | - [ ] 사용자가 AA wallet으로 베팅<br>- [ ] 1 서명으로 approve+fill 동작<br>- [ ] resolved 마켓의 winner가 수동 호출 없이 USDC 수령 | 3–5일 |
+| **Phase 3 — Advanced** · **S8** | - [ ] CCIP/LayerZero 크로스체인 참여<br>- [ ] MCP write-path tool 활성화 (`buy_yes/no`, `claim` — session key 경유)<br>- [ ] **Gasless onboarding (production)** (§11.4 B4) — Paymaster가 신규 지갑의 첫 N=5 거래 후원<br>- [ ] **Paymaster spend tracker** (§11.4 B7) — per-wallet 카운터 (off-chain DB 또는 on-chain mapping; S8 시작 시 결정) | - [ ] 다른 체인에서 베팅<br>- [ ] MCP로 베팅 시연<br>- [ ] 신규 유저가 ETH 0으로 베팅 완주<br>- [ ] N+1번째 거래에서 후원 중단 동작 확인 | 3–5일 |
 | **Phase 3 — Advanced** · **S9** | - [ ] Stripe checkout → backend → mock USDC 지급<br>- [ ] GCP Cloud Run 배포 (API + MM Agent)<br>- [ ] GitHub Actions CI/CD | - [ ] Stripe 결제 → 베팅 가능<br>- [ ] staging 환경 가동 | 2–3일 |
 | **Phase 4 — Final** · **S10** | - [ ] ZK 탐색 (optional, 타임박스)<br>- [ ] UI polish<br>- [ ] 공개 demo 영상<br>- [ ] README 최종<br>- [ ] 회고 문서 (`docs/history/`) | - [ ] Demo Day | 2–3일 |
 
@@ -172,13 +172,23 @@ UI 레퍼런스 (한국어 로컬라이즈, 2026-05-07):
 
 #### 2.2.8 Account Abstraction
 
-- ERC-4337 or ERC-6900
+- ERC-4337 or **EIP-7702** (전략 결정은 S7 ADR `0002-aa-strategy.md` — §11.4 B2)
 
-기능:
+**기본 기능**:
 
 - gas abstraction
 - batch tx
-- smart wallet
+- smart wallet (또는 EIP-7702 delegation)
+
+**EIP-7702 기반 사용자 대면 기능 (S7~S8 산출)**:
+
+선택된 AA 전략이 EIP-7702 또는 hybrid일 때 활성화:
+
+- **One-click betting** (S7) — `approve(USDC)` + `fillOrder` 1 서명. 기존 2~3 팝업 흐름 → 1 서명.
+- **Auto-claim** (S7) — resolved 마켓의 `redeemPositions`를 사용자가 잊어도 backend scheduler가 자동 호출. 사용자 EOA에 ONLY `redeemPositions` 허용하는 최소 delegate (audit-grade) 사용.
+- **Gasless onboarding** (S8) — 신규 사용자의 첫 N=5 거래를 Paymaster가 후원. ETH 0으로 첫 베팅 가능. Per-wallet spend tracker로 N번째 후 후원 중단.
+
+자세한 구현·결정 항목은 [§11.4](#114-eip-7702-eoa-delegation--phase-3-aa-전략-결정) 참고.
 
 #### 2.2.9 Cross-chain
 
@@ -536,6 +546,8 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 | B3 | 배치 트랜잭션 PoC — USDC `approve` + `createPosition` 1 서명 | MEDIUM | S7 PoC 단계 | `packages/contracts/src/BatchExecutor.sol` (또는 외부 audited contract 채택) |
 | B4 | Paymaster 가스 스폰서십 PoC — 신규 유저 첫 베팅 무가스 | MEDIUM | S7~S8 | `packages/api` 또는 외부 paymaster 서비스 통합 |
 | B5 | DelegateContract 선택 기준 + Revoke 패턴 audit-grade로 정리 | HIGH | 실거래 (testnet 이상) 진입 전 | `docs/security/eip-7702-delegate-policy.md` |
+| B6 | **Auto-claim delegate 컨트랙트** — 특정 사용자에 대해 ONLY `redeemPositions` 허용하는 최소 delegate. 다른 function selector 없음, audit-grade. + backend scheduler가 resolved 마켓 watch | HIGH | S7 mid-week (S7 AA wallet 구현 후) | `packages/contracts/src/AutoClaimDelegate.sol` + `packages/api`의 scheduler 모듈 |
+| B7 | **Paymaster spend tracker** — per-wallet 카운터, 첫 N=5 거래만 후원, N+1번째부터 중단. 저장: off-chain DB vs on-chain mapping 결정 | MEDIUM | S8 시작 시 | 결정 후 — `packages/api` 또는 `packages/contracts/src/PaymasterSpendCap.sol` |
 
 **연결되는 본문 섹션**
 

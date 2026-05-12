@@ -111,3 +111,36 @@ This file records each day's work in KST.
 - **S2.1 milestone 마무리**: CTF mint → split → merge → redeem Foundry 테스트 작성 → 통과 확인. 동시에 research note §7의 open questions 5개 (loser redeem 동작, post-resolve split 가능성, 재진입 표면, 가스 비용, questionId 컨벤션)에 명시적 assertion으로 답변.
 - **S2.1 review 후 S2.2 진입**: Polymarket CTF Exchange import (또는 vendor as submodule) + Gnosis CTF 배포 + 컨트랙트들이 anvil에서 함께 동작하는지 검증.
 - 운영자 prior CTF Exchange 작업물 (nostra-contracts)을 reference로 활용 가능 — 같은 패턴 한 번 한 경험이 있어 학습/구현 시간 단축 기대.
+
+## 2026-05-12 (KST)
+
+### Todo
+- [x] §1.4 S7 row에 Auto-claim delegate + scheduler 추가, 기존 batch tx PoC를 "One-click betting (production)"으로 reframe
+- [x] §1.4 S8 row의 Paymaster를 "Gasless onboarding (production)"으로 reframe + spend tracker deliverable 추가
+- [x] §2.2.8에 "EIP-7702-enabled features (S7~S8)" sub-section 추가, 3 feature 명시
+- [x] §11.4에 B6 (Auto-claim delegate, HIGH, S7 mid-week) + B7 (Paymaster spend tracker, MEDIUM, S8 시작) 추가
+- [ ] (내일로 이월) S2.1b — Foundry CTF cycle 테스트 작성 + research note §7의 open questions 5개에 답변
+
+### Achievement
+- **EIP-7702 사용자 대면 feature 3개를 plan에 격상** — research/PoC 항목으로만 트래킹되던 EIP-7702가 이제 §1.4 / §2.2.8 / §11.4 세 곳에 명시적으로 등장:
+  - **One-click betting** (S7) — `approve(USDC)` + `fillOrder` 1 서명. 기존 "배치 tx PoC"를 production track으로 reframe.
+  - **Auto-claim** (S7, 신규) — backend scheduler가 resolved 마켓의 `redeemPositions`를 자동 호출. 사용자 EOA에 ONLY `redeemPositions` 허용하는 audit-grade 최소 delegate 사용.
+  - **Gasless onboarding** (S8) — Paymaster가 신규 지갑의 첫 N=5 거래 후원. Spend tracker로 N+1번째부터 후원 중단.
+- 8개 후보 feature 중 3개를 product story 일관성과 implementation 비용 기준으로 선별 (one-click + auto-claim + gasless가 같은 EIP-7702 delegation primitive 공유; (4) 시간 한정 세션 / (6) stop-loss / (7) social recovery / (8) 구독 LP는 의도적 제외 — 각각 audit 표면 확장 + UI 작업 추가로 v2 scope 초과).
+
+### Post Mortem
+- **잘된 점**: feature 추가 결정을 "8개 survey → 3개 추천 → 사용자 승인 → 적용" 단계로 분리. 한 번에 모든 feature 던지지 않고 사용자가 trade-off (audit 표면 vs feature 수)를 명시적으로 의사결정. 추가된 항목들이 §1.4 (when), §2.2.8 (what), §11.4 (how to track) 세 섹션에 cross-reference로 묶여 plan 일관성 유지. "체크리스트에 한 줄 묻히는" 패턴을 피함.
+- **개선점**: §11.x 액션 항목과 §1.4 주간 deliverable의 자동 동기화 패턴이 아직 없음. 다음 plan 변경 (예: B6/B7 추가)에서도 §1.4 cross-reference를 수동으로 챙겨야 함. 향후 `make plan-check` 같은 lint 스크립트로 §11.x 항목이 §1.4 어딘가에서 referenced되는지 자동 검증하면 좋겠음 (지금은 우선순위 낮음).
+
+### Next Task
+- **내일 (2026-05-13) — S2.1b 본격 진입**:
+  1. **Foundry 테스트 작성** — `packages/contracts/test/CTFCycle.t.sol`. Gnosis CTF (`gnosis/conditional-tokens-contracts`)를 git submodule로 vendor. 배포 → split → (시뮬레이트 거래) → merge → reportPayouts → redeem 한 사이클을 anvil에서 통과.
+  2. **Research note §7의 open questions 5개에 명시적 assertion으로 답변**:
+     - Q1: Loser `redeemPositions` 동작 — revert 없이 0 반환 검증
+     - Q2: Post-resolve `splitPosition` 가능성 — resolve 후 split 시도, revert 여부 확인
+     - Q3: 재진입 surface — `splitPosition`/`mergePositions`의 ERC-1155 hook (`onERC1155Received`) 분석 + 보호 수단 검토
+     - Q4: 가스 비용 — `splitPosition` vs 직접 `safeTransferFrom` 비교 (`forge snapshot`으로)
+     - Q5: `questionId` 컨벤션 — `keccak256(질문 텍스트)` vs UMA 호환 형식. S6 oracle 전환 시 마이그레이션 비용 고려해서 결정 + research note에 적용
+  3. 발견 사항을 research note에 in-line 답변으로 추가 (§7 각 question 아래 "검증 결과:" 줄 추가)
+- **S2.1b 완료 후**: S2.2 (Polymarket CTF Exchange import + Gnosis CTF 배포 + 컨트랙트 통합 검증) 진입
+- 참고: 운영자 prior `nostra-contracts` 작업이 같은 패턴 한 번 한 경험이라 §7 답변 + 테스트 작성 가속 가능
