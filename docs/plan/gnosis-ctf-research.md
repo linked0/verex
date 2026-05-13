@@ -185,15 +185,49 @@ For our v2 backbone, both layers are **deployed but unmodified** in S2. The only
 - **Collateral**: USDC mock token (S2) → real USDC on testnet/mainnet later
 - **Operator/admin** of Polymarket Exchange: us
 
-## 7. Open Questions (verify by testing in S2.1 milestone)
+## 7. Open Questions
 
-These are things the docs don't make 100% explicit; the Foundry test should resolve them:
+Things the docs don't make 100% explicit. Each entry is **question + verification approach + (provisional answer where source-readable)**. Items whose answers are still TBD will be confirmed by the S2.1 Foundry test or by deferred work in a later step.
 
-1. **Loser redeem behavior** — does `redeemPositions` revert or return 0 for an `indexSet` with no winning tokens? (Source skim says it pays the proportional amount, which is 0 for a losing slot — but we should confirm with a test.)
-2. **Splitting after resolution** — can you call `splitPosition` after the condition is resolved? (Probably yes — useful for late-arriving collateral providers — but should test.)
-3. **Reentrancy surface** — `splitPosition` / `mergePositions` call `safeTransferFrom` (ERC-1155 hook) which can trigger receiver callbacks. Anything we need to guard against in our integration code?
-4. **Gas cost of `splitPosition`** vs direct `safeTransferFrom` — if the exchange's settlement path forces a split, does that add meaningful cost?
-5. **Question ID convention** — keccak256 of the human-readable question text? Or use UMA's question ID format if we plan to switch oracles in S6? (Pick a convention now to avoid migration later.)
+1. **Loser redeem behavior** — does `redeemPositions` revert or return 0 for an `indexSet` with no winning tokens?
+   - **Provisional answer (from source)**: returns 0, no revert. Looking at `ConditionalTokens.sol`, the function computes `payout = (numerator × balance) / denominator` for the requested indexSet. For a losing slot, `numerator = 0`, so `payout = 0`. The user's outcome tokens still get burned (regardless of payout amount). UX-friendly — matches our v1 `claim()` design.
+   - **Verify**: `test_LoserRedeemReturnsZero` in S2.1.
+
+2. **Splitting after resolution** — can you call `splitPosition` after the condition is resolved?
+   - **Provisional answer (from source)**: yes, technically allowed. `splitPosition` only requires the condition to be *prepared*, not unresolved. But economically pointless: you put in 1 USDC → get 1 YES + 1 NO → redeem one for ~1 USDC and the other for 0 (or proportional to numerators). Net zero. No reason to do it on purpose.
+   - **Verify**: `test_SplitAfterResolveAllowed` — confirm no revert. Our SDK wrapper should warn (not block) if called post-resolve.
+
+3. **Reentrancy surface** — `splitPosition` / `mergePositions` and the ERC-1155 receiver hook.
+   - **Provisional answer (from source)**: `splitPosition` does ERC-20 `transferFrom` (no callback) + `_mintBatch` of outcome tokens. `_mintBatch` triggers `onERC1155BatchReceived` on the **caller** if it's a contract. CTF performs state changes *before* the hook fires (correct CEI), so CTF itself isn't reentrancy-vulnerable. The risk is on **our side**: if our caller-contract (MM Agent v1, AA wallet) has logic in its receiver hook, that runs synchronously inside the split call.
+   - **Verify**: `test_SplitFromContract_ReceiverHookFires` — confirm hook is invoked. SDK doc note: if you're calling `splitPosition` *from* a contract, ensure your `onERC1155BatchReceived` is non-trivial-safe.
+
+4. **Gas cost of `splitPosition` vs direct `safeTransferFrom`** — does the exchange's auto-split path add meaningful cost?
+   - **Provisional answer (rough)**: `splitPosition` ≈ 100–150k gas for binary (ERC-20 `transferFrom` + state writes + 2× ERC-1155 mints + receiver acceptance check). Direct ERC-1155 `safeTransferFrom` ≈ 40–60k. So auto-split path is ~2–3× more expensive than a pure transfer between accounts that already hold the right tokens.
+   - **Verify**: `forge snapshot` on both paths in S2.1; record numbers. Informs MM Agent v0/v1 inventory strategy (pre-mint pairs vs split-on-demand).
+
+5. **Question ID convention** — `keccak256(question_text)` vs UMA's format?
+   - **Provisional answer / recommendation**: use **UMA's format from the start** — `keccak256(abi.encode(timestamp, ancillaryData))` (or whichever schema we end up with for the UMA adapter we'll wire in S6). Reason: when S6 swaps the oracle from manual to UMA, our existing conditions stay compatible — migration cost = 0. Keccak of plain text would force re-creating all S2-S5 markets with new IDs at the S6 boundary.
+   - **Verify**: pick the exact UMA adapter schema during S2.1 reading, document chosen format in this doc, and use it consistently from S2.2 onward. No test needed — convention decision.
+
+6. **`prepareCondition` idempotency wrapping pattern** — non-idempotent (reverts on re-call). What's the cleanest SDK wrapper?
+   - **Verification approach**: write a Foundry test that calls `prepareCondition` twice with same args, capture the exact revert message. Decide between (a) wrap-in-try/catch that treats matching revert as success, or (b) off-chain `getOutcomeSlotCount(conditionId) > 0` check before call. (a) is one round-trip; (b) is two but cleaner separation of concerns. Pick during S2.4.
+
+7. **Auto-claim delegate scope** — for the EIP-7702 delegate ([§11.4 B6](./README.md#114-eip-7702-eoa-delegation--phase-3-aa-전략-결정)) that allows ONLY `redeemPositions` for the user's EOA, is whitelisting by **function selector** sufficient, or do we need to validate **arguments**?
+   - **Concretely**: can a malicious caller of the delegate drain other ERC-20 positions in unrelated CTF conditions just by passing different `(collateralToken, conditionId)` args?
+   - **Verification approach**: construct an attack-scenario test where the delegated call tries to redeem from a *different* condition than the user intended. If selector-only whitelisting fails the test, we add per-arg validation.
+   - **Most security-critical of the new questions** — answer materially shapes B6's audit-grade design.
+
+8. **ERC-1155 receiver hook requirements** — do our future contracts (MM Agent v1, AA wallet, Auto-claim delegate) need to implement `onERC1155Received` / `onERC1155BatchReceived`?
+   - **Verification approach**: try calling `splitPosition` from a contract that does NOT implement the receiver — does it revert? Likely yes (per ERC-1155 spec). If so, add receiver implementations to all our contracts that hold outcome tokens.
+
+9. **`redeemPositions` gas — multi-indexSet single call vs separate calls** — for a winner holding both YES and NO (e.g., MM Agent paired-set inventory), is `redeem([1, 2])` cheaper than `redeem([1])` then `redeem([2])`?
+   - **Verification approach**: `forge snapshot` both paths. SDK's `claim()` wrapper should default to whichever is cheaper.
+
+10. **NegRisk Adapter upgrade path** — if we add event grouping later (multiple binary markets as one "World Cup winner" event), what's the migration story?
+    - **Deferred to**: post-S10 design doc. Polymarket's NegRisk Adapter is a separate contract layer that can be added without touching CTF or Exchange. Tracking here so we don't forget when "event-style markets" come up later.
+
+11. **Cross-chain position ID determinism** — does the same `(oracle, questionId, outcomeSlotCount, collateralToken)` produce the same `positionId` on two different chains?
+    - **Deferred to**: S8 (cross-chain participation). Doesn't block any earlier step. If yes, cross-chain UX is much simpler (token IDs are consistent); if no, we need a chain-aware mapping layer.
 
 ## 8. What We Build in S2.2~S2.6 — Mapped to CTF
 
