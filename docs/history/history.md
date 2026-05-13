@@ -180,6 +180,13 @@ This file records each day's work in KST.
 - **개선점**: pragma 충돌 (Polymarket =0.8.15 vs 우리 ^0.8.24)을 처음에 미처 예측 못함. CTFExchange.sol을 import하기 전에 pragma 확인했어야. 그래도 발견 후 fix는 깔끔 (MockUSDC + DeployCTF만 ^0.8.15로, 나머지 contracts는 ^0.8.24 유지). 다음에 다른 third-party 라이브러리 통합 시 pragma 호환성을 첫 검토 항목으로.
 
 ### Next Task
+- **(선행) 오늘 작성한 CTF 관련 코드 직접 분석** — S2.4 진입 전 검토:
+  - `packages/contracts/src/MockUSDC.sol` (80줄) — 6 decimal mock ERC-20, mint open. 왜 OZ ERC20 안 쓰고 자체? (의도: 미니멀, dependency 없음)
+  - `packages/contracts/script/DeployCTF.s.sol` (~70줄) — pragma 협상 (`^0.8.15` vs CTFExchange `=0.8.15`), `vm.parseJsonBytes`로 raw bytecode deploy 패턴, `address(0)` factories 의미
+  - `packages/contracts/test/CTFCycle.t.sol` (~260줄) — 11 테스트 구조, `_deployCTF` helper, `_balance1155` staticcall 패턴, ContractWithReceiver / ContractWithoutReceiver 헬퍼 contracts. 각 테스트가 §7의 어느 question에 대응하는지 확인. 두 wrong provisional 답변이 어떻게 잡혔는지 코드로 트레이스.
+  - `foundry.toml` — `solc` 핀 제거 + `fs_permissions` 추가의 의미.
+  - `remappings.txt` — Polymarket의 lib 구조와 우리 매핑 관계.
+  - 산출물: 본인 머리 속 mental model (별도 doc 안 만들어도 됨; S2.4 진입 시 자신감으로 드러남).
 - **다음 (2026-05-14) — S2.4 시작**: SDK 표면 전환 (`buyYes/buyNo` escrow → `fillOrder/fillOrders` + `signOrder` EIP-712). 결정 사항 다수 — 답변 후 진행:
   1. SDK 함수 명명 (`signOrder` vs `createOrder`+`signOrder`?)
   2. EIP-712 domain 처리 (chain별 cache vs runtime 계산?)
