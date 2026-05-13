@@ -144,3 +144,47 @@ This file records each day's work in KST.
   3. 발견 사항을 research note에 in-line 답변으로 추가 (§7 각 question 아래 "검증 결과:" 줄 추가)
 - **S2.1b 완료 후**: S2.2 (Polymarket CTF Exchange import + Gnosis CTF 배포 + 컨트랙트 통합 검증) 진입
 - 참고: 운영자 prior `nostra-contracts` 작업이 같은 패턴 한 번 한 경험이라 §7 답변 + 테스트 작성 가속 가능
+
+## 2026-05-13 (KST)
+
+### Todo
+- [x] §7 unified list (Q1-Q11 한 리스트로) + Q1-Q4에 provisional 답변 추가 (커밋 `d0add3a`)
+- [x] S2.1 milestone — CTFCycle Foundry 테스트 작성 (11 tests, 28/28 전체 통과) + Polymarket ctf-exchange submodule 통합 (커밋 `6d8d920`)
+- [x] S2.2 setup — `DeployCTF.s.sol`로 anvil에 USDC + ConditionalTokens + CTFExchange 한 번에 배포 성공 (같은 커밋 `6d8d920`)
+- [x] §7 provisional → confirmed 전환 (Q1-Q4 + Q6 + Q8 + Q9 모두 측정값으로 확인; Q7만 S7로 deferred)
+- [x] Oracle 진행 계획 명시화: 단일 "Chainlink + UMA" 항목을 3-stage progression (manual → Chainlink → UMA)으로 분해 (커밋 `fdeece7`)
+- [x] (메타) English 학습 형식 (bilingual + English check + 간단 eval + Today's phrases)을 영구 메모리화 — `~/.claude/projects/-Users-jay-work/memory/feedback_english_learning_format.md` + `~/.claude/CLAUDE.md` 글로벌
+- [ ] (내일로 이월) S2.4 — SDK 표면 전환 (`buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` EIP-712). 디자인 결정 항목 다수 — 사용자 입력 필요
+
+### Achievement
+- **S2.1 milestone (Gnosis CTF research validated by Foundry test)**:
+  - Polymarket의 `ctf-exchange` 저장소를 submodule로 vendor → 그들의 pre-built ConditionalTokens 바이트코드 (Solidity 0.5.x 컴파일된 artifact) + IConditionalTokens 인터페이스 + CTFExchange 소스 한꺼번에 사용 가능
+  - 신규 `test/CTFCycle.t.sol` (11 tests) 가 mint→split→merge→redeem 전체 사이클 + open question에 대한 표적 테스트 실행. 전체 Foundry suite **28/28 통과** (S1: 17 + S2.1: 11)
+  - §7 "provisional answer" 5개를 측정값/테스트로 검증된 "confirmed answer"로 전환:
+    - Q1 ✅ loser redeem returns 0, no revert (UX 친화적)
+    - Q2 ✅ split-after-resolve 허용되지만 의미 없음
+    - Q3 ✅ ERC-1155 receiver hook은 caller 쪽에서 fire; CTF 자체는 CEI-safe
+    - Q4 ✅ 가스 측정: split ~151k (EOA) / ~496k (contract + hook), merge ~191k, redeem ~230-240k. **함의**: MM Agent에서 split-on-demand 대신 complete set pre-mint하면 fill당 ~100k gas 절약
+    - Q6 ✅ 정확한 revert 문자열 캡처: `"condition already prepared"` (SDK 래퍼에서 try/catch로 idempotent 인터페이스 만들기 가능)
+    - Q8 ✅ 컨트랙트 caller는 반드시 `onERC1155BatchReceived` 구현 (안 하면 spec대로 revert)
+    - Q9 ✅ `redeem([1,2])` 통합 호출이 분리 호출 두 개 합보다 **33% 저렴** (54k vs 82k)
+  - 두 provisional 답변이 틀렸음 — 둘 다 테스트 실패로 발견:
+    - Position ID 유도를 직접 keccak으로 했더니 CTHelpers의 EC arithmetic과 안 맞음 → CTF의 `getCollectionId` / `getPositionId` helper 사용으로 수정
+    - CTF (ERC-1155)에 ERC-20 view (`IERC20.balanceOf(address)`) 호출하는 stray 라인 → 제거
+- **S2.2 setup**: `script/DeployCTF.s.sol` 가 anvil에 v2 backbone 한 번에 배포 — MockUSDC (`0x5FbDB23156...`) + ConditionalTokens (`0xe7f1725E77...`, Polymarket의 pre-built 아티팩트에서 raw bytecode로 deploy) + CTFExchange (`0x9fE4673667...`, 소스 컴파일). pragma 협상: CTFExchange가 `=0.8.15` 픽 → MockUSDC와 DeployCTF script도 `^0.8.15`로 (한 컴파일 단위 공유). 다른 컨트랙트들 (`Market.sol`, `MarketFactory.sol` from S1)은 `^0.8.24` 유지. `foundry.toml`에서 solc 핀 제거 → multi-version 자동 선택.
+- **Oracle 3-stage progression 명시화** — 이전 plan은 "Chainlink + UMA" 단일 S6 항목으로 lump했음. 사용자 명시 요청에 따라 **manual (S2~) → Chainlink adapter (S6 first) → UMA adapter (S6 second)** 로 분해. §1.4 S2/S6 row 갱신, §2.2.7 Oracle 섹션을 3-stage 표 + 사용 케이스 + 한계로 재작성, §4 Phase 2 요약 줄도 업데이트. 같은 conditionId는 stage 사이에서 마이그레이션 불가 (oracle 주소가 다르면 conditionId 다름) — 새 마켓이 stage 선택. 신뢰 가정의 점진적 분산 (manual = 단일 운영자 신뢰, Chainlink = 분산 oracle but 숫자만, UMA = 임의 명제 + 분쟁 가능).
+- **English 학습 형식을 영구 메모리화**: 이번 세션에서 확립한 답변 형식 (English check → English answer → divider → Korean answer → Today's phrases + brief eval)을 두 곳에 저장 — `~/.claude/projects/-Users-jay-work/memory/feedback_english_learning_format.md` (프로젝트 범위, 80줄 spec) + `~/.claude/CLAUDE.md` (글로벌, 50줄 leaner). 미래 모든 Claude Code 세션에서 자동 적용. 자세한 결정/구현은 [`2026-05-13-s2-implementation-and-oracle-progression.md`](./2026-05-13-s2-implementation-and-oracle-progression.md) 참고.
+
+### Post Mortem
+- **잘된 점**: Provisional answer + 테스트 패턴이 작동함을 입증 — provisional 답변 두 개가 틀렸고 둘 다 테스트가 잡음. 만약 답변을 "confirmed"로만 적었다면 (테스트 없이) 잘못된 mental model이 SDK 디자인까지 전파됐을 것. "provisional vs confirmed" 라벨 시스템의 실용 가치 입증. 또 사용자가 "researching하는 동안 implement해" 라고 위임했을 때 "stopping rule" 명시 — S2.4 (SDK 디자인은 주관적 결정 다수)는 멈추고, S2.1 milestone + S2.2 mechanical setup만 진행. 자율적 작업의 적절한 경계.
+- **개선점**: pragma 충돌 (Polymarket =0.8.15 vs 우리 ^0.8.24)을 처음에 미처 예측 못함. CTFExchange.sol을 import하기 전에 pragma 확인했어야. 그래도 발견 후 fix는 깔끔 (MockUSDC + DeployCTF만 ^0.8.15로, 나머지 contracts는 ^0.8.24 유지). 다음에 다른 third-party 라이브러리 통합 시 pragma 호환성을 첫 검토 항목으로.
+
+### Next Task
+- **다음 (2026-05-14) — S2.4 시작**: SDK 표면 전환 (`buyYes/buyNo` escrow → `fillOrder/fillOrders` + `signOrder` EIP-712). 결정 사항 다수 — 답변 후 진행:
+  1. SDK 함수 명명 (`signOrder` vs `createOrder`+`signOrder`?)
+  2. EIP-712 domain 처리 (chain별 cache vs runtime 계산?)
+  3. Order struct 직렬화 (Polymarket 타입 그대로 import vs 우리 타입 정의 후 변환?)
+  4. 에러 패턴 (custom Error 타입 vs Result<T,E>?)
+- **그 후 S2.5**: MM Agent v0 (paper-trading minimum maker). §11.4와 연관 — 봇이 maker로서 양방향 quote 유지하는 최소 strategy.
+- **그 후 S2.6**: CLI을 order-based flow로 갱신 (`verex order sign`, `verex order fill`, `verex split`, `verex merge`, `verex redeem` 같은 명령).
+- **S2.4-S2.6 완료 후 S2 milestone 통과**: anvil에서 두 사용자 + MM v0가 양방향 호가, 매수자가 fill, 운영자 manual resolve, winner redeem까지 한 사이클 동작.
