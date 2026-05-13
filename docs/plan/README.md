@@ -49,11 +49,11 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 | Phase · Step | 핵심 산출물 | 마일스톤 | 예상 시간 (AI 포함) |
 |------|------------|----------|--------------------|
 | **Phase 1 — Scaffold** · **S1** ✅ | - [x] `Market` / `MarketFactory` parimutuel scaffold (학습 패스)<br>- [x] SDK 모양 (factory + market client 패턴, ABI sync)<br>- [x] CLI + commander demo<br>- [x] forge-std + foundry tooling | - [x] M1: forge test 17/17<br>- [x] M2: anvil 위 end-to-end CLI demo | ~1일 (실제: 1일 ✅) |
-| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/plan/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] USDC mock collateral (anvil)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지 | 4–6일 |
+| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/plan/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] USDC mock collateral (anvil)<br>- [ ] **Manual oracle (Stage 1 of 3)** — operator EOA가 `prepareCondition(ourEOA, ...)` + `reportPayouts(...)` 직접 호출. Chainlink/UMA 도입 전까지 모든 마켓의 resolve 경로 (§2.2.7)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지<br>- [ ] Manual operator가 마켓을 resolve해서 winner가 redeem | 4–6일 |
 | **Phase 1 — Web MVP** · **S3** | - [ ] Web `/markets` Polymarket-style feed (실 CTF 데이터)<br>- [ ] `/markets/[addr]` order book + buy UI<br>- [ ] `packages/mcp-server` 스캐폴딩 + 2 read tool 구현 (`list_markets`, `get_market`)<br>- [ ] ADR `0001-mcp-server-as-canonical-agent-interface.md` | - [ ] Metamask: order 서명 → fill → position 표시<br>- [ ] 두 지갑 시연 영상 | 2–3일 |
 | **Phase 2 — Infra+Data** · **S4** | - [ ] `packages/api` Fastify (`/markets`, `/orders`, `/positions/:user`)<br>- [ ] Postgres 스키마 (Markets/Orders/Fills/Positions)<br>- [ ] 로컬 docker-compose | - [ ] API smoke 테스트 통과 | 1–2일 |
 | **Phase 2 — Infra+Data** · **S5** | - [ ] Indexer (`OrderFilled`, `PositionsMerged`, `PayoutRedemption` → Postgres)<br>- [ ] Pub/Sub 로컬 에뮬레이터<br>- [ ] genesis 백필 | - [ ] 체인 ↔ DB 동기화 검증 | 2–3일 |
-| **Phase 2 — Infra+Data** · **S6** | - [ ] Chainlink price feed (시간 기반 resolve용)<br>- [ ] **UMA optimistic oracle 통합** (owner manual resolve 대체)<br>- [ ] MM Agent v1 (실거래 + 리스크 한도 + 서킷 브레이커) | - [ ] 적어도 한 마켓을 UMA로 resolve<br>- [ ] MM v1 paper → live 전환 체크리스트 통과 | 3–5일 |
+| **Phase 2 — Infra+Data** · **S6** | - [ ] **Chainlink adapter (Stage 2 of 3)** — `ChainlinkOracleAdapter.sol` 컨트랙트가 Chainlink price feed 읽고 endTime 후 `reportPayouts` 자동 호출. 숫자 기반 마켓 ("ETH > $4000 by date X") 용 (§2.2.7)<br>- [ ] **UMA adapter (Stage 3 of 3)** — `UMAOptimisticOracleAdapter.sol` 컨트랙트가 UMA `OptimisticOracleV2.requestPrice` 통합. 이벤트/뉴스 마켓 ("Did Brazil win?") 용 — Chainlink가 답할 수 없는 주관적 질문 (§2.2.7)<br>- [ ] MM Agent v1 (실거래 + 리스크 한도 + 서킷 브레이커) | - [ ] 적어도 한 마켓을 Chainlink adapter로 resolve<br>- [ ] 적어도 한 마켓을 UMA adapter로 resolve<br>- [ ] MM v1 paper → live 전환 체크리스트 통과 | 3–5일 |
 | **Phase 3 — Advanced** · **S7** | - [ ] **AA 전략 결정 — ERC-4337 / EIP-7702 / hybrid (§11.4 B2)** → ADR `0002-aa-strategy.md`<br>- [ ] AA wallet 구현 + Web AA 통합<br>- [ ] **session key 권한 모델 확정** (§11.1 미결 1번)<br>- [ ] **One-click betting (production)** — `approve(USDC)` + `fillOrder` 1 서명 (§11.4 B3)<br>- [ ] **Auto-claim delegate 컨트랙트 + scheduler** (§11.4 B6) — 사용자 EOA에 대해 ONLY `redeemPositions` 허용하는 최소 delegate; backend scheduler가 resolved 마켓 watch하고 자동 트리거 | - [ ] 사용자가 AA wallet으로 베팅<br>- [ ] 1 서명으로 approve+fill 동작<br>- [ ] resolved 마켓의 winner가 수동 호출 없이 USDC 수령 | 3–5일 |
 | **Phase 3 — Advanced** · **S8** | - [ ] CCIP/LayerZero 크로스체인 참여<br>- [ ] MCP write-path tool 활성화 (`buy_yes/no`, `claim` — session key 경유)<br>- [ ] **Gasless onboarding (production)** (§11.4 B4) — Paymaster가 신규 지갑의 첫 N=5 거래 후원<br>- [ ] **Paymaster spend tracker** (§11.4 B7) — per-wallet 카운터 (off-chain DB 또는 on-chain mapping; S8 시작 시 결정) | - [ ] 다른 체인에서 베팅<br>- [ ] MCP로 베팅 시연<br>- [ ] 신규 유저가 ETH 0으로 베팅 완주<br>- [ ] N+1번째 거래에서 후원 중단 동작 확인 | 3–5일 |
 | **Phase 3 — Advanced** · **S9** | - [ ] Stripe checkout → backend → mock USDC 지급<br>- [ ] GCP Cloud Run 배포 (API + MM Agent)<br>- [ ] GitHub Actions CI/CD | - [ ] Stripe 결제 → 베팅 가능<br>- [ ] staging 환경 가동 | 2–3일 |
@@ -165,10 +165,19 @@ UI 레퍼런스 (한국어 로컬라이즈, 2026-05-07):
 - buy/sell
 - position 확인
 
-#### 2.2.7 Oracle
+#### 2.2.7 Oracle (3-stage progression)
 
-- Chainlink Price Feed
-- 사용 예: ETH 가격 기준 이벤트
+마켓 resolve를 누가/어떻게 결정하는가에 대한 단계적 도입. **각 stage가 새로운 oracle 컨트랙트 주소**를 가지므로 마켓 생성 시 쓸 oracle을 선택 (`prepareCondition(oracleAddr, ...)`). 같은 마켓의 oracle을 사후 변경할 수 없음 — 새 마켓은 새 oracle 사용.
+
+| Stage | 시점 | Oracle | 사용 케이스 | 한계 |
+|-------|------|--------|-----------|------|
+| **1. Manual** | S2~ | 운영자 EOA | 모든 종류 (수동) | 운영자가 SPOF (§11.3 A5). 빠르지만 신뢰 의존 |
+| **2. Chainlink adapter** | S6 first | `ChainlinkOracleAdapter` 컨트랙트 | 숫자 마켓 — 가격, 통계 등 *"ETH > $4000 by 2027-01-01"* | Chainlink가 인덱싱하는 수치만. 주관적 질문 불가 |
+| **3. UMA adapter** | S6 second | `UMAOptimisticOracleAdapter` 컨트랙트 | 이벤트/뉴스 — *"Did Brazil win the World Cup?"* | 응답 지연 (분쟁 윈도우). 분쟁 시 escalation 비용 |
+
+**채택 순서가 manual → Chainlink → UMA인 이유**: 신뢰 가정의 점진적 분산. Manual은 단일 운영자 전제 (가장 빠른 출시); Chainlink는 분산된 oracle 네트워크지만 데이터 종류 제한; UMA는 분쟁 가능 + 사람 attestation으로 임의의 명제도 다룸 (가장 강한 보증, 가장 큰 시스템 복잡도).
+
+**같은 종류 마켓에 여러 oracle 가능**: "ETH > $4000?" 마켓을 stage 1엔 manual로 한 번, stage 2엔 Chainlink로 한 번 만들 수 있음 (서로 다른 conditionId). UI가 어느 마켓이 어느 oracle인지 표시.
 
 #### 2.2.8 Account Abstraction
 
@@ -272,7 +281,7 @@ GitHub Actions.
 
 - Backend (Fastify) + Postgres
 - Indexer (CTF 이벤트 → DB)
-- Oracle — Chainlink price feed + **UMA optimistic oracle** (S6, owner manual resolve 대체)
+- Oracle — 3-stage progression (manual S2 → Chainlink adapter S6 → UMA adapter S6 후반) (§2.2.7)
 - **MM Agent v1** (실거래 + 리스크 한도 + 서킷 브레이커, S6)
 
 ### Phase 3: Advanced (Step 7~9)
