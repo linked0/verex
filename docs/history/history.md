@@ -195,3 +195,4 @@ This file records each day's work in KST.
 - **그 후 S2.5**: MM Agent v0 (paper-trading minimum maker). §11.4와 연관 — 봇이 maker로서 양방향 quote 유지하는 최소 strategy.
 - **그 후 S2.6**: CLI을 order-based flow로 갱신 (`verex order sign`, `verex order fill`, `verex split`, `verex merge`, `verex redeem` 같은 명령).
 - **S2.4-S2.6 완료 후 S2 milestone 통과**: anvil에서 두 사용자 + MM v0가 양방향 호가, 매수자가 fill, 운영자 manual resolve, winner redeem까지 한 사이클 동작.
+- **(마무리) `ctf-exchange` 브랜치를 `main`으로 머지** — 선행 조건: ① 위 코드 분석 완료, ② `forge test` 28/28 여전히 pass (regression 없음). PR 또는 직접 fast-forward 머지. 머지 후 브랜치 삭제 또는 보존은 별도 결정 (보존 추천 — S2 작업 단위로 history 추적 가능).
