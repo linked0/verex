@@ -1,0 +1,4 @@
+forge-std/=lib/forge-std/src/
+ctf-exchange/=lib/ctf-exchange/src/
+openzeppelin-contracts/=lib/ctf-exchange/lib/openzeppelin-contracts/contracts/
+solmate/=lib/ctf-exchange/lib/solmate/src/

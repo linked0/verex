@@ -2,9 +2,20 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-solc = "0.8.24"
+# No `solc` pin — foundry auto-picks per file. Our contracts use
+# ^0.8.24; Polymarket's CTFExchange uses 0.8.15 (exact). Foundry
+# compiles each with the right version.
 optimizer = true
 optimizer_runs = 200
+
+# Allow tests to read pre-compiled CTF bytecode artifact (from Polymarket
+# ctf-exchange submodule) and our own out/ folder.
+fs_permissions = [
+    { access = "read", path = "lib/ctf-exchange/artifacts" },
+    { access = "read", path = "out" },
+    { access = "read-write", path = "broadcast" },
+    { access = "read-write", path = "cache" },
+]
 
 [profile.default.fuzz]
 runs = 256
