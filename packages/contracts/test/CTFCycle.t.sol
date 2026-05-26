@@ -8,7 +8,7 @@ import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {MockUSDC} from "../src/MockUSDC.sol";
 
 /// @notice S2.1 milestone test — answers §7 open questions in
-///         docs/plan/gnosis-ctf-research.md by exercising CTF directly:
+///         docs/analysis/gnosis-ctf-research.md by exercising CTF directly:
 ///           - Q1: loser redeem returns 0 (no revert)
 ///           - Q2: split after resolution allowed
 ///           - Q3: ERC-1155 receiver hook fires on caller-side
