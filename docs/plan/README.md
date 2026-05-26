@@ -49,7 +49,7 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 | Phase · Step | 핵심 산출물 | 마일스톤 | 예상 시간 (AI 포함) |
 |------|------------|----------|--------------------|
 | **Phase 1 — Scaffold** · **S1** ✅ | - [x] `Market` / `MarketFactory` parimutuel scaffold (학습 패스)<br>- [x] SDK 모양 (factory + market client 패턴, ABI sync)<br>- [x] CLI + commander demo<br>- [x] forge-std + foundry tooling | - [x] M1: forge test 17/17<br>- [x] M2: anvil 위 end-to-end CLI demo | ~1일 (실제: 1일 ✅) |
-| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/plan/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] USDC mock collateral (anvil)<br>- [ ] **Manual oracle (Stage 1 of 3)** — operator EOA가 `prepareCondition(ourEOA, ...)` + `reportPayouts(...)` 직접 호출. Chainlink/UMA 도입 전까지 모든 마켓의 resolve 경로 (§2.2.7)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지<br>- [ ] Manual operator가 마켓을 resolve해서 winner가 redeem | 4–6일 |
+| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/analysis/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] USDC mock collateral (anvil)<br>- [ ] **Manual oracle (Stage 1 of 3)** — operator EOA가 `prepareCondition(ourEOA, ...)` + `reportPayouts(...)` 직접 호출. Chainlink/UMA 도입 전까지 모든 마켓의 resolve 경로 (§2.2.7)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지<br>- [ ] Manual operator가 마켓을 resolve해서 winner가 redeem | 4–6일 |
 | **Phase 1 — Web MVP** · **S3** | - [ ] Web `/markets` Polymarket-style feed (실 CTF 데이터)<br>- [ ] `/markets/[addr]` order book + buy UI<br>- [ ] `packages/mcp-server` 스캐폴딩 + 2 read tool 구현 (`list_markets`, `get_market`)<br>- [ ] ADR `0001-mcp-server-as-canonical-agent-interface.md` | - [ ] Metamask: order 서명 → fill → position 표시<br>- [ ] 두 지갑 시연 영상 | 2–3일 |
 | **Phase 2 — Infra+Data** · **S4** | - [ ] `packages/api` Fastify (`/markets`, `/orders`, `/positions/:user`)<br>- [ ] Postgres 스키마 (Markets/Orders/Fills/Positions)<br>- [ ] 로컬 docker-compose | - [ ] API smoke 테스트 통과 | 1–2일 |
 | **Phase 2 — Infra+Data** · **S5** | - [ ] Indexer (`OrderFilled`, `PositionsMerged`, `PayoutRedemption` → Postgres)<br>- [ ] Pub/Sub 로컬 에뮬레이터<br>- [ ] genesis 백필 | - [ ] 체인 ↔ DB 동기화 검증 | 2–3일 |
@@ -309,7 +309,7 @@ GitHub Actions.
 - CLI 구조 (commander 기반) — 명령 이름이 `create/buy/...` → `create/fill/...`로 변경되지만 패키지 구조는 동일
 - Foundry 테스트 패턴 — CTF 컨트랙트에 맞춰 테스트 다시 작성
 
-S1 코드 자체와 v1 보안 audit 발견은 **Phase 1 S1 implementation note** ([2026-05-07-phase1-w1-implementation.md](../history/2026-05-07-phase1-w1-implementation.md)) 와 **v1 Security Audit** ([2026-05-08-v1-security-audit.md](../history/2026-05-08-v1-security-audit.md)) 에서 historical record로 추적됨.
+S1 코드 자체와 v1 보안 audit 발견은 **Phase 1 S1 implementation note** ([2026-05-07-phase1-w1-implementation.md](../history/2026-05-07-phase1-w1-implementation.md)) 와 **v1 Security Audit** ([2026-05-08-v1-security-audit.md](../analysis/2026-05-08-v1-security-audit.md)) 에서 historical record로 추적됨.
 
 ---
 
@@ -522,7 +522,7 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 
 ### 11.3 v1 Security Audit — 액션 항목
 
-> 셀프 리뷰 산출물: [`docs/history/2026-05-08-v1-security-audit.md`](../history/2026-05-08-v1-security-audit.md). 본 절은 그 audit에서 추적이 필요한 액션 항목만 모음.
+> 셀프 리뷰 산출물: [`docs/analysis/2026-05-08-v1-security-audit.md`](../analysis/2026-05-08-v1-security-audit.md). 본 절은 그 audit에서 추적이 필요한 액션 항목만 모음.
 
 **리뷰 결과 요약**: HIGH 0 / MEDIUM 1 / LOW 2 / INFO 6. v1 발견의 ~70%는 v2 (Phase 2 S6 — CTF + UMA) 도입으로 자동 해소.
 
@@ -538,11 +538,11 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 
 **원칙**: v1 자체 hardening은 더 이상 우선순위 아님 (S1 코드는 history). A1/A2는 S2 작업 + testnet 진입 시점에 함께 처리, A3/A4는 v1-only라 obsolete, A5는 S6 UMA가 해소.
 
-**상세** (severity 판단 근거, mitigation 분석, v2 매핑): [audit 문서 §2 ~ §5](../history/2026-05-08-v1-security-audit.md) 참고.
+**상세** (severity 판단 근거, mitigation 분석, v2 매핑): [audit 문서 §2 ~ §5](../analysis/2026-05-08-v1-security-audit.md) 참고.
 
 ### 11.4 EIP-7702 (EOA delegation) — Phase 3 AA 전략 결정
 
-> 풀 리서치 노트: [`docs/plan/eip-7702-research.md`](./eip-7702-research.md). 본 절은 그 노트에서 추적이 필요한 결정·액션만 모음.
+> 풀 리서치 노트: [`docs/analysis/eip-7702-research.md`](../analysis/eip-7702-research.md). 본 절은 그 노트에서 추적이 필요한 결정·액션만 모음.
 
 **한 줄 컨텍스트**: EIP-7702는 EOA가 특정 트랜잭션에서 임시로 컨트랙트 코드를 빌려 실행할 수 있게 하는 표준. 별도 스마트 계정 배포 없이 배치 실행 / 가스 스폰서십 / 소셜 복구 같은 AA 핵심 기능을 EOA에서 직접 제공. ERC-4337 (현 §2.2.8 후보)과 경합·보완 관계.
 
@@ -550,7 +550,7 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 
 | # | 항목 | Priority | 트리거 시점 | 산출물 위치 |
 |---|------|----------|------------|------------|
-| B1 | 대상 체인의 EIP-7702 지원 상태 검증 (활성화 여부, RPC 호환성, viem 버전 요구사항). 대상 체인은 §2.2.1/§3에서 정해지는 배포 체인 | HIGH | Phase 3 S7 진입 전 | `docs/plan/eip-7702-research.md` 갱신 |
+| B1 | 대상 체인의 EIP-7702 지원 상태 검증 (활성화 여부, RPC 호환성, viem 버전 요구사항). 대상 체인은 §2.2.1/§3에서 정해지는 배포 체인 | HIGH | Phase 3 S7 진입 전 | `docs/analysis/eip-7702-research.md` 갱신 |
 | B2 | AA 전략 결정: **(a) ERC-4337 only / (b) EIP-7702 only / (c) hybrid** | HIGH | S7 시작 시 | §2.2.8 본문 갱신 + ADR `docs/history/0002-aa-strategy.md` |
 | B3 | 배치 트랜잭션 PoC — USDC `approve` + `createPosition` 1 서명 | MEDIUM | S7 PoC 단계 | `packages/contracts/src/BatchExecutor.sol` (또는 외부 audited contract 채택) |
 | B4 | Paymaster 가스 스폰서십 PoC — 신규 유저 첫 베팅 무가스 | MEDIUM | S7~S8 | `packages/api` 또는 외부 paymaster 서비스 통합 |
