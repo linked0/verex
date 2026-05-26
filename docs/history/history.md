@@ -196,3 +196,39 @@ This file records each day's work in KST.
 - **그 후 S2.6**: CLI을 order-based flow로 갱신 (`verex order sign`, `verex order fill`, `verex split`, `verex merge`, `verex redeem` 같은 명령).
 - **S2.4-S2.6 완료 후 S2 milestone 통과**: anvil에서 두 사용자 + MM v0가 양방향 호가, 매수자가 fill, 운영자 manual resolve, winner redeem까지 한 사이클 동작.
 - **(마무리) `ctf-exchange` 브랜치를 `main`으로 머지** — 선행 조건: ① 위 코드 분석 완료, ② `forge test` 28/28 여전히 pass (regression 없음). PR 또는 직접 fast-forward 머지. 머지 후 브랜치 삭제 또는 보존은 별도 결정 (보존 추천 — S2 작업 단위로 history 추적 가능).
+
+## 2026-05-26 (KST)
+
+### Todo
+- [x] `docs/analysis/` 폴더 신설 + `gnosis-ctf-research.md`, `eip-7702-research.md`, `2026-05-08-v1-security-audit.md` 이동 + `docs/plan/README.md` live 링크 갱신
+- [x] S2 keystone — CTFExchange `fillOrder` end-to-end Foundry 테스트 (`test/CTFFillOrder.t.sol`, 6 tests, 34/34 전체 통과)
+- [x] S2 manual oracle (Stage 1) — `script/DemoMarket.s.sol` (setup + resolve 두 entrypoint)
+- [x] history doc §4 "검증 방법 (How to verify)" — Foundry test 경로 + anvil 라이브 7-step (DeployCTF → DemoMarket setup → 5 `cast` sanity check → resolve → 3 payout 확인 + 옵션 redeem)
+- [x] plan §1.5 신설 — `S2.x` sub-step 라벨 컨벤션 명문화 (라벨 정의가 history doc에만 흩어져 있던 문제 해결; `grep "S2.5" docs/plan/README.md`으로 찾을 수 있게)
+- [ ] (deferred) S2.4 — SDK 표면 전환 (`signOrder` EIP-712 TS 구현 + `fillOrder` helper)
+- [ ] (deferred) S2.5 — MM Agent v0 (paper-trading)
+- [ ] (deferred) S2.6 — CLI을 order-based flow로 갱신
+
+### Achievement
+- **S2 keystone milestone 달성 (CTF order fill end-to-end, Foundry-level)** — `test/CTFFillOrder.t.sol` (6 tests, ~270줄) 가 Polymarket CTFExchange의 `fillOrder` 전체 경로를 검증: EIP-712 maker order 서명 (`exchange.hashOrder()` + `vm.sign`) → operator가 `fillOrder` 호출 → USDC + CT (ERC-1155) 정산 검증. 전체 suite **34/34 pass** (이전 28 + 신규 6). 자세한 내용은 [`2026-05-26-s2-fillorder-e2e.md`](./2026-05-26-s2-fillorder-e2e.md) 참고.
+  - happy path: BUY 100 YES @ 0.60 = 60 USDC, full-fill
+  - partial fill: 같은 order 두 번에 나눠 fill (30+30)
+  - revert paths: bad signature / expired / non-operator
+  - gas snapshot: `fillOrder` BUY full-fill = **~110k gas** — MM/SDK capacity planning baseline
+- **`script/DemoMarket.s.sol` 추가** — anvil 위 데모 마켓 lifecycle 자동화. `setup()` (prepareCondition + registerToken + addOperator + 인벤토리 prefund) + `resolve(yesPayout, noPayout)` (operator=oracle이 reportPayouts) 두 entrypoint를 `--sig`로 분리 호출. **manual oracle (Stage 1)** 구현 = operator EOA 자신이 oracle 역할 (plan §2.2.7의 3-stage 진행 첫 단계). 컨트랙트 코드 추가 없음 — CTF의 `prepareCondition(oracle, ...)`이 oracle을 임의 EOA로 받기 때문에 script가 곧 구현체.
+- **pragma 0.8.15 패턴 검증** — `CTFCycle.t.sol` (^0.8.24, raw bytecode로 CTF deploy)과 별도로 신규 `CTFFillOrder.t.sol`을 ^0.8.15 컴파일 단위로 분리해서 `CTFExchange`를 concretely import. surgical change — 기존 테스트 안 건드림.
+- **EIP-712 서명 패턴 발견** — `exchange.hashOrder(order)` public view를 호출해서 digest 받고 `vm.sign`하면 Polymarket pragma/struct가 바뀌어도 테스트 안 깨짐. **단, off-chain SDK (TS)에서는 같은 shortcut 못 씀** — S2.4의 핵심 risk로 history doc 명시.
+- **docs 재구성**: `docs/plan/`과 `docs/history/`에 흩어진 분석 문서를 `docs/analysis/` 하나로. `gnosis-ctf-research.md`, `eip-7702-research.md`, `2026-05-08-v1-security-audit.md` 세 개. live 참조 (`docs/plan/README.md` 6곳, `test/CTFCycle.t.sol` 1곳)는 모두 새 경로로 업데이트. `docs/history/history.md`의 stale 링크 1개 (`2026-05-08-v1-security-audit.md` 참조)는 의도적으로 그대로 — 역사 기록은 작성 시점의 상태를 보존.
+- **history doc §4 "검증 방법 (How to verify)" 추가** — 사용자가 직접 검증할 수 있는 2-경로 가이드. (A) `forge test` 30초 smoke check, (B) anvil 7-step 라이브 데모 (anvil 띄움 → DeployCTF broadcast → env export → DemoMarket `setup()` → 5개 `cast` sanity check → `resolve(1,0)` → 3개 payout `cast` 확인 + 옵션 step 7 `cast send redeemPositions`로 1000 USDC 회수 검증). §4.3에 **검증 안 되는 것** 명시 (off-chain TS 서명, CLI, MM agent, `matchOrders` 경로) — partial confidence 정직하게 표시.
+- **plan §1.5 — Sub-step 라벨 (S2.x 컨벤션) 신설** — 사용자가 "S2.5 어디 정의됨?" 질문 → 라벨이 history doc에만 흩어져 있고 plan에 first-class entity 아니라는 것 발견 → plan에 한 곳에 모음. S2.1~S2.6 매핑 표 + 운영 규칙 (첫 사용 시 정의 / 번호 재사용 금지 / 다른 step도 같은 컨벤션 자유 도입). 이제 `grep "S2.5" docs/plan/README.md`로 찾을 수 있음.
+
+### Post Mortem
+- **잘된 점**: 사용자가 "S2 전체를 한 번에 해" 요청에 대해 "S2는 4-6일 작업"이라는 실측에 근거해서 keystone slice (CTFExchange `fillOrder` e2e + manual oracle script) 하나만 surgical하게 닫고 나머지 (SDK / CLI / MM)는 explicit deferral로 history doc에 enumerate. 한 세션에서 거대한 unreviewable diff 생산하지 않음 — coding-principles의 "If you write 200 lines and it could be 50, rewrite it" + "Push back when warranted" 적용. EIP-712 서명을 `exchange.hashOrder()` shortcut으로 풀어서 테스트 견고하게 — Polymarket이 향후 pragma 바꿔도 안 깨짐. `_sign` helper 한 줄짜리 패턴이 6 테스트 모두에 재사용됨.
+- **개선점**: `DemoMarket.s.sol`를 컴파일 통과만 확인하고 실제 anvil broadcast 검증은 하지 않음 — 두 단계 dependency (anvil + DeployCTF) 셋업 비용이 컸음. 회귀가 있다면 다음 세션 1순위로 픽스 필요. 또 `matchOrders` 경로는 이 슬라이스에서 다루지 않음 — MM Agent v0가 `fillOrder` model이냐 `matchOrders` model이냐가 S2.5 첫 결정인데, `fillOrder` 한쪽만 테스트 커버리지 있어서 결정 시 reference 부족할 수 있음. S2.5 진입 전에 `matchOrders` 테스트 추가가 prudent.
+
+### Next Task
+- **다음 세션 1순위 — S2.4 시작 (SDK 표면 전환)**: TS에서 EIP-712 typed-data 직렬화 + `signOrder` + `fillOrder` helper. 진입 전 결정 항목 4개 (이전 2026-05-13 Next Task에 enumerated): SDK 함수 명명 / EIP-712 domain 처리 / Order struct 직렬화 / 에러 패턴. **추가**: 오늘 history doc §5의 Q-S2.3.1 (hybrid `hashOrder` RPC vs 순수 off-chain EIP-712) — 순수 off-chain 추천.
+- **그 후 — `matchOrders` 테스트 추가**: MM Agent v0 (S2.5) 결정 입력으로 필요. MINT (두 BUY 매칭) / MERGE (두 SELL 매칭) / COMPLEMENTARY (BUY vs SELL) 세 분기 모두 커버.
+- **S2.5 — MM Agent v0**: 새 패키지 (`packages/mm-agent`?). `fillOrder` (inventory model) vs `matchOrders` (matcher model) 선택. Q-S2.3.2 추천: `matchOrders`.
+- **S2.6 — CLI 재작성**: SDK 안정화 후 mechanical wrapper. `verex order sign/fill`, `verex split/merge/redeem`.
+- **(검증 항목) `DemoMarket.s.sol` 라이브 anvil 실행** — 이번 세션 deferred. 사용자가 직접 anvil + DeployCTF + DemoMarket setup + resolve 사이클 한 번 돌려보고 회귀 확인.

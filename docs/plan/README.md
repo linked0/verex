@@ -69,6 +69,26 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 - S1은 학습 패스 (parimutuel scaffold). 메인 백본은 **S2부터 CTF Exchange (v2)**. S1 코드는 `planning` 브랜치 history에 보존 — SDK/CLI 모양은 S2에 그대로 carry over.
 - 상한선 의미: 어떤 step이 예상 시간 상한을 넘기면 일단 멈추고 (a) 범위를 줄여 미니멀하게 닫거나 (b) 막힌 부분을 다음 step으로 분리. 무한 확장 금지.
 
+### 1.5 Sub-step 라벨 (S2.x 컨벤션)
+
+§1.4 표는 step 단위 (`S1`..`S10`)만 정의함. 한 step (특히 S2) 안의 작업을 시간 순서대로 나눠 추적할 때는 history doc에서 `S<step>.<n>` 형식의 sub-step 라벨을 비공식 컨벤션으로 사용. **plan에 first-class entity는 아니고, 작업 단위 cross-reference 용**.
+
+현재 사용 중인 S2 sub-step 매핑 (S2 row의 deliverable 불릿을 시간 순서로 분해):
+
+| 라벨 | 작업 단위 | 첫 등장 |
+|---|---|---|
+| S2.1 | Gnosis CTF 분석 (research note + Foundry cycle 테스트) | [history.md 2026-05-11](../history/history.md) |
+| S2.2 | Polymarket CTF Exchange import + Gnosis CTF deploy | [history.md 2026-05-11](../history/history.md) |
+| S2.3 | CTF order fill end-to-end (Foundry-level + anvil 데모 스크립트) | [history.md 2026-05-26](../history/history.md) |
+| S2.4 | SDK 표면 전환 — `buyYes/buyNo` → `fillOrder`/`signOrder` (EIP-712) | [history.md 2026-05-13](../history/history.md) |
+| S2.5 | MM Agent v0 (paper-trading minimum maker) | [history.md 2026-05-13](../history/history.md) |
+| S2.6 | CLI을 order-based flow로 갱신 | [history.md 2026-05-13](../history/history.md) |
+
+운영 규칙:
+- 새 sub-step 라벨은 첫 사용 시 history doc의 "Next Task" 또는 "Achievement" 섹션에서 한 줄 정의 (이 표의 첫 등장 행)
+- 라벨은 단조 증가만 — 한 번 부여한 번호 재사용 / 회수 금지
+- 다른 step (S3.x, S4.x, ...)도 필요해지면 같은 컨벤션으로 자유롭게 도입; 현재는 S2만 sub-numbering 필요할 만큼 큰 step
+
 ---
 
 ## 2. 시스템 아키텍처
