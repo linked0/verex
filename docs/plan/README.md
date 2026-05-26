@@ -77,12 +77,12 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 
 | 라벨 | 작업 단위 | 첫 등장 |
 |---|---|---|
-| S2.1 | Gnosis CTF 분석 (research note + Foundry cycle 테스트) | [history.md 2026-05-11](../history/history.md) |
-| S2.2 | Polymarket CTF Exchange import + Gnosis CTF deploy | [history.md 2026-05-11](../history/history.md) |
-| S2.3 | CTF order fill end-to-end (Foundry-level + anvil 데모 스크립트) | [history.md 2026-05-26](../history/history.md) |
-| S2.4 | SDK 표면 전환 — `buyYes/buyNo` → `fillOrder`/`signOrder` (EIP-712) | [history.md 2026-05-13](../history/history.md) |
-| S2.5 | MM Agent v0 (paper-trading minimum maker) | [history.md 2026-05-13](../history/history.md) |
-| S2.6 | CLI을 order-based flow로 갱신 | [history.md 2026-05-13](../history/history.md) |
+| S2.1 | Gnosis CTF 분석 (research note + Foundry cycle 테스트) | [history.md 2026-05-11](../history/README.md) |
+| S2.2 | Polymarket CTF Exchange import + Gnosis CTF deploy | [history.md 2026-05-11](../history/README.md) |
+| S2.3 | CTF order fill end-to-end (Foundry-level + anvil 데모 스크립트) | [history.md 2026-05-26](../history/README.md) |
+| S2.4 | SDK 표면 전환 — `buyYes/buyNo` → `fillOrder`/`signOrder` (EIP-712) | [history.md 2026-05-13](../history/README.md) |
+| S2.5 | MM Agent v0 (paper-trading minimum maker) | [history.md 2026-05-13](../history/README.md) |
+| S2.6 | CLI을 order-based flow로 갱신 | [history.md 2026-05-13](../history/README.md) |
 
 운영 규칙:
 - 새 sub-step 라벨은 첫 사용 시 history doc의 "Next Task" 또는 "Achievement" 섹션에서 한 줄 정의 (이 표의 첫 등장 행)
