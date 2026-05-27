@@ -232,3 +232,45 @@ This file records each day's work in KST.
 - **S2.5 — MM Agent v0**: 새 패키지 (`packages/mm-agent`?). `fillOrder` (inventory model) vs `matchOrders` (matcher model) 선택. Q-S2.3.2 추천: `matchOrders`.
 - **S2.6 — CLI 재작성**: SDK 안정화 후 mechanical wrapper. `verex order sign/fill`, `verex split/merge/redeem`.
 - **(검증 항목) `DemoMarket.s.sol` 라이브 anvil 실행** — 이번 세션 deferred. 사용자가 직접 anvil + DeployCTF + DemoMarket setup + resolve 사이클 한 번 돌려보고 회귀 확인.
+
+## 2026-05-27 (KST)
+
+### Todo
+- [x] S2.4 — `@verex/sdk` v1(`Market`/`MarketFactory`) 제거 + CTF surface 신규 (`orders` / `conditions` / `ct` / `exchange` / `usdc` / `clients`)
+- [x] `sync-abis.mjs` — `CTFExchange` / `IConditionalTokens` / `MockUSDC` 동기화 (`Market` / `MarketFactory` 드롭)
+- [x] EIP-712 `hashOrder` parity 검증 — forge로 emit한 golden digest + vitest (3/3 pass)
+- [x] `@verex/cli` 재작성 — 10개 CTF 커맨드 (`setup` / `resolve` / `split` / `merge` / `redeem` / `mint` / `order sign|fill` / `balance` / `condition`) + `demo.ts` E2E 재작성
+- [x] anvil 위 E2E 데모 통과 (deploy → setup → BUY 서명/체결 → resolve → redeem; alice +40 USDC 수익)
+- [x] `forge test` 회귀 확인 (34/34 통과, `EmitOrderHash.s.sol` 추가에도 영향 없음)
+- [x] `docs/plan/watch-list.md` 신설 — 외부 트리거 기반 결정 인박스. 항목 1 (Glamsterdam BAL 친화 설계) + 항목 2 (Phase 2 컨트랙트 인터페이스의 Native AA 가정) 등록
+- [x] `docs/history/2026-05-27-s2.4-sdk-cli-migration.md` 작성 + 본 README 갱신
+- [x] `c97f540` commit + push (origin/ctf-exchange)
+- [ ] (내일로 이월) **`ctf-exchange` → `main` 머지**
+- [ ] (내일로 이월) S2.5 — MM Agent v0 (paper-trading)
+- [ ] (내일로 이월) `@verex/api`의 broken `VerexClient` import 정리
+- [ ] (내일로 이월) Q-S2.3.3 (`feeRateBps` 런칭 정책) 결정
+
+### Achievement
+- **S2.4 milestone 통과 (SDK + CLI CTF migration)** — v1 escrow API를 SDK·CLI에서 완전 제거하고 Polymarket CTF stack(`MockUSDC` + `ConditionalTokens` + `CTFExchange`) 기반의 새 surface로 교체. 자세한 내용은 [`2026-05-27-s2.4-sdk-cli-migration.md`](./2026-05-27-s2.4-sdk-cli-migration.md) 참고.
+  - 신규 SDK 모듈 6개: `orders.ts` (signOrder + hashOrder, 순수 off-chain EIP-712), `conditions.ts` (getConditionId), `ct.ts` (split/merge/redeem/prepareCondition/reportPayouts/balance), `exchange.ts` (fillOrder/registerToken/addOperator/cancelOrder), `usdc.ts` (mint/approve), `clients.ts` (createCTClient/createExchangeClient/createUsdcClient)
+  - vitest 도입 + parity test 3/3 통과 — SDK의 `hashOrder(order, domain)`가 forge로 생성한 golden digest `0x68d8d9bd...`와 byte-for-byte 일치
+  - CLI 재작성 — `verex setup`/`resolve`/`split`/`merge`/`redeem`/`mint`/`order sign|fill`/`balance`/`condition`. 환경변수 (`USDC_ADDR`/`CTF_ADDR`/`EXCHANGE_ADDR`)를 기본, `--usdc`/`--ctf`/`--exchange` 플래그로 override — `DemoMarket.s.sol` convention과 호환
+  - E2E 데모 anvil 검증: alice 100 USDC → BUY @ $0.60 with 60 USDC → 100 YES 보유 → YES resolution → redeem → 최종 140 USDC (+40 수익). on-chain `exchange.hashOrder(order)` cross-check도 통과
+- **`docs/plan/watch-list.md` 신설** — "외부 이벤트에 따라 결정할 항목"의 single inbox. 두 항목 등록:
+  - #1 **Glamsterdam — BAL 친화 설계**: EIP-7928 (Block-level Access Lists)가 Glamsterdam에 포함되면 CTF hot path(`fillOrder` / `splitPosition` / `mergePositions` / `redeemPositions`) storage 접근 패턴을 BAL-friendly로 재검토. 트리거: Glamsterdam EIP scope 확정 발표
+  - #2 **Phase 2 컨트랙트 인터페이스 — Native AA 가정**: 현재 SDK·CLI·MM이 `Order.signatureType = EOA`만 가정. EIP-7702 메인넷 활성 시 additive 진입(EOA path 유지) vs migration(교체) 결정 + Polymarket upstream `SignatureType` enum 확장과의 정합. S7 product story (one-click / auto-claim / gasless onboarding)와 묶여있어 prerequisite로 봐야 함
+- **`@verex/api`의 broken `VerexClient` import 발견** — 이번 S2.4와 무관한 stale 코드지만 monorepo 전체 빌드 green 유지를 위해 별도 슬라이스로 픽스 필요 (내일 작업 항목)
+
+### Post Mortem
+- **잘된 점**: S2.4의 핵심 risk였던 "off-chain EIP-712 reconstruction이 on-chain `exchange.hashOrder()`와 일치하는지"를 가장 먼저 닫음. forge script(`EmitOrderHash.s.sol`)로 결정적 Order 하나의 digest를 emit → vitest에 golden value로 박음 → SDK의 `hashOrder` 결과와 byte-for-byte 비교. 이 한 줄 테스트가 도메인 reconstruction (name/version/chainId/verifyingContract) + Order 타입 인코딩 (12개 필드 순서 + uint8 enum 처리) 모두를 한 번에 검증. 데모 실행 전에 risk를 닫고 들어갔기 때문에 anvil 데모가 한 번에 통과. 또 사용자 결정 항목(v1 cleanup outright vs deprecated, API shape, 테스트 깊이)을 implementation 시작 전에 AskUserQuestion으로 한꺼번에 surface — 중간 rework 없음.
+- **개선점**: 처음에 v1 cleanup 후 `@verex/api`/`@verex/cli` 영향을 *S2.4 진행 중에* 발견 — 사전에 grep으로 확인했어야. 결과적으로 cli 재작성을 S2.4 scope에 inline으로 끌어왔는데, 이건 사용자가 직접 결정한 거라 OK이지만 사전 확인을 했으면 옵션 제시가 더 빨랐을 것. 또 `dist/` 폴더의 v1 잔여 파일(예: `dist/factory.d.ts`)을 한 번 청소 안 하고 넘어갔는데 `pnpm sync-abis`가 자동 재생성하니 다음 빌드에서 깔끔해질 것 — 손으로 청소는 불필요했음을 사후 확인.
+
+### Next Task
+- **내일 (2026-05-28) — 첫 작업: `ctf-exchange` → `main` 머지**
+  - 선행: ① SDK 빌드 + vitest 통과 (이미 검증, 본인 환경에서 한 번 더), ② `forge test` 34/34 회귀 없음 (이미 검증), ③ E2E 데모가 본인 anvil에서도 통과 (이번 세션 시연 외에 본인 reproduce 권장)
+  - 머지 방식: PR (`linked0/verex`) 또는 직접 fast-forward — 어느 쪽이든 머지 후 `ctf-exchange` 브랜치는 history 추적 위해 보존 (삭제 안 함, 2026-05-13 entry의 보존 결정 유지)
+  - 머지 후 즉시 `git pull origin main` + S2.5 진입을 같은 브랜치(또는 새 `s2.5-mm-agent` 브랜치)에서 시작
+- **그 후 — S2.5 (MM Agent v0)**: 새 패키지 `packages/mm-agent`. 첫 결정은 `fillOrder` (inventory model) vs `matchOrders` (matcher model). [Q-S2.3.2 추천](./2026-05-26-s2-fillorder-e2e.md): `matchOrders` — 운영자 capital lock 없음, audit precedent 더 많음. Paper-trading minimum maker로 시작 (실제 fund 안 묶음).
+- **`@verex/api` broken `VerexClient` import 정리** — quick win. 한 줄짜리 placeholder로 교체하거나 SDK의 `createExchangeClient`로 마이그레이션 (둘 중 우선순위는 api가 W2~W5 작업의 다음 입력인지 여부에 달림).
+- **Q-S2.3.3 (`feeRateBps` 런칭 정책) 결정** — S2.5 진입 전 1줄 결정. `0`이면 운영자 수익 모델 미정 / `nonzero`면 SDK에 slippage guard 추가 필요. plan에 명시 없음 — 사용자 판단 필요.
+- **`docs/plan/watch-list.md` 운영** — 트리거 발생 시(Glamsterdam EIP scope 확정 / Pectra mainnet 활성 등) 본 README의 Next Task로 끌어와서 활성화. 발생 전에는 watch-list에서 잠자게 둠.

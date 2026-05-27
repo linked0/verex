@@ -22,3 +22,31 @@
   - `docs/history/<date>-glamsterdam-bal-design.md`에 결정 + 영향 분석 기록
   - 채택 시: `docs/plan/`에 신규 슬라이스 (BAL 친화 리팩토링) 진입
   - 미채택 또는 무시 시: 본 항목을 closed로 표시하고 사유 명시
+
+---
+
+## 2. Phase 2 컨트랙트 인터페이스 — Native AA(EIP-7702 등) 가정
+
+- **트리거**: Native AA가 메인넷 활성화된 시점 (현재 EIP-7702 후보 — Pectra에서 활성, Glamsterdam 이후 확산 예상). 또는 Polygon/L2 측에서 native AA 동등 기능 활성.
+- **현재 가정 (Phase 2 / S2.x)**:
+  - `Order.signatureType` 필드는 `EOA = 0`만 지원 (`POLY_PROXY = 1`, `POLY_GNOSIS_SAFE = 2`는 enum에 정의되어 있으나 SDK·MM이 안 씀).
+  - 사용자는 EOA → CTFExchange `fillOrder`로 직접 진입. 거래소가 maker EOA에서 USDC를 pull하므로 `approve(exchange, USDC)`가 사전 조건.
+  - 별도 smart-account wallet (Polymarket Proxy / Gnosis Safe 변형 등) 가정 없음. 즉 "1 user = 1 EOA" 모델.
+- **결정 항목**:
+  - Native AA가 들어왔을 때 Verex SDK·CLI·MM이 *기존 EOA path를 그대로 두면서* native AA를 추가로 지원할지 (additive), 아니면 한 시점에 native AA로 *교체*할지 (migration).
+  - `Order.signatureType`을 그대로 두고 `NATIVE_AA = 3` 같은 신규 enum 값으로 진입할지, 또는 Polymarket upstream이 자체 enum을 확장하길 기다릴지.
+  - `approve` 의존성 — native AA의 sponsored-tx + 일회성 권한 패턴으로 풀 수 있는지, 풀면 UX와 audit 표면이 어떻게 바뀌는지.
+  - S7 AA work(plan §1.4 S7 / §2.2.8 EIP-7702 features)과 어떻게 정합 맞출지 — one-click betting / auto-claim / gasless onboarding이 이미 EIP-7702 delegation primitive에 묶여 있음.
+- **왜 중요**:
+  - Phase 2 SDK·CLI·MM이 EOA path만 가정하고 build됨. native AA가 main path가 되면 hot path API (`signOrder` / `fillOrder`) 전반 재설계 필요할 수 있음.
+  - 반대로 Phase 2 인터페이스가 "EOA only가 영구 default"라고 굳어버리면 native AA 활용을 Phase 3 이후로 미루게 됨 — S7 product story (one-click / auto-claim)와 충돌.
+  - Polymarket upstream의 `SignatureType` enum이 어디까지 확장될지 모름. 우리가 fork·patch 할지, upstream 결정에 묶일지 사전에 정해야 빠른 대응 가능.
+- **확인할 자료**:
+  - EIP-7702 최종 스펙 + Pectra 활성 시점
+  - Polymarket의 PR/issue 트래커 — native AA 대응 계획
+  - 우리 `packages/sdk/src/types.ts` `SignatureType` enum + `packages/sdk/src/orders.ts` `signOrder` 흐름 — additive 진입 시 어디를 건드려야 하는지 (현재 한 곳)
+  - `docs/plan/01-phase-1-core.md` §2.2.8 EIP-7702 features sub-section + §11.4 B6/B7 액션 항목
+- **결정 후 산출물**:
+  - `docs/history/<date>-native-aa-phase2-interface.md`에 결정 + 영향 분석 기록
+  - 채택 시: `Order.signatureType` enum 확장 + `signOrder` 분기 추가 + SDK 통합 테스트 갱신 (S7 진입 전 prerequisite)
+  - 보류 시: 본 항목을 closed로 표시하되 S7 진입 시 재오픈 트리거 등록
