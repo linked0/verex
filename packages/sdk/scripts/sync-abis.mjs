@@ -11,7 +11,10 @@ const SDK_ROOT = resolve(__dirname, "..");
 const FORGE_OUT = resolve(SDK_ROOT, "../contracts/out");
 const ABI_DIR = resolve(SDK_ROOT, "src/abis");
 
-const CONTRACTS = ["Market", "MarketFactory"];
+// S2.4: CTF stack (v1 escrow Market/MarketFactory replaced by Polymarket CTF).
+// IConditionalTokens is the on-chain ABI we call against the bytecode-deployed
+// ConditionalTokens contract (Solidity 0.5.x compiled separately by Polymarket).
+const CONTRACTS = ["CTFExchange", "IConditionalTokens", "MockUSDC"];
 
 if (!existsSync(FORGE_OUT)) {
   console.error(`forge output not found at ${FORGE_OUT}`);
