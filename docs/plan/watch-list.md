@@ -50,3 +50,14 @@
   - `docs/history/<date>-native-aa-phase2-interface.md`에 결정 + 영향 분석 기록
   - 채택 시: `Order.signatureType` enum 확장 + `signOrder` 분기 추가 + SDK 통합 테스트 갱신 (S7 진입 전 prerequisite)
   - 보류 시: 본 항목을 closed로 표시하되 S7 진입 시 재오픈 트리거 등록
+
+---
+
+## 3. Verex Phase 1 컨트랙트 — BundlerProvider 인터페이스 분리 (later phase)
+
+- **트리거**: 내부 — 후속 phase 진입 시점 또는 별도 슬라이스 분리 결정 시. 외부 EIP 의존성 없음.
+- **작업 항목**: Verex Phase 1 컨트랙트에 `BundlerProvider` 인터페이스를 분리하는 미니 PR을 검토. 어제 Deep Dive 후속과 연결.
+- **왜 별도 트랙**: 큰 리팩토링과 같이 묶지 않고 작은 PR 한 개로 처리. 검토 표면을 좁게 유지하고 회귀 위험 격리.
+- **결정·산출물**:
+  - 분리 시점에 검토 항목(인터페이스 시그니처 / 의존 컨트랙트 / 테스트 영향)을 본 항목 또는 별도 design note에서 enumerate
+  - 적용 시: `docs/history/<date>-bundler-provider-split.md` 기록 + PR link
