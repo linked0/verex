@@ -274,3 +274,4 @@ This file records each day's work in KST.
 - **`@verex/api` broken `VerexClient` import 정리** — quick win. 한 줄짜리 placeholder로 교체하거나 SDK의 `createExchangeClient`로 마이그레이션 (둘 중 우선순위는 api가 W2~W5 작업의 다음 입력인지 여부에 달림).
 - **Q-S2.3.3 (`feeRateBps` 런칭 정책) 결정** — S2.5 진입 전 1줄 결정. `0`이면 운영자 수익 모델 미정 / `nonzero`면 SDK에 slippage guard 추가 필요. plan에 명시 없음 — 사용자 판단 필요.
 - **`docs/plan/watch-list.md` 운영** — 트리거 발생 시(Glamsterdam EIP scope 확정 / Pectra mainnet 활성 등) 본 README의 Next Task로 끌어와서 활성화. 발생 전에는 watch-list에서 잠자게 둠.
+- **Verex Phase 1 컨트랙트에 BundlerProvider 인터페이스 분리 미니 PR 검토** — 어제 Deep Dive 후속과 연결. 별도 슬라이스로 분리해서 작은 PR로 처리 (큰 리팩토링과 같이 묶지 않기). 검토 항목은 분리 시점에 본 README 또는 별도 doc에서 enumerate.
