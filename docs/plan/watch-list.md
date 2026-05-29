@@ -61,3 +61,22 @@
 - **결정·산출물**:
   - 분리 시점에 검토 항목(인터페이스 시그니처 / 의존 컨트랙트 / 테스트 영향)을 본 항목 또는 별도 design note에서 enumerate
   - 적용 시: `docs/history/<date>-bundler-provider-split.md` 기록 + PR link
+
+---
+
+## 4. 싱글톤 settlement vs Factory 패턴 — Storage 충돌·BAL 친화 결정
+
+- **트리거**: 본 watch-list §1 (Glamsterdam BAL) 발화 시점 또는 Phase 2 백본 fork/replace 검토 시점 — 둘 중 먼저 오는 것.
+- **결정 항목**: Verex 백본을 Polymarket 류 **싱글톤(monolithic) settlement** 그대로 갈지, **마켓별 독립 컨트랙트 Factory** 패턴으로 갈지. 두 구조의 BAL 친화도 비교는 별도 분석 doc에 정리됨.
+- **왜 중요**:
+  - 싱글톤은 같은 마켓의 동시 베팅이 sequential 강제 — 한 hot 마켓이 throughput bottleneck
+  - Factory는 마켓 간 storage가 정의상 disjoint → BAL에서 충돌 0 → 병렬 100%
+  - 단, Factory는 배포 가스, EIP-170 size, upgrade 표면, MEV/매칭 레이어와의 관계가 모두 바뀜 — 단일 축(BAL)만으로 결정할 수 없음
+- **확인할 자료**:
+  - 본 항목의 핵심 입력 — [`docs/analysis/2026-05-27-singleton-vs-factory-bal.md`](../analysis/2026-05-27-singleton-vs-factory-bal.md) (싱글톤·Factory 비교 + 추가 평가 축 6개 + 트리거 정의)
+  - watch-list §1 (Glamsterdam BAL) — 본 항목의 외부 트리거
+  - Polymarket CTFExchange의 storage layout (fork·patch 여부 판단)
+- **결정·산출물**:
+  - 결정 시 `docs/history/<date>-bal-pattern-choice.md`에 결정 + 이유 + 마이그레이션 경로 기록
+  - 채택 시: `docs/plan/`에 신규 슬라이스 (Factory 재설계) 진입
+  - 싱글톤 유지 시: 본 항목 closed, 이유 명시
