@@ -73,7 +73,7 @@
   - Factory는 마켓 간 storage가 정의상 disjoint → BAL에서 충돌 0 → 병렬 100%
   - 단, Factory는 배포 가스, EIP-170 size, upgrade 표면, MEV/매칭 레이어와의 관계가 모두 바뀜 — 단일 축(BAL)만으로 결정할 수 없음
 - **확인할 자료**:
-  - 본 항목의 핵심 입력 — [`docs/analysis/2026-05-27-singleton-vs-factory-bal.md`](../analysis/2026-05-27-singleton-vs-factory-bal.md) (싱글톤·Factory 비교 + 추가 평가 축 6개 + 트리거 정의)
+  - 본 항목의 핵심 입력 — [`docs/architecture/2026-05-27-singleton-vs-factory-bal.md`](../architecture/2026-05-27-singleton-vs-factory-bal.md) (싱글톤·Factory 비교 + 추가 평가 축 6개 + 트리거 정의)
   - watch-list §1 (Glamsterdam BAL) — 본 항목의 외부 트리거
   - Polymarket CTFExchange의 storage layout (fork·patch 여부 판단)
 - **결정·산출물**:
