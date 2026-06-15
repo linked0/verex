@@ -27,3 +27,6 @@ packages/sdk/src/abis/
 # Misc
 .DS_Store
 *.log
+
+# Claude Code personal settings
+.claude/settings.local.json
