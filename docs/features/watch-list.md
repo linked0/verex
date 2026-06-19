@@ -20,7 +20,7 @@
   - CTFExchange + ConditionalTokens의 storage layout — fork 여지 평가
 - **결정 후 산출물**:
   - `docs/history/<date>-glamsterdam-bal-design.md`에 결정 + 영향 분석 기록
-  - 채택 시: `docs/plan/`에 신규 슬라이스 (BAL 친화 리팩토링) 진입
+  - 채택 시: `docs/features/`에 신규 슬라이스 (BAL 친화 리팩토링) 진입
   - 미채택 또는 무시 시: 본 항목을 closed로 표시하고 사유 명시
 
 ---
@@ -45,7 +45,7 @@
   - EIP-7702 최종 스펙 + Pectra 활성 시점
   - Polymarket의 PR/issue 트래커 — native AA 대응 계획
   - 우리 `packages/sdk/src/types.ts` `SignatureType` enum + `packages/sdk/src/orders.ts` `signOrder` 흐름 — additive 진입 시 어디를 건드려야 하는지 (현재 한 곳)
-  - `docs/plan/01-phase-1-core.md` §2.2.8 EIP-7702 features sub-section + §11.4 B6/B7 액션 항목
+  - `docs/features/01-phase-1-core.md` §2.2.8 EIP-7702 features sub-section + §11.4 B6/B7 액션 항목
 - **결정 후 산출물**:
   - `docs/history/<date>-native-aa-phase2-interface.md`에 결정 + 영향 분석 기록
   - 채택 시: `Order.signatureType` enum 확장 + `signOrder` 분기 추가 + SDK 통합 테스트 갱신 (S7 진입 전 prerequisite)
@@ -78,5 +78,5 @@
   - Polymarket CTFExchange의 storage layout (fork·patch 여부 판단)
 - **결정·산출물**:
   - 결정 시 `docs/history/<date>-bal-pattern-choice.md`에 결정 + 이유 + 마이그레이션 경로 기록
-  - 채택 시: `docs/plan/`에 신규 슬라이스 (Factory 재설계) 진입
+  - 채택 시: `docs/features/`에 신규 슬라이스 (Factory 재설계) 진입
   - 싱글톤 유지 시: 본 항목 closed, 이유 명시
