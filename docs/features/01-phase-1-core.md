@@ -93,7 +93,7 @@ Runs in parallel with Web MVP. MCP server work is time-boxed — if it slips, We
 
 ## 리스크 & 주의
 
-- **AMM/CLOB 욕심 금지.** Phase 1 = **v1 백본** (fixed-price escrow). [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB는 **v2 백본** (Phase 2 W6~) — 확정 플랜이며 결정 사항이 아님. v1을 거치는 이유와 v1/v2 비교는 `docs/plan/README.md` §11.2 참고.
+- **AMM/CLOB 욕심 금지.** Phase 1 = **v1 백본** (fixed-price escrow). [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 기반 CLOB는 **v2 백본** (Phase 2 W6~) — 확정 플랜이며 결정 사항이 아님. v1을 거치는 이유와 v1/v2 비교는 `docs/features/README.md` §11.2 참고.
 - Owner resolve 모델임을 README에 명시 (보안 가정 명확화).
 - Contracts ABI를 web/sdk에 수동 복사하지 말 것 → workspace import.
 - Phase 2를 미리 끌어오지 말 것 (DB, indexer, oracle 전부 후순위).
@@ -136,7 +136,7 @@ Update planning documents and scaffold the new package so that Phase 1 includes 
 
 #### In scope (this task)
 1. Update `docs/principles/` design doc to reflect the new decision.
-2. Update `docs/plans/01-phase-1-core.md` to add the MCP server work.
+2. Update `docs/features/01-phase-1-core.md` to add the MCP server work.
 3. Add a new ADR (or equivalent) under `docs/history/` documenting the decision.
 4. Scaffold `packages/mcp-server/` with package.json, tsconfig, README, and stub source files.
 5. Update root `pnpm-workspace.yaml` and `turbo.json` so the new package is part of the monorepo.
@@ -178,7 +178,7 @@ Write tools (`buy_yes`, `buy_no`, `claim`, `subscribe_market`) are **deferred to
    - Mark questions 2 (skill 배포 경로) as "MCP가 정답이므로 해소".
    - Question 1 (AA + session key)은 그대로 — write tools 시점에 다시 등장.
 
-3. **`docs/plans/01-phase-1-core.md` edit** — add a new section (suggest: §4 or appended) titled "MCP Server v0 (read-only)" containing:
+3. **`docs/features/01-phase-1-core.md` edit** — add a new section (suggest: §4 or appended) titled "MCP Server v0 (read-only)" containing:
    - Subtask: scaffold `packages/mcp-server/`
    - Subtask: declare 4 read tools as stubs
    - Subtask: implement `list_markets` + `get_market` against `@verex/sdk`
@@ -223,12 +223,12 @@ pnpm --filter @verex/mcp-server dev   # should start and wait on stdio
 And manually:
 - `docs/history/0001-*.md` exists and is non-empty.
 - `docs/principles/` design doc reflects MCP-first language in §11.1.
-- `docs/plans/01-phase-1-core.md` has the new MCP section with subtasks and acceptance criteria.
+- `docs/features/01-phase-1-core.md` has the new MCP section with subtasks and acceptance criteria.
 - `packages/mcp-server/README.md` lists the 4 v0 tools and the deferred write tools.
 
 ### What to Do If You Hit Ambiguity
 
-- If `@verex/sdk` does not yet export `markets.list()` / `markets.get()`, leave the tool stubs throwing NotImplemented and add a note in `docs/plans/01-phase-1-core.md` listing the SDK methods that need to be added (do not modify the SDK in this task).
+- If `@verex/sdk` does not yet export `markets.list()` / `markets.get()`, leave the tool stubs throwing NotImplemented and add a note in `docs/features/01-phase-1-core.md` listing the SDK methods that need to be added (do not modify the SDK in this task).
 - If you find that §11.1 has already been edited toward MCP language by a previous run, reconcile rather than duplicate.
 - Do not invent new tools beyond the four listed.
 - If unsure about a structural decision, leave a `// TODO(verex):` comment and continue — do not block.

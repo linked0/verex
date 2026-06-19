@@ -2,7 +2,7 @@
 
 > Generated 2026-06-17. A prioritized review list for the work completed through
 > **S2.4** (SDK + CLI migrated to the Polymarket CTF stack). This is *what to verify
-> and decide next*, not a status report — see `docs/plan/README.md §1.4` for the roadmap
+> and decide next*, not a status report — see `docs/features/README.md §1.4` for the roadmap
 > and `docs/history/README.md` for the milestone log.
 
 ## TL;DR — current state
@@ -35,7 +35,7 @@
 - [ ] **`questionId` convention undecided** (keccak of text vs UMA format) — affects the S6 oracle migration path.
 
 ## 5. Watch-list (external triggers — no action until fired)
-From `docs/plan/watch-list.md`:
+From `docs/features/watch-list.md`:
 - **#1 Glamsterdam BAL** → singleton-vs-factory settlement (`docs/architecture/2026-05-27-singleton-vs-factory-bal.md`).
 - **#2 Native AA (EIP-7702 mainnet)** → additive vs migration; reconcile with S7.
 - **#3 BundlerProvider interface split** — queued mini-PR, off critical path.
