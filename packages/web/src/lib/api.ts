@@ -21,7 +21,11 @@ export type Market = {
   outcomes: Outcome[];
 };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// All fetches below run in server components (force-dynamic), so a runtime (non-public)
+// API_URL works in the cloud — set it AFTER the API deploys, no rebuild needed.
+// NEXT_PUBLIC_API_URL stays as the local-dev fallback.
+const API =
+  process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 export async function getMarkets(category?: string): Promise<Market[]> {
   const url =

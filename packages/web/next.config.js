@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@verex/sdk"],
+  // Produce a self-contained server build (.next/standalone) for a lean Docker image.
+  output: "standalone",
 };
 
 module.exports = nextConfig;

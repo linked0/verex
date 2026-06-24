@@ -19,6 +19,9 @@ packages/contracts/broadcast/
 .env.*.local
 scripts/deploy.env
 
+# Cloud SQL Auth Proxy binary (downloaded by deploy.sh)
+cloud-sql-proxy
+
 # Turbo
 .turbo/
 

@@ -1,3 +1,4 @@
+import "dotenv/config"; // load packages/api/.env into process.env (DATABASE_URL) before Prisma
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
