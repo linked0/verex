@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# verex → GCP Cloud Run deploy. Two services (verex-api + verex-web) backed by Cloud SQL Postgres.
-# Modeled on rabbit/scripts/deploy.sh.
+# verex → GCP Cloud Run deploy. Two services (verex-api + verex-web) + Cloud SQL Postgres.
 #
-# ⚠️ DRAFT — review before running, and run it WITH jay (not unattended):
-#    - it creates BILLABLE resources (Cloud SQL, Cloud Run),
-#    - the migrate/seed steps need live DB connectivity (Cloud SQL Auth Proxy),
-#    - the domain mapping + DNS record at the registrar are manual.
+# ⚠️ Reviewed, not yet run end-to-end. Creates BILLABLE resources (Cloud SQL, Cloud Run).
+#    Set a GCP budget cap first. Best run WITH jay, and test the *.run.app URL before the domain.
 #
 # Prereqs:
-#   1) gcloud auth login   (this is what authenticates the deploy — NOT AUTH_GOOGLE_*)
-#   2) scripts/deploy.env filled (PROJECT_ID, REGION, SERVICE_WEB, SERVICE_API)
+#   1) gcloud auth login   AND   gcloud auth application-default login   (the proxy uses ADC)
+#   2) scripts/deploy.env filled (PROJECT_ID, REGION)
+#   3) Docker not needed locally — Cloud Build builds the Dockerfiles in each package.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -35,37 +33,49 @@ RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 echo "▶ Cloud SQL ($DB_INSTANCE)"
 if ! gcloud sql instances describe "$DB_INSTANCE" >/dev/null 2>&1; then
   gcloud sql instances create "$DB_INSTANCE" \
-    --database-version=POSTGRES_16 --tier=db-f1-micro --region="$REGION"
+    --database-version=POSTGRES_16 --edition=ENTERPRISE --tier=db-f1-micro --region="$REGION"
 fi
 gcloud sql databases create "$DB_NAME" --instance="$DB_INSTANCE" 2>/dev/null || true
 CONN_NAME=$(gcloud sql instances describe "$DB_INSTANCE" --format='value(connectionName)')
 
-# ⚠️ DB user + password (REVIEW): set a password once and create the user.
-#   DB_PASSWORD must be provided in your shell (export DB_PASSWORD=...) or generated here.
-: "${DB_PASSWORD:?export DB_PASSWORD before running (or add a generator here)}"
-gcloud sql users create "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD" 2>/dev/null \
-  || gcloud sql users set-password "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD"
-
-# Cloud Run reaches Cloud SQL over a unix socket: /cloudsql/<CONN_NAME>
-DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost/${DB_NAME}?host=/cloudsql/${CONN_NAME}"
-
-# --- Secret Manager: DATABASE_URL ---
-echo "▶ Secret Manager"
+# --- DB password + DATABASE_URL secret (AUTO-GENERATED; reused on re-runs, never printed) ---
+echo "▶ Secret Manager (verex-database-url)"
 if gcloud secrets describe verex-database-url >/dev/null 2>&1; then
-  printf '%s' "$DATABASE_URL" | gcloud secrets versions add verex-database-url --data-file=- >/dev/null
+  echo "  - reusing existing DATABASE_URL secret"
+  DATABASE_URL=$(gcloud secrets versions access latest --secret=verex-database-url)
 else
-  printf '%s' "$DATABASE_URL" | gcloud secrets create verex-database-url --replication-policy=automatic --data-file=- >/dev/null
+  DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
+  gcloud sql users create "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD" 2>/dev/null \
+    || gcloud sql users set-password "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD"
+  # Cloud Run reaches Cloud SQL via a unix socket: /cloudsql/<connectionName>
+  DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost/${DB_NAME}?host=/cloudsql/${CONN_NAME}"
+  printf '%s' "$DATABASE_URL" | gcloud secrets create verex-database-url --replication-policy=automatic --data-file=-
 fi
 gcloud secrets add-iam-policy-binding verex-database-url \
   --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
 
-# --- Migrate + seed (REVIEW — needs DB connectivity, e.g. Cloud SQL Auth Proxy) ---
-# With the proxy running and DATABASE_URL pointing at it:
-#   pnpm --filter @verex/api migrate   # prisma migrate deploy
-#   pnpm --filter @verex/api seed       # 10 sample markets
-echo "⏸  Run migrations + seed against Cloud SQL (see comments) before/after first deploy."
+# --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
+echo "▶ Migrate + seed (Cloud SQL Auth Proxy)"
+PROXY=./cloud-sql-proxy
+if [ ! -x "$PROXY" ]; then
+  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+  M=$(uname -m); case "$M" in arm64|aarch64) ARCH=arm64;; *) ARCH=amd64;; esac
+  echo "  - downloading cloud-sql-proxy ($OS/$ARCH)"
+  curl -sL "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.13.0/cloud-sql-proxy.${OS}.${ARCH}" -o "$PROXY"
+  chmod +x "$PROXY"
+fi
+"$PROXY" --port 5433 "$CONN_NAME" &
+PROXY_PID=$!
+trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
+sleep 5
+# Rewrite the socket URL to a local-TCP URL through the proxy (keeps user:pass).
+LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@localhost/([^?]+)\?host=.*#@localhost:5433/\1#')
+DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api exec prisma db push
+DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api seed
+kill "$PROXY_PID" 2>/dev/null || true
+trap - EXIT
 
-# --- Deploy API ---
+# --- Deploy API (uses packages/api/Dockerfile) ---
 echo "▶ Deploy $SERVICE_API"
 gcloud run deploy "$SERVICE_API" --source packages/api --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
@@ -73,15 +83,15 @@ gcloud run deploy "$SERVICE_API" --source packages/api --region "$REGION" \
   --allow-unauthenticated
 API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --format='value(status.url)')
 
-# --- Deploy Web (points at the API) ---
+# --- Deploy Web (uses packages/web/Dockerfile; API_URL is a RUNTIME env, no rebuild needed) ---
 echo "▶ Deploy $SERVICE_WEB"
 gcloud run deploy "$SERVICE_WEB" --source packages/web --region "$REGION" \
-  --set-env-vars "NEXT_PUBLIC_API_URL=$API_URL" \
+  --set-env-vars "API_URL=$API_URL" \
   --allow-unauthenticated
 WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --format='value(status.url)')
 
 echo
 echo "✅ API: $API_URL"
-echo "✅ Web: $WEB_URL"
-echo "👉 Map the domain (then add the DNS record GCP prints at your registrar):"
+echo "✅ Web: $WEB_URL   ← TEST HERE FIRST (before mapping the domain)"
+echo "👉 Go live — map the domain, then add the DNS record GCP prints at your registrar:"
 echo "    gcloud beta run domain-mappings create --service $SERVICE_WEB --domain verex.jaylabs.xyz --region $REGION"

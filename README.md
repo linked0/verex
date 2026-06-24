@@ -55,6 +55,32 @@ pnpm --filter @verex/api dev
 pnpm --filter @verex/web dev
 ```
 
+### Run the web UI locally (v1 — DB-only, no contracts)
+
+The v1 prediction-market UI reads from Postgres (no smart contracts yet). One script sets up
+everything (needs Docker):
+
+```bash
+./scripts/dev-local.sh            # Postgres (Docker) + Prisma schema + seed 10 markets + env files
+pnpm --filter @verex/api dev      # API → http://localhost:4000
+pnpm --filter @verex/web dev      # Web → http://localhost:3000
+```
+
+Open http://localhost:3000 to browse markets. This is where you catch **app/logic bugs**
+before committing.
+
+### Deploy (GCP Cloud Run + Cloud SQL)
+
+```bash
+# fill scripts/deploy.env (PROJECT_ID, REGION), then:
+./scripts/deploy.sh               # two Cloud Run services + Cloud SQL  (DRAFT — review first)
+```
+
+Deploy ships a **merged** state: commit → push → PR → merge → deploy. Deployment/environment
+bugs (Cloud SQL socket, CORS, OAuth redirect) only surface once deployed — so test on the auto
+`*.run.app` URL first, fix + redeploy, and map `verex.jaylabs.xyz` **last** (= go live), so the
+real domain is never broken.
+
 ### CLI demo (end-to-end on anvil)
 
 `packages/cli` ships a one-shot demo that deploys the CTF backbone and runs a full
