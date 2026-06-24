@@ -8,6 +8,10 @@ out/
 .next/
 cache/
 
+# Next.js auto-generated (regenerated on every build — should not be committed)
+next-env.d.ts
+*.tsbuildinfo
+
 # Foundry
 packages/contracts/out/
 packages/contracts/cache/
