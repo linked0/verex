@@ -1,0 +1,46 @@
+// Verex — DB-only prediction market (v1, no smart-contract integration yet).
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MarketStatus {
+  OPEN
+  RESOLVED
+  CANCELLED
+}
+
+/// A prediction market. Categorical = N outcomes (binary is just N = 2).
+model Market {
+  id                String       @id @default(cuid())
+  slug              String       @unique
+  title             String
+  description       String?
+  category          String // "Politics" | "Sports" | "Crypto" | "Economy" | "Geopolitics"
+  imageUrl          String?
+  status            MarketStatus @default(OPEN)
+  volume            Decimal      @default(0) @db.Decimal(20, 2)
+  closesAt          DateTime?
+  resolvedOutcomeId String? // which outcome won, once RESOLVED
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  outcomes          Outcome[]
+
+  @@index([category, status])
+}
+
+/// One possible outcome of a market, with an implied probability (price 0..1).
+model Outcome {
+  id        String  @id @default(cuid())
+  marketId  String
+  market    Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  label     String // "Yes" / "No" or "Candidate A" ...
+  price     Decimal @db.Decimal(10, 6) // implied probability, 0..1
+  sortOrder Int     @default(0)
+
+  @@index([marketId])
+}

@@ -17,6 +17,7 @@ packages/contracts/broadcast/
 .env
 .env.local
 .env.*.local
+scripts/deploy.env
 
 # Turbo
 .turbo/
