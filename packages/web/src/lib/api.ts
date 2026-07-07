@@ -5,6 +5,7 @@ export type Outcome = {
   id: string;
   label: string;
   price: string; // 0..1 implied probability
+  tokenId: string;
   sortOrder: number;
 };
 
@@ -18,22 +19,66 @@ export type Market = {
   status: string;
   volume: string;
   closesAt?: string | null;
+  conditionId: string;
   outcomes: Outcome[];
 };
 
-// All fetches below run in server components (force-dynamic), so a runtime (non-public)
-// API_URL works in the cloud — set it AFTER the API deploys, no rebuild needed.
-// NEXT_PUBLIC_API_URL stays as the local-dev fallback.
+export type PricePoint = { price: string; at: string };
+
+export type Trade = {
+  id: string;
+  user: string;
+  side: "BUY" | "SELL";
+  usdcAmount: string;
+  tokenAmount: string;
+  price: string;
+  txHash: string;
+  createdAt: string;
+  outcome: { label: string };
+};
+
+export type TradeResult = {
+  txHash: string;
+  side: "BUY" | "SELL";
+  outcome: "Yes" | "No";
+  usdcAmount: number;
+  tokenAmount: number;
+  price: number;
+  newYesPrice: number;
+  faucetMinted: boolean;
+};
+
+export type WalletSummary = {
+  accountIndex: number;
+  address: string;
+  usdc: number;
+  positions: {
+    slug: string;
+    title: string;
+    outcome: string;
+    tokens: number;
+    price: number;
+    value: number;
+  }[];
+};
+
+// Server components use API_URL (runtime, non-public); the browser uses
+// NEXT_PUBLIC_API_URL. Both default to local dev.
 const API =
   process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-export async function getMarkets(category?: string): Promise<Market[]> {
-  const url =
-    category && category !== "All"
-      ? `${API}/markets?category=${encodeURIComponent(category)}`
-      : `${API}/markets`;
+/// Browser-side base: same-origin /backend/* — proxied to the API by the
+/// rewrite in next.config.js. Works identically in local dev and the cloud
+/// (no build-time NEXT_PUBLIC_ URL baking).
+export const BROWSER_API = "/backend";
+
+export async function getMarkets(category?: string, q?: string): Promise<Market[]> {
+  const params = new URLSearchParams();
+  if (category && category !== "All") params.set("category", category);
+  if (q) params.set("q", q);
+  const qs = params.toString();
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(`${API}/markets${qs ? `?${qs}` : ""}`, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
     return data.markets ?? [];
@@ -63,5 +108,72 @@ export async function getCategories(): Promise<string[]> {
   }
 }
 
+export async function getHistory(slug: string): Promise<PricePoint[]> {
+  try {
+    const res = await fetch(`${API}/markets/${slug}/history`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.points ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getTrades(slug: string): Promise<Trade[]> {
+  try {
+    const res = await fetch(`${API}/markets/${slug}/trades`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.trades ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// ── Browser-side calls (client components) ──────────────────────────
+
+export async function postTrade(body: {
+  slug: string;
+  outcome: "Yes" | "No";
+  side: "BUY" | "SELL";
+  amount: number;
+  accountIndex: number;
+}): Promise<TradeResult> {
+  const res = await fetch(`${BROWSER_API}/trade`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "trade failed");
+  return data as TradeResult;
+}
+
+export async function getWallet(index: number): Promise<WalletSummary | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/wallet/${index}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as WalletSummary;
+  } catch {
+    return null;
+  }
+}
+
+export async function postFaucet(accountIndex: number): Promise<{ usdc: number } | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/faucet`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ accountIndex }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export const pct = (price: string | number) => Math.round(Number(price) * 100);
-export const usd = (v: string | number) => `$${Number(v).toLocaleString("en-US")}`;
+export const usd = (v: string | number) =>
+  `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+export const cents = (price: string | number) => `${Math.round(Number(price) * 100)}¢`;

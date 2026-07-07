@@ -1,24 +1,27 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Suspense } from "react";
 import "./globals.css";
+import { SiteNav } from "@/components/SiteNav";
+import { WalletProvider } from "@/components/WalletProvider";
 
 export const metadata: Metadata = {
   title: "Verex — Prediction Market",
-  description: "Decentralized Prediction Market",
+  description: "Trade on real-world questions, settled on-chain.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <header className="header">
-          <Link href="/" className="logo">
-            ◆ Verex
-          </Link>
-          <span className="tagline">Prediction Market</span>
-        </header>
-        {children}
-        <footer className="footer">Verex · demo data (no smart contracts yet)</footer>
+        <WalletProvider>
+          <Suspense>
+            <SiteNav />
+          </Suspense>
+          {children}
+          <footer className="container border-t py-6 text-center text-xs text-muted-foreground">
+            Verex · markets settle on-chain (local anvil · CTF Exchange backbone)
+          </footer>
+        </WalletProvider>
       </body>
     </html>
   );
