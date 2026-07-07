@@ -57,6 +57,18 @@ contract DeployCTF is Script {
         console2.log("");
         console2.log("To mint test USDC to deployer:");
         console2.log("  cast send <USDC> 'mint(address,uint256)' <deployer> 1000000000000");
+        console2.log("");
+        console2.log("Copy-paste for the CLI (packages/cli reads these env vars):");
+        console2.log(
+            string.concat(
+                "  export USDC_ADDR=",
+                vm.toString(usdc),
+                " CTF_ADDR=",
+                vm.toString(ctf),
+                " EXCHANGE_ADDR=",
+                vm.toString(exchange)
+            )
+        );
     }
 
     function _deployCTF() internal returns (address addr) {
