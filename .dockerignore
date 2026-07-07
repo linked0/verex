@@ -1,0 +1,21 @@
+# Root build context (packages/api/Dockerfile.cloud). Keep secrets and junk
+# out of the image layers — repo Docker policy.
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.next
+**/dist
+**/out
+docs
+packages/contracts/broadcast
+packages/contracts/cache
+packages/contracts/out
+packages/contracts/lib
+packages/web
+packages/cli
+packages/mm-agent
+scripts
+*.log
+.claude

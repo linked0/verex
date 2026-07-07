@@ -1,0 +1,27 @@
+# Upload filter for `gcloud builds submit` (repo-root context, API image).
+# Without this file gcloud falls back to .gitignore, which would drop the
+# generated packages/sdk/src/abis/*.ts the Docker build needs.
+.git
+.gitignore
+node_modules/
+.pnpm-store/
+.next/
+dist/
+out/
+cache/
+docs/
+scripts/
+packages/contracts/out/
+packages/contracts/cache/
+packages/contracts/broadcast/
+packages/contracts/lib/
+packages/web/
+packages/cli/
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.log
+.claude/
