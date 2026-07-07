@@ -45,14 +45,20 @@ pnpm build
 # Start local blockchain
 anvil
 
-# Deploy contracts (in packages/contracts)
-forge script script/Deploy.s.sol --rpc-url http://localhost:8545 --broadcast
+# Reset DB + deploy the CTF backbone + seed 10 on-chain markets (one command).
+# Runs forge DeployCTF.s.sol itself and stores the addresses in the DB (ChainConfig).
+# Requires the local Postgres (docker: verex-pg) to be running.
+pnpm --filter @verex/api db:reset
 
-# Start API server
+# Start API server (serves markets + executes real on-chain trades)
 pnpm --filter @verex/api dev
 
-# Start web
+# Start web (http://localhost:3000 — trade with demo wallets #1-5)
 pnpm --filter @verex/web dev
+
+# (CLI-only alternative: forge script script/DeployCTF.s.sol --rpc-url http://localhost:8545 \
+#  --broadcast prints an `export USDC_ADDR=...` line for packages/cli.
+#  script/Deploy.s.sol is the retired v1 parimutuel scaffold — don't use it.)
 ```
 
 ### Run the web UI locally (v1 — DB-only, no contracts)
