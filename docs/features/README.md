@@ -610,6 +610,7 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 | B5 | DelegateContract 선택 기준 + Revoke 패턴 audit-grade로 정리 | HIGH | 실거래 (testnet 이상) 진입 전 | `docs/security/eip-7702-delegate-policy.md` |
 | B6 | **Auto-claim delegate 컨트랙트** — 특정 사용자에 대해 ONLY `redeemPositions` 허용하는 최소 delegate. 다른 function selector 없음, audit-grade. + backend scheduler가 resolved 마켓 watch | HIGH | S7 mid-week (S7 AA wallet 구현 후) | `packages/contracts/src/AutoClaimDelegate.sol` + `packages/api`의 scheduler 모듈 |
 | B7 | **Paymaster spend tracker** — per-wallet 카운터, 첫 N=5 거래만 후원, N+1번째부터 중단. 저장: off-chain DB vs on-chain mapping 결정 | MEDIUM | S8 시작 시 | 결정 후 — `packages/api` 또는 `packages/contracts/src/PaymasterSpendCap.sol` |
+| B8 | **모듈러 계정 표준 선택 (B2 하위 결정)** — B2가 4337/hybrid로 결정될 경우 스마트 계정의 모듈 표준: ERC-6900 vs **ERC-7579 (권고)**. 계정은 7579 계열 (Nexus/Kernel v3), 인프라 (번들러·페이마스터)는 독립 층이라 Alchemy 유지. 리서치: [`docs/analysis/erc-6900-vs-7579-research.md`](../analysis/erc-6900-vs-7579-research.md) | HIGH | S7 시작 시 (B2와 함께) | ADR `0002-aa-strategy.md`에 포함 + [features/account-abstraction.md](account-abstraction.md) 갱신 |
 
 **연결되는 본문 섹션**
 
