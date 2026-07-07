@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "db:push": "prisma db push",
     "migrate": "prisma migrate deploy",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -19,7 +20,9 @@
     "@fastify/cors": "^9.0.1",
     "@prisma/client": "^5.18.0",
     "dotenv": "^16.4.5",
-    "fastify": "^4.27.0"
+    "fastify": "^4.27.0",
+    "@verex/sdk": "workspace:*",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

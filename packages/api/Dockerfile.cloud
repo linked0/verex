@@ -1,0 +1,48 @@
+# Verex API — cloud image built from the REPO ROOT context (not packages/api),
+# because the API depends on the workspace package @verex/sdk which npm can't
+# resolve standalone. Build: cloudbuild-api.yaml → docker build -f this file.
+#
+# Multi-stage per repo Docker policy: the runtime stage copies ONLY the
+# self-contained `pnpm deploy` output; root .dockerignore keeps env files and
+# junk out of the context.
+
+# --- build ---
+FROM node:20-slim AS build
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+WORKDIR /repo
+
+# Install with just the manifests first (layer caching), then the sources.
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/sdk/package.json packages/sdk/package.json
+COPY packages/api/package.json packages/api/package.json
+RUN pnpm install --frozen-lockfile --filter @verex/api...
+
+# Sources. NOTE: packages/sdk/src/abis/*.ts are generated locally by
+# `pnpm --filter @verex/sdk sync-abis` (from forge artifacts) and are NOT in
+# git — deploy.sh runs sync-abis before `gcloud builds submit` so they exist
+# in the build context.
+COPY packages/sdk packages/sdk
+COPY packages/api packages/api
+
+# Build sdk (plain tsc — skip the sync-abis prebuild; abis come from context),
+# then the API (prisma client + tsc).
+RUN pnpm --filter @verex/sdk exec tsc
+RUN cd packages/api && pnpm exec prisma generate && pnpm exec tsc
+
+# Self-contained production bundle: node_modules (prod only, @verex/sdk
+# included as a real dir), dist, prisma/.
+RUN pnpm --filter @verex/api --prod deploy /out
+# Re-generate the Prisma client inside the bundle so the engine lands in
+# /out/node_modules (pinned to the workspace's prisma version).
+RUN cd /out && npx --yes prisma@5.22.0 generate
+
+# --- runtime ---
+FROM node:20-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=4000
+COPY --from=build /out ./
+EXPOSE 4000
+CMD ["node", "dist/index.js"]

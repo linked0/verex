@@ -1,4 +1,6 @@
-// Verex — DB-only prediction market (v1, no smart-contract integration yet).
+// Verex — prediction market backed by real CTF contracts on anvil (v2).
+// Markets are binary (Yes/No) CTF conditions; the DB mirrors chain state for
+// fast reads and holds display-only data (category, copy, price history).
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,13 +16,31 @@ enum MarketStatus {
   CANCELLED
 }
 
-/// A prediction market. Categorical = N outcomes (binary is just N = 2).
+enum TradeSide {
+  BUY
+  SELL
+}
+
+/// Deployed contract addresses for the chain this DB mirrors. Single row
+/// (id=1) written by the seed script — the API reads it at startup so no
+/// env-var coordination is needed between seed and server.
+model ChainConfig {
+  id           Int    @id @default(1)
+  chainId      Int
+  rpcUrl       String
+  usdcAddr     String
+  ctfAddr      String
+  exchangeAddr String
+  operator     String // account 0 — oracle, exchange operator, MM inventory
+}
+
+/// A binary prediction market backed by an on-chain CTF condition.
 model Market {
   id                String       @id @default(cuid())
   slug              String       @unique
   title             String
   description       String?
-  category          String // "Politics" | "Sports" | "Crypto" | "Economy" | "Geopolitics"
+  category          String // "Politics" | "Sports" | "Crypto" | "Economics" | "Tech & Science" | "Climate" | "Culture"
   imageUrl          String?
   status            MarketStatus @default(OPEN)
   volume            Decimal      @default(0) @db.Decimal(20, 2)
@@ -28,19 +48,63 @@ model Market {
   resolvedOutcomeId String? // which outcome won, once RESOLVED
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
-  outcomes          Outcome[]
+
+  // On-chain identity (set at seed time; hex strings / uint256 decimal strings)
+  questionId  String @unique // keccak256 of the question text
+  conditionId String @unique
+  yesTokenId  String // ERC-1155 position id (uint256 as decimal string)
+  noTokenId   String
+
+  outcomes    Outcome[]
+  trades      Trade[]
+  pricePoints PricePoint[]
 
   @@index([category, status])
 }
 
-/// One possible outcome of a market, with an implied probability (price 0..1).
+/// One side of a binary market. `price` is the YES-implied probability for
+/// the Yes row and (1 - yesPrice) for the No row — kept denormalized so the
+/// UI reads one shape for both.
 model Outcome {
   id        String  @id @default(cuid())
   marketId  String
   market    Market  @relation(fields: [marketId], references: [id], onDelete: Cascade)
-  label     String // "Yes" / "No" or "Candidate A" ...
+  label     String // "Yes" | "No"
   price     Decimal @db.Decimal(10, 6) // implied probability, 0..1
+  tokenId   String // ERC-1155 position id backing this outcome
   sortOrder Int     @default(0)
+  trades    Trade[]
 
   @@index([marketId])
+}
+
+/// A real on-chain fill (CTFExchange.fillOrder). One row per trade.
+model Trade {
+  id          String    @id @default(cuid())
+  marketId    String
+  market      Market    @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcomeId   String
+  outcome     Outcome   @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  user        String // trader address (demo anvil account)
+  side        TradeSide
+  usdcAmount  Decimal   @db.Decimal(20, 6) // collateral paid/received
+  tokenAmount Decimal   @db.Decimal(20, 6) // outcome tokens received/sold
+  price       Decimal   @db.Decimal(10, 6) // executed price (USDC per token)
+  txHash      String
+  createdAt   DateTime  @default(now())
+
+  @@index([marketId, createdAt])
+  @@index([user])
+}
+
+/// YES-price history for charts. Seeded with synthetic history, appended on
+/// every trade.
+model PricePoint {
+  id       String   @id @default(cuid())
+  marketId String
+  market   Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  price    Decimal  @db.Decimal(10, 6) // YES implied probability
+  at       DateTime @default(now())
+
+  @@index([marketId, at])
 }
