@@ -1,6 +1,6 @@
 # ERC-6900 vs ERC-7579 Research Note — 모듈러 스마트 계정 표준 선택
 
-> **출처**: Claude 대화 정리, 2026-07-06.
+> **출처**: Claude 대화 정리, 2026-07-07.
 > **연결**: [README §11.4 B8](../features/README.md) (트래킹), [README §2.2.8](../features/README.md) (Account Abstraction), [features/account-abstraction.md](../features/account-abstraction.md) (feature spec).
 > **상태**: S7 진입 전 결정 입력. 본 문서는 reference이고 결정/액션은 §11.4 B8에서 추적. B2 (4337/7702/hybrid)의 하위 결정 — 4337 스마트 계정을 쓴다면 어느 모듈 표준의 계정인가.
 

@@ -1,6 +1,7 @@
-# 2026-07-06 — verex history
+# 2026-07-07 — verex history
 
-> 관련 문서: [features/account-abstraction.md](../features/account-abstraction.md) ·
+> 관련 문서: [tasks/jun-19-verex-design.md](../tasks/jun-19-verex-design.md) (Task 1 빌드 + Task 2 staging 준비의 스펙) ·
+> [features/account-abstraction.md](../features/account-abstraction.md) ·
 > [features/README.md §11.4](../features/README.md) ·
 > [analysis/erc-6900-vs-7579-research.md](../analysis/erc-6900-vs-7579-research.md)
 
@@ -10,7 +11,7 @@ ERC-6900 vs ERC-7579 비교 리서치를 `docs/analysis/erc-6900-vs-7579-researc
 B2의 하위 결정으로 **B8 (모듈러 계정 표준 선택)**을 §11.4와 `features/account-abstraction.md`에
 feature spec으로 추가. 방향: 계정은 7579 계열 (Nexus/Kernel v3) — 세션키·지출한도 기성 모듈이
 가장 많고 Verex는 권한 그래프가 아닌 "검증 모듈 교체 + 세션키" 수준만 필요; 번들러·페이마스터는
-독립 층이라 Alchemy 유지. 락인 층은 승자 표준에, 교체 쉬운 층은 기존 벤더에. (출처: Claude 대화 리서치, 2026-07-06)
+독립 층이라 Alchemy 유지. 락인 층은 승자 표준에, 교체 쉬운 층은 기존 벤더에. (출처: Claude 대화 리서치, 2026-07-07)
 
 ### Task 1 대개편: shadcn UI + 실컨트랙트 거래 (jun-19 design Task 1 + "real contract" 지시)
 
@@ -79,6 +80,12 @@ Source: [jun-19-verex-design.md](../tasks/jun-19-verex-design.md) Task 2 addendu
 `@esbuild/darwin-x64`만 있었음 (과거 Rosetta/x64 node로 install한 잔재; 현재 node는 nvm arm64
 v24.18.0). `pnpm install --force`로 재설치 후 darwin-arm64 바이너리 확보, API 기동 + `/health` OK
 확인. 재발 시 같은 처방. Source: 채팅 트러블슈팅 (별도 spec 문서 없음).
+
+### 세션 마무리: claude/deploy-export-log 브랜치에 논리적 커밋 5개로 정리
+
+feat(contracts) export 로그 / feat(api) 실 CTF 마켓+거래 / feat(web) shadcn UI+트레이드 패널 /
+feat(deploy) staging 파이프라인 / docs 일괄 — jay 지시로 커밋 (머지·푸시는 보류, jay 결정 대기).
+Source: 이 파일의 위 엔트리들이 각 커밋의 상세.
 
 ### Task 1 (Web UI): UI 스택 = shadcn/ui + Tailwind 결정 + 디자인 유사성 법적 리스크 정리
 

@@ -6,20 +6,20 @@
 ## Task map
 | # | Area | Status |
 |---|------|--------|
-| 1 | **Basic Web UI** — Kalshi-referenced, **binary** markets, **real CTF contracts on anvil** | ✅ **built 2026-07-06** (shadcn UI + on-chain trading; see addendum 2) |
+| 1 | **Basic Web UI** — Kalshi-referenced, **binary** markets, **real CTF contracts on anvil** | ✅ **built 2026-07-07** (shadcn UI + on-chain trading; see addendum 2) |
 | 2 | **Deploy to GCP** + Cloud SQL DB + domain `verex.jaylabs.xyz` | ready to build — **blocked on chain decision** (see Task 2 addendum) |
 
 ## Decisions (proposed — confirm)
 | Topic | Proposed | Note |
 |-------|----------|------|
 | Web app | `packages/web` (Next.js 14, App Router) | existing scaffold (`layout.tsx`, `page.tsx`) |
-| Data layer | ~~DB-only~~ → **real CTF contracts (anvil) + DB mirror** | superseded 2026-07-06 per jay: "use real contract for the market" |
+| Data layer | ~~DB-only~~ → **real CTF contracts (anvil) + DB mirror** | superseded 2026-07-07 per jay: "use real contract for the market" |
 | DB | **Cloud SQL for PostgreSQL** + **Prisma** | consistent with rabbit; verex has no DB yet |
 | API | **Next.js route handlers + Prisma** in `web` | simplest for DB-only; alt = existing `packages/api` (Fastify) — **open Q** |
 | Market type | **Categorical** (N outcomes; binary = N=2) | per spec |
 | Domain | **`verex.jaylabs.xyz`** (subdomain) → Cloud Run | spec names this exact host |
 | Deploy pattern | mirror rabbit `scripts/deploy.sh` (secrets → Secret Manager) | reuse known-good flow |
-| UI kit | **shadcn/ui + Tailwind** | see [Task 1 addendum](#task-1-addendum--ui-stack--design-similarity-risk-2026-07-06) — research + legal-risk notes |
+| UI kit | **shadcn/ui + Tailwind** | see [Task 1 addendum](#task-1-addendum--ui-stack--design-similarity-risk-2026-07-07) — research + legal-risk notes |
 
 > 💸 Cost: Cloud SQL bills monthly even when idle (~$8–10+ smallest tier).
 
@@ -88,7 +88,7 @@ Open: include mock trading in v1, or read-only display first?
 
 ---
 
-## Task 1 addendum — UI stack & design-similarity risk (2026-07-06)
+## Task 1 addendum — UI stack & design-similarity risk (2026-07-07)
 
 ### UI stack: recommendation = shadcn/ui + Tailwind
 
@@ -156,7 +156,7 @@ We can use this screen shot from Kalshi
 ![Kalshi detail page](images/kalshi-detail.png)
 ---
 
-## Task 1 addendum 2 — as built (2026-07-06)
+## Task 1 addendum 2 — as built (2026-07-07)
 
 Implemented on branch `claude/deploy-export-log` per jay's "working version, complete features" directive:
 
@@ -176,7 +176,7 @@ Implemented on branch `claude/deploy-export-log` per jay's "working version, com
 - **Run locally**: `anvil` → `pnpm --filter @verex/api db:reset` (migrate + deploy + seed) →
   `pnpm --filter @verex/api dev` → `pnpm --filter @verex/web dev`.
 
-## Task 2 addendum — GCP setup summary (2026-07-06): jay's actions vs Claude's
+## Task 2 addendum — GCP setup summary (2026-07-07): jay's actions vs Claude's
 
 **⚠️ New decision needed first — where does the chain live in the cloud?** Task 1 now trades
 against anvil, which is local-only. Options for `verex.jaylabs.xyz`:
@@ -190,7 +190,7 @@ against anvil, which is local-only. Options for `verex.jaylabs.xyz`:
 **jay does (needs your accounts/access):**
 1. Decide the chain option above (a/b/c) — blocks everything else.
 2. Pick the **GCP project**: reuse `doubletree-498007` (rabbit) or create a new one; confirm **billing** is on.
-3. ~~Be ready at the registrar~~ → **almost nothing** (updated 2026-07-06): `jaylabs.xyz`'s
+3. ~~Be ready at the registrar~~ → **almost nothing** (updated 2026-07-07): `jaylabs.xyz`'s
    nameservers are `ns-cloud-e*.googledomains.com` — the zone lives in **Cloud DNS**, so Claude
    can add the `verex` record via `gcloud dns`. jay's only possible action: click **Verify** in
    Google Search Console if Cloud Run demands domain-ownership verification (Claude adds the TXT
