@@ -1,0 +1,8 @@
+# Cloud Build: verex API image from the repo-root context (workspace build).
+# Invoked by scripts/deploy.sh:
+#   gcloud builds submit --config cloudbuild-api.yaml --substitutions _IMAGE=<tag> .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "packages/api/Dockerfile.cloud", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"

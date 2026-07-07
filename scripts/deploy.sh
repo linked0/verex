@@ -20,6 +20,10 @@ SERVICE_API=${SERVICE_API:-verex-api}
 DB_INSTANCE=${DB_INSTANCE:-verex-db}
 DB_NAME=${DB_NAME:-verex}
 DB_USER=${DB_USER:-verex}
+DOMAIN=${DOMAIN:-}                       # e.g. staging.verex.jaylabs.xyz (setup-dns.sh hint)
+SECRET_NAME="verex-database-url-${DB_NAME}" # per-DB secret so staging/prod don't collide
+AR_REPO=${AR_REPO:-verex}
+API_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/api:${DB_NAME}"
 
 echo "▶ Project / APIs ($PROJECT_ID)"
 gcloud config set project "$PROJECT_ID" >/dev/null
@@ -39,19 +43,19 @@ gcloud sql databases create "$DB_NAME" --instance="$DB_INSTANCE" 2>/dev/null || 
 CONN_NAME=$(gcloud sql instances describe "$DB_INSTANCE" --format='value(connectionName)')
 
 # --- DB password + DATABASE_URL secret (AUTO-GENERATED; reused on re-runs, never printed) ---
-echo "▶ Secret Manager (verex-database-url)"
-if gcloud secrets describe verex-database-url >/dev/null 2>&1; then
+echo "▶ Secret Manager ($SECRET_NAME)"
+if gcloud secrets describe "$SECRET_NAME" >/dev/null 2>&1; then
   echo "  - reusing existing DATABASE_URL secret"
-  DATABASE_URL=$(gcloud secrets versions access latest --secret=verex-database-url)
+  DATABASE_URL=$(gcloud secrets versions access latest --secret="$SECRET_NAME")
 else
   DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
   gcloud sql users create "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD" 2>/dev/null \
     || gcloud sql users set-password "$DB_USER" --instance="$DB_INSTANCE" --password="$DB_PASSWORD"
   # Cloud Run reaches Cloud SQL via a unix socket: /cloudsql/<connectionName>
   DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@localhost/${DB_NAME}?host=/cloudsql/${CONN_NAME}"
-  printf '%s' "$DATABASE_URL" | gcloud secrets create verex-database-url --replication-policy=automatic --data-file=-
+  printf '%s' "$DATABASE_URL" | gcloud secrets create "$SECRET_NAME" --replication-policy=automatic --data-file=-
 fi
-gcloud secrets add-iam-policy-binding verex-database-url \
+gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
   --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
 
 # --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
@@ -70,16 +74,27 @@ trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
 sleep 5
 # Rewrite the socket URL to a local-TCP URL through the proxy (keeps user:pass).
 LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@localhost/([^?]+)\?host=.*#@localhost:5433/\1#')
-DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api exec prisma db push
-DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api seed
+DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api exec prisma migrate deploy
+# SEED_DB_ONLY=1: cloud has no chain yet (Task 2 chain decision pending) —
+# markets browse fine; trades return "trading is disabled in this environment".
+DATABASE_URL="$LOCAL_URL" SEED_DB_ONLY=1 pnpm --filter @verex/api exec tsx prisma/seed.ts
 kill "$PROXY_PID" 2>/dev/null || true
 trap - EXIT
 
-# --- Deploy API (uses packages/api/Dockerfile) ---
+# --- Deploy API ---
+# The API now depends on the workspace package @verex/sdk, so the image is
+# built from the REPO ROOT context (packages/api/Dockerfile.cloud via
+# cloudbuild-api.yaml) — `--source packages/api` can't resolve workspace:*.
+echo "▶ Build API image (repo-root workspace build)"
+gcloud artifacts repositories describe "$AR_REPO" --location="$REGION" >/dev/null 2>&1 \
+  || gcloud artifacts repositories create "$AR_REPO" --location="$REGION" --repository-format=docker
+pnpm --filter @verex/sdk sync-abis   # generated abis must exist in the build context
+gcloud builds submit --config cloudbuild-api.yaml --substitutions "_IMAGE=$API_IMAGE" .
+
 echo "▶ Deploy $SERVICE_API"
-gcloud run deploy "$SERVICE_API" --source packages/api --region "$REGION" \
+gcloud run deploy "$SERVICE_API" --image "$API_IMAGE" --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
-  --set-secrets "DATABASE_URL=verex-database-url:latest" \
+  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest" \
   --allow-unauthenticated
 API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --format='value(status.url)')
 
@@ -91,7 +106,10 @@ gcloud run deploy "$SERVICE_WEB" --source packages/web --region "$REGION" \
 WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --format='value(status.url)')
 
 echo
-echo "✅ API: $API_URL"
+echo "✅ API: $API_URL   (health: curl $API_URL/health)"
 echo "✅ Web: $WEB_URL   ← TEST HERE FIRST (before mapping the domain)"
-echo "👉 Go live — map the domain, then add the DNS record GCP prints at your registrar:"
-echo "    gcloud beta run domain-mappings create --service $SERVICE_WEB --domain verex.jaylabs.xyz --region $REGION"
+echo "⚠️  Trading is disabled in the cloud until the Task 2 chain decision (DB-only seed)."
+if [ -n "$DOMAIN" ]; then
+  echo "👉 Go live — domain mapping + Cloud DNS record in one step:"
+  echo "    ./scripts/setup-dns.sh $PROJECT_ID $REGION $SERVICE_WEB $DOMAIN"
+fi
