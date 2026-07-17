@@ -15,12 +15,14 @@ Status is keyed to the 10-step roadmap (**§1.4 in the design document below**):
 | Settlement & redeem | S2 | [settlement-redeem.md](settlement-redeem.md) |
 | Oracle (resolution) | S2 → S6 | [oracle.md](oracle.md) |
 | MM Agent | S2.5 → S6 | [mm-agent.md](mm-agent.md) |
-| Hybrid AMM + CLOB | **early** (priority) | [hybrid-amm-clob.md](hybrid-amm-clob.md) |
+| Hybrid AMM + CLOB | **early** (priority) | [hybrid-amm-clob.md](hybrid-amm-clob.md) — incl. **Extreme-probability handling** (CPMM tail slippage → simulation · curve decision · tail guard, 2026-07-17) |
 | Account abstraction | S7–S8 | [account-abstraction.md](account-abstraction.md) |
 | API & indexer | S4–S5 | [api-indexer.md](api-indexer.md) |
 | Web UI | S3 | [web-ui.md](web-ui.md) |
 | MCP interface | S3 → S8 | [mcp-interface.md](mcp-interface.md) |
 | Onboarding & payments | S8–S9 | [onboarding-payments.md](onboarding-payments.md) |
+| Runtime validation (Zod) | incremental — CLI now · api S4 · mm-agent S2.5 | [zod-validation.md](zod-validation.md) — env/ABI/JSON boundary validation + inferred types; folds in audit item A2 |
+| Markets as tokens | post-S2 (exploratory) | [markets-as-tokens.md](markets-as-tokens.md) — ERC-20 wrapper for CTF outcome shares → external DeFi composability (DEX listing, lending, bots) |
 
 Hierarchy: **Category** (file) → **Feature** (bold item) → **to-do** (checkbox); `(you)` = needs your decision or action.
 
