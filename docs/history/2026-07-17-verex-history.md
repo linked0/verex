@@ -39,3 +39,11 @@ Per jay, the new feature is now visible in the
 [features README](../features/README.md) Categories table — appended to the existing
 **Hybrid AMM + CLOB** row (the feature lives inside that category per the
 Category → Feature → to-do hierarchy) rather than as a new category.
+
+### git: Jul-17 batch landed on main (PR #8)
+Per jay's explicit request: committed today's docs on `claude/deploy-export-log`,
+first-pushed the branch, opened [PR #8](https://github.com/linked0/verex/pull/8),
+rebase-merged. The branch's six Jul-07 commits (staging pipeline, shadcn web rebuild,
+CTF trading API, deploy export line, docs) rode along — disclosed in the PR body.
+Note: `claude/aa-7579-module-spec` (B8 ERC-7579 spec commit) remains an unmerged local
+branch — not part of this request.
