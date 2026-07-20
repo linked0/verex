@@ -69,15 +69,23 @@ export interface ChainCtx {
 let cached: ChainCtx | null = null;
 
 /// Load the deployed addresses from the ChainConfig row the seed script
-/// wrote, and bind viem clients. Cached for the process lifetime — re-seed
-/// requires an API restart (fine for local dev).
+/// wrote, and bind viem clients. The ctx is rebuilt whenever the row's
+/// addresses change, so a re-seed is picked up without an API restart
+/// (a stale ctx makes every fill revert on unregistered token ids).
 export async function loadChain(): Promise<ChainCtx> {
-  if (cached) return cached;
   const cfg = await prisma.chainConfig.findUnique({ where: { id: 1 } });
   if (!cfg) {
     throw new Error(
       "ChainConfig missing — run the seed first (pnpm --filter @verex/api seed)",
     );
+  }
+  if (
+    cached &&
+    cached.usdcAddr === cfg.usdcAddr &&
+    cached.ctfAddr === cfg.ctfAddr &&
+    cached.exchangeAddr === cfg.exchangeAddr
+  ) {
+    return cached;
   }
   const publicClient = makePublicClient();
   const ctx: ChainCtx = {
