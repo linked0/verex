@@ -8,6 +8,7 @@
 |---|------|--------|
 | 1 | **Basic Web UI** — Kalshi-referenced, **binary** markets, **real CTF contracts on anvil** | ✅ **built 2026-07-07** (shadcn UI + on-chain trading; see addendum 2) |
 | 2 | **Deploy to GCP** + Cloud SQL DB + domain `verex.jaylabs.xyz` | ready to build — **blocked on chain decision** (see Task 2 addendum) |
+| 3 | **Portfolio page + market resolution** (operator #0 as admin) | designed 2026-07-20 — [details/jul-20-portfolio-resolution-design.md](details/jul-20-portfolio-resolution-design.md) |
 
 ## Decisions (proposed — confirm)
 | Topic | Proposed | Note |
