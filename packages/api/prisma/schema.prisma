@@ -19,6 +19,7 @@ enum MarketStatus {
 enum TradeSide {
   BUY
   SELL
+  REDEEM // post-resolution redemption — recorded so portfolio history shows realized P&L
 }
 
 /// Deployed contract addresses for the chain this DB mirrors. Single row
