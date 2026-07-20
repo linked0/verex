@@ -2,7 +2,8 @@ import "dotenv/config"; // load packages/api/.env into process.env (DATABASE_URL
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
-import { executeTrade, walletSummary, faucet, type TradeRequest } from "./trade";
+import { executeTrade, walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
+import { resolveMarket, redeemPosition } from "./resolve";
 
 const app = Fastify({ logger: true });
 
@@ -73,6 +74,16 @@ app.get("/markets/:slug/trades", async (req, reply) => {
   return { trades };
 });
 
+/// Dig the revert reason / custom error name out of viem's nested cause chain —
+/// `shortMessage` alone ("fillOrder reverted") hides it (see 2026-07-20 history).
+function revertDetail(e: any): string | undefined {
+  for (let c = e; c; c = c.cause) {
+    if (typeof c.reason === "string") return c.reason;
+    if (c.data?.errorName) return c.data.errorName;
+  }
+  return e?.metaMessages?.filter(Boolean).slice(0, 3).join(" | ");
+}
+
 // Execute a real on-chain trade (see trade.ts for the maker/taker model).
 app.post("/trade", async (req, reply) => {
   try {
@@ -81,7 +92,40 @@ app.post("/trade", async (req, reply) => {
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
     req.log.error(e);
-    return reply.status(status).send({ error: e?.shortMessage ?? e?.message ?? "trade failed" });
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "trade failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+// Resolve a market (operator #0 only — manual oracle, reportPayouts on-chain).
+app.post("/markets/:slug/resolve", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const body = req.body as { outcome: "Yes" | "No"; accountIndex: number };
+    return await resolveMarket({ slug, outcome: body.outcome, accountIndex: body.accountIndex });
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "resolve failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+// Redeem a position in a resolved market (winner gets $1/token; one call clears both sides).
+app.post("/redeem", async (req, reply) => {
+  try {
+    return await redeemPosition(req.body as { slug: string; accountIndex: number });
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "redeem failed",
+      detail: revertDetail(e),
+    });
   }
 });
 
@@ -92,6 +136,15 @@ app.get("/wallet/:index", async (req, reply) => {
     return reply.status(400).send({ error: "index must be 1..9" });
   }
   return walletSummary(index);
+});
+
+// Demo wallet: trade + redemption history (newest first), with realized P&L on redeems.
+app.get("/wallet/:index/history", async (req, reply) => {
+  const index = Number((req.params as { index: string }).index);
+  if (!Number.isInteger(index) || index < 1 || index > 9) {
+    return reply.status(400).send({ error: "index must be 1..9" });
+  }
+  return { history: await walletHistory(index) };
 });
 
 // Demo faucet: mint test USDC to a demo wallet.

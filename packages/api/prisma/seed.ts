@@ -43,6 +43,8 @@ const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 /// buying tokens back when users sell.
 const INVENTORY_PER_MARKET = parseUnits("10000", 6); // 10,000 USDC
 const OPERATOR_USDC_BUFFER = parseUnits("100000", 6); // 100,000 USDC
+/// Starting balance for demo wallets #1-5 (matches AUTO_FAUCET_USDC in src/trade.ts).
+const DEMO_WALLET_USDC = parseUnits("1000", 6); // 1,000 USDC
 
 type SeedMarket = {
   slug: string;
@@ -304,6 +306,16 @@ async function main() {
   await usdc.mint(operator, totalMint);
   await usdc.approve(backbone.ctf, INVENTORY_PER_MARKET * BigInt(MARKETS.length)); // splits pull via CTF
   await usdc.approve(backbone.exchange, OPERATOR_USDC_BUFFER); // SELL fills pull the operator's USDC via the exchange
+
+  // Pre-fund demo wallets #1-5. Top-up (not blind mint) so re-running the seed
+  // against a reused backbone doesn't inflate balances. The trade-time
+  // auto-faucet in src/trade.ts stays as a safety net.
+  console.log("[2b] funding demo wallets #1-5 (top up to 1,000 USDC)...");
+  for (let i = 1; i <= 5; i++) {
+    const user = accountAddress(i);
+    const bal = await usdc.balanceOf(user);
+    if (bal < DEMO_WALLET_USDC) await usdc.mint(user, DEMO_WALLET_USDC - bal);
+  }
 
   // 3. Reset DB content and store chain config
   console.log("[3] resetting DB rows...");
