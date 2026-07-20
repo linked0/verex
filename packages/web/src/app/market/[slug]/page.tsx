@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ProbChart } from "@/components/ProbChart";
-import { TradePanel } from "@/components/TradePanel";
+import { MarketSidePanel } from "@/components/MarketSidePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,12 @@ export default async function MarketPage({ params }: { params: { slug: string } 
           <div>
             <div className="mb-2 flex items-center gap-2">
               <Badge>{market.category}</Badge>
+              {market.status === "RESOLVED" && (
+                <Badge variant="outline" className="border-yes text-yes">
+                  RESOLVED —{" "}
+                  {market.outcomes.find((o) => Number(o.price) === 1)?.label?.toUpperCase() ?? "?"}
+                </Badge>
+              )}
               <span className="text-xs text-muted-foreground">
                 {usd(market.volume)} Vol
                 {market.closesAt &&
@@ -125,9 +131,13 @@ export default async function MarketPage({ params }: { params: { slug: string } 
                       <span className="font-mono text-xs text-muted-foreground">
                         {t.user.slice(0, 6)}…{t.user.slice(-4)}
                       </span>
-                      <span className={t.side === "BUY" ? "text-yes" : "text-no"}>
-                        {t.side === "BUY" ? "Bought" : "Sold"} {Number(t.tokenAmount).toFixed(1)}{" "}
-                        {t.outcome.label}
+                      <span
+                        className={
+                          t.side === "BUY" ? "text-yes" : t.side === "SELL" ? "text-no" : "text-primary"
+                        }
+                      >
+                        {t.side === "BUY" ? "Bought" : t.side === "SELL" ? "Sold" : "Redeemed"}{" "}
+                        {Number(t.tokenAmount).toFixed(1)} {t.outcome.label}
                       </span>
                       <span className="tabular-nums text-muted-foreground">
                         @{cents(t.price)}
@@ -146,9 +156,9 @@ export default async function MarketPage({ params }: { params: { slug: string } 
           </Card>
         </div>
 
-        {/* Right: trade panel */}
+        {/* Right: trade panel (or admin resolve / resolved note) */}
         <aside className="lg:sticky lg:top-20 lg:self-start">
-          <TradePanel market={market} />
+          <MarketSidePanel market={market} />
         </aside>
       </div>
     </main>

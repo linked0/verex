@@ -28,13 +28,27 @@ export type PricePoint = { price: string; at: string };
 export type Trade = {
   id: string;
   user: string;
-  side: "BUY" | "SELL";
+  side: "BUY" | "SELL" | "REDEEM";
   usdcAmount: string;
   tokenAmount: string;
   price: string;
   txHash: string;
   createdAt: string;
   outcome: { label: string };
+};
+
+export type HistoryRow = {
+  id: string;
+  side: "BUY" | "SELL" | "REDEEM";
+  marketSlug: string;
+  marketTitle: string;
+  outcome: string;
+  usdcAmount: number;
+  tokenAmount: number;
+  price: number;
+  txHash: string;
+  createdAt: string;
+  realizedPnl?: number;
 };
 
 export type TradeResult = {
@@ -48,18 +62,24 @@ export type TradeResult = {
   faucetMinted: boolean;
 };
 
+export type Position = {
+  slug: string;
+  title: string;
+  outcome: string;
+  tokens: number;
+  price: number;
+  value: number;
+  costBasis: number;
+  pnl: number;
+  marketStatus: string;
+  won: boolean | null;
+};
+
 export type WalletSummary = {
   accountIndex: number;
   address: string;
   usdc: number;
-  positions: {
-    slug: string;
-    title: string;
-    outcome: string;
-    tokens: number;
-    price: number;
-    value: number;
-  }[];
+  positions: Position[];
 };
 
 // Server components use API_URL (runtime, non-public); the browser uses
@@ -157,6 +177,46 @@ export async function getWallet(index: number): Promise<WalletSummary | null> {
   } catch {
     return null;
   }
+}
+
+export async function getWalletHistory(index: number): Promise<HistoryRow[]> {
+  try {
+    const res = await fetch(`${BROWSER_API}/wallet/${index}/history`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.history ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function postResolve(body: {
+  slug: string;
+  outcome: "Yes" | "No";
+  accountIndex: number;
+}): Promise<{ txHash: string; resolvedOutcome: "Yes" | "No" }> {
+  const res = await fetch(`${BROWSER_API}/markets/${body.slug}/resolve`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ outcome: body.outcome, accountIndex: body.accountIndex }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "resolve failed");
+  return data;
+}
+
+export async function postRedeem(body: {
+  slug: string;
+  accountIndex: number;
+}): Promise<{ txHash: string; usdcReceived: number; usdc: number }> {
+  const res = await fetch(`${BROWSER_API}/redeem`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "redeem failed");
+  return data;
 }
 
 export async function postFaucet(accountIndex: number): Promise<{ usdc: number } | null> {

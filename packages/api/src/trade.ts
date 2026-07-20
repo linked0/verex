@@ -226,6 +226,14 @@ export interface WalletSummary {
     tokens: number;
     price: number;
     value: number;
+    /// Net USDC spent on this outcome (Σ BUY − Σ SELL) — cost basis for P&L.
+    costBasis: number;
+    /// value − costBasis. For resolved markets value uses the payout price
+    /// (1 or 0), so this is the final profit/loss before redemption.
+    pnl: number;
+    marketStatus: string;
+    /// RESOLVED markets only: did this outcome win? (null while OPEN)
+    won: boolean | null;
   }[];
 }
 
@@ -240,6 +248,19 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
   const usdcBal = await chain.usdcAs(0).balanceOf(user);
 
   const markets = await prisma.market.findMany({ include: { outcomes: true } });
+
+  // Cost basis per outcome: net USDC the user has put in (Σ BUY − Σ SELL).
+  // REDEEM rows are excluded — they close a position, not change its cost.
+  const userTrades = await prisma.trade.findMany({
+    where: { user, side: { in: ["BUY", "SELL"] } },
+    select: { outcomeId: true, side: true, usdcAmount: true },
+  });
+  const netCost = new Map<string, number>();
+  for (const t of userTrades) {
+    const signed = (t.side === "BUY" ? 1 : -1) * Number(t.usdcAmount);
+    netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + signed);
+  }
+
   const positions: WalletSummary["positions"] = [];
   for (const m of markets) {
     for (const o of m.outcomes) {
@@ -247,13 +268,19 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
       if (bal > 0n) {
         const tokens = Number(formatUnits(bal, 6));
         const price = Number(o.price);
+        const value = Number((tokens * price).toFixed(2));
+        const costBasis = Number((netCost.get(o.id) ?? 0).toFixed(2));
         positions.push({
           slug: m.slug,
           title: m.title,
           outcome: o.label,
           tokens,
           price,
-          value: Number((tokens * price).toFixed(2)),
+          value,
+          costBasis,
+          pnl: Number((value - costBasis).toFixed(2)),
+          marketStatus: m.status,
+          won: m.status === "RESOLVED" ? m.resolvedOutcomeId === o.id : null,
         });
       }
     }
@@ -264,6 +291,56 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
     usdc: Number(formatUnits(usdcBal, 6)),
     positions,
   };
+}
+
+export interface HistoryRow {
+  id: string;
+  side: "BUY" | "SELL" | "REDEEM";
+  marketSlug: string;
+  marketTitle: string;
+  outcome: string;
+  usdcAmount: number;
+  tokenAmount: number;
+  price: number;
+  txHash: string;
+  createdAt: string;
+  /// REDEEM rows only: usdcAmount − net cost of the outcome (Σ BUY − Σ SELL)
+  /// at redemption — the realized win/loss of the closed position.
+  realizedPnl?: number;
+}
+
+/// The wallet's full activity feed (buys, sells, redemptions), newest first.
+export async function walletHistory(accountIndex: number): Promise<HistoryRow[]> {
+  const user = account(accountIndex).address as Address;
+  const trades = await prisma.trade.findMany({
+    where: { user },
+    orderBy: { createdAt: "desc" },
+    include: { market: { select: { slug: true, title: true } }, outcome: { select: { id: true, label: true } } },
+  });
+
+  // Net cost per outcome from BUY/SELL rows, for realized P&L on REDEEM rows.
+  const netCost = new Map<string, number>();
+  for (const t of trades) {
+    if (t.side === "REDEEM") continue;
+    const signed = (t.side === "BUY" ? 1 : -1) * Number(t.usdcAmount);
+    netCost.set(t.outcome.id, (netCost.get(t.outcome.id) ?? 0) + signed);
+  }
+
+  return trades.map((t) => ({
+    id: t.id,
+    side: t.side,
+    marketSlug: t.market.slug,
+    marketTitle: t.market.title,
+    outcome: t.outcome.label,
+    usdcAmount: Number(t.usdcAmount),
+    tokenAmount: Number(t.tokenAmount),
+    price: Number(t.price),
+    txHash: t.txHash,
+    createdAt: t.createdAt.toISOString(),
+    ...(t.side === "REDEEM"
+      ? { realizedPnl: Number((Number(t.usdcAmount) - (netCost.get(t.outcome.id) ?? 0)).toFixed(2)) }
+      : {}),
+  }));
 }
 
 /// Explicit faucet (demo): mint USDC to a demo wallet.
