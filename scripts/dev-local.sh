@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# verex — local dev setup for the v1 web UI (DB-only, no contracts).
-# Starts a local Postgres (Docker), pushes the Prisma schema, seeds 10 markets,
-# and writes the local .env files. Then run the two dev servers (printed below).
+# verex — local dev setup.
+# Starts a local Postgres (Docker), pushes the Prisma schema, seeds 10 on-chain
+# markets (the seed deploys the CTF backbone via forge — anvil must already be
+# running), and writes the local .env files. Then run the two dev servers
+# (printed below).
 #
-# Usage:  ./scripts/dev-local.sh
+# Usage:  anvil &  # or in a separate terminal
+#         ./scripts/dev-local.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

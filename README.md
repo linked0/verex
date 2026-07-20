@@ -10,6 +10,7 @@ Decentralized prediction market — truth through exchange.
 | [`packages/sdk`](packages/sdk) | TypeScript SDK for interacting with contracts |
 | [`packages/api`](packages/api) | REST API server (Fastify) |
 | [`packages/web`](packages/web) | Web frontend (Next.js) |
+| [`packages/cli`](packages/cli) | CLI demo — full market lifecycle on anvil |
 
 ## Stack
 
@@ -24,8 +25,9 @@ Decentralized prediction market — truth through exchange.
 ### Prerequisites
 
 - [pnpm](https://pnpm.io) v9+
-- [Foundry](https://book.getfoundry.sh/getting-started/installation)
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) (`anvil` + `forge` on PATH)
 - Node.js 20+
+- Docker (local Postgres container)
 
 ### Install
 
@@ -41,39 +43,48 @@ pnpm build
 
 ### Run locally
 
+Four terminals (or background the first two). The seed deploys real contracts, so **anvil must
+be running before step 2**.
+
 ```bash
-# Start local blockchain
+# 1. Local blockchain — separate terminal, leave it running
 anvil
 
-# Reset DB + deploy the CTF backbone + seed 10 on-chain markets (one command).
-# Runs forge DeployCTF.s.sol itself and stores the addresses in the DB (ChainConfig).
-# Requires the local Postgres (docker: verex-pg) to be running.
-pnpm --filter @verex/api db:reset
+# 2. Postgres (Docker, container: verex-pg) + Prisma schema + env files,
+#    then deploys the CTF backbone via forge and seeds 10 on-chain markets
+./scripts/dev-local.sh
 
-# Start API server (serves markets + executes real on-chain trades)
-pnpm --filter @verex/api dev
+# 3. API server — serves markets + executes real on-chain trades
+pnpm --filter @verex/api dev      # → http://localhost:4000
 
-# Start web (http://localhost:3000 — trade with demo wallets #1-5)
-pnpm --filter @verex/web dev
-
-# (CLI-only alternative: forge script script/DeployCTF.s.sol --rpc-url http://localhost:8545 \
-#  --broadcast prints an `export USDC_ADDR=...` line for packages/cli.
-#  script/Deploy.s.sol is the retired v1 parimutuel scaffold — don't use it.)
+# 4. Web
+pnpm --filter @verex/web dev      # → http://localhost:3000
 ```
 
-### Run the web UI locally (v1 — DB-only, no contracts)
+Open http://localhost:3000 and trade with the demo wallets (#1–5, anvil's default accounts,
+seeded with 1,000 USDC each).
+This is where you catch **app/logic bugs** before committing.
 
-The v1 prediction-market UI reads from Postgres (no smart contracts yet). One script sets up
-everything (needs Docker):
+### Reset (start over)
+
+When the local state gets messy — resolved test markets, junk trades, odd balances —
+reset everything without touching the running servers:
 
 ```bash
-./scripts/dev-local.sh            # Postgres (Docker) + Prisma schema + seed 10 markets + env files
-pnpm --filter @verex/api dev      # API → http://localhost:4000
-pnpm --filter @verex/web dev      # Web → http://localhost:3000
+# Prerequisite: anvil is running (and dev-local.sh has been run once before).
+./scripts/reset.sh
 ```
 
-Open http://localhost:3000 to browse markets. This is where you catch **app/logic bugs**
-before committing.
+What it does, in order:
+1. Wipes **all** DB data — markets, trades, portfolio history (`prisma migrate reset`).
+2. Deploys a **fresh** contract backbone (USDC / CTF / Exchange) on the same anvil.
+3. Reseeds 10 OPEN markets and pre-funds demo wallets #1–5 with 1,000 USDC.
+
+No restarts needed afterwards: the running API detects the new contract addresses
+automatically — just **refresh the web page**. The old contracts remain on anvil as
+orphaned leftovers; nothing references them, so they're harmless. (Reusing the old
+backbone across resets is unsupported — the CTF rejects re-preparing existing
+conditions.)
 
 ### Deploy (GCP Cloud Run + Cloud SQL)
 
