@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { getCategories, getHistory, getMarkets, cents, pct, usd, type Market } from "@/lib/api";
+import {
+  getCategories,
+  getHistory,
+  getMarkets,
+  cents,
+  marketThumbnail,
+  pct,
+  usd,
+  type Market,
+} from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryTabs } from "@/components/CategoryTabs";
@@ -17,15 +26,26 @@ async function Featured({ market }: { market: Market }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <Badge>{market.category}</Badge>
-          <Badge variant="secondary">Featured</Badge>
+        <div className="flex items-start gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element -- external, per-market seeded photo; not worth Next/Image remote-pattern config for a placeholder */}
+          <img
+            src={marketThumbnail(market.slug)}
+            alt=""
+            loading="lazy"
+            className="h-9 w-9 shrink-0 rounded-lg object-cover"
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge>{market.category}</Badge>
+              <Badge variant="secondary">Featured</Badge>
+            </div>
+            <Link href={`/market/${market.slug}`}>
+              <CardTitle className="text-xl hover:text-primary md:text-2xl">
+                {market.title}
+              </CardTitle>
+            </Link>
+          </div>
         </div>
-        <Link href={`/market/${market.slug}`}>
-          <CardTitle className="text-xl hover:text-primary md:text-2xl">
-            {market.title}
-          </CardTitle>
-        </Link>
       </CardHeader>
       <CardContent>
         <div className="grid gap-5 md:grid-cols-[1fr_240px]">

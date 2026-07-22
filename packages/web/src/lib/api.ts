@@ -237,3 +237,7 @@ export const pct = (price: string | number) => Math.round(Number(price) * 100);
 export const usd = (v: string | number) =>
   `$${Number(v).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 export const cents = (price: string | number) => `${Math.round(Number(price) * 100)}¢`;
+
+// Free, seeded per market so the same market always gets the same photo — no API key,
+// no storage/upload flow needed.
+export const marketThumbnail = (slug: string) => `https://picsum.photos/seed/${slug}/96/96`;
