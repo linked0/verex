@@ -317,14 +317,26 @@ async function main() {
   await usdc.approve(backbone.ctf, INVENTORY_PER_MARKET * BigInt(MARKETS.length)); // splits pull via CTF
   await usdc.approve(backbone.exchange, OPERATOR_USDC_BUFFER); // SELL fills pull the operator's USDC via the exchange
 
-  // Pre-fund demo wallets #1-5. Top-up (not blind mint) so re-running the seed
-  // against a reused backbone doesn't inflate balances. The trade-time
-  // auto-faucet in src/trade.ts stays as a safety net.
-  console.log("[2b] funding demo wallets #1-5 (top up to 1,000 USDC)...");
+  // Pre-fund + pre-approve demo wallets #1-5. Funding is a top-up (not blind
+  // mint) so re-running the seed against a reused backbone doesn't inflate
+  // balances — the trade-time auto-faucet in src/trade.ts stays as a safety
+  // net either way. Approvals (USDC → exchange, CT → exchange) mirror what
+  // executeTrade would otherwise do lazily on a wallet's first trade
+  // (trade.ts's BUY/SELL branches) — doing it here means a demo BUY is
+  // always a single fillOrder confirmation, not up to three chained ones.
+  // See docs/tasks/details/jul-22-trade-resolution-latency-ux.md.
+  console.log("[2b] funding + approving demo wallets #1-5...");
+  const DEMO_APPROVAL = parseUnits("1000000000", 6); // effectively unlimited, same as trade.ts's approve
   for (let i = 1; i <= 5; i++) {
     const user = accountAddress(i);
     const bal = await usdc.balanceOf(user);
     if (bal < DEMO_WALLET_USDC) await usdc.mint(user, DEMO_WALLET_USDC - bal);
+
+    const userWallet = makeWalletClient(i);
+    const userUsdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: userWallet });
+    const userCt = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: userWallet });
+    await userUsdc.approve(backbone.exchange, DEMO_APPROVAL);
+    await userCt.setApprovalForAll(backbone.exchange, true);
   }
 
   // 3. Reset DB content and store chain config

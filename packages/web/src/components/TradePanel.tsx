@@ -25,6 +25,16 @@ export function TradePanel({ market }: { market: Market }) {
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState<TradeResult | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  // Snapshot of the submitted trade's estimate, shown immediately on click
+  // (before the on-chain confirmation returns) so the wait doesn't feel like
+  // dead time. Captured at submit time rather than read live off `amt` so it
+  // can't drift if the user edits the input while a request is in flight.
+  const [pending, setPending] = React.useState<{
+    side: "BUY" | "SELL";
+    outcome: "Yes" | "No";
+    tokensOut: number;
+    usdcOut: number;
+  } | null>(null);
 
   const yes = market.outcomes.find((o) => o.label === "Yes");
   const no = market.outcomes.find((o) => o.label === "No");
@@ -42,6 +52,7 @@ export function TradePanel({ market }: { market: Market }) {
     setBusy(true);
     setError(null);
     setResult(null);
+    setPending({ side, outcome, tokensOut, usdcOut });
     try {
       const r = await postTrade({
         slug: market.slug,
@@ -50,10 +61,12 @@ export function TradePanel({ market }: { market: Market }) {
         amount: amt,
         accountIndex,
       });
+      setPending(null); // clear before setResult so the two boxes never overlap
       setResult(r);
       await refresh();
       router.refresh(); // re-render server components with new prices
     } catch (e: any) {
+      setPending(null);
       setError(e?.message ?? "trade failed");
     } finally {
       setBusy(false);
@@ -172,10 +185,19 @@ export function TradePanel({ market }: { market: Market }) {
           onClick={submit}
         >
           {busy
-            ? "Submitting on-chain…"
+            ? "Confirming on-chain…"
             : `${side === "BUY" ? "Buy" : "Sell"} ${outcome}`}
         </Button>
 
+        {pending && (
+          <div className="animate-pulse rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
+            <div className="font-semibold text-primary">
+              Pending: {pending.side} ~{pending.tokensOut.toFixed(2)} {pending.outcome} for ~$
+              {pending.usdcOut.toFixed(2)}
+            </div>
+            <div className="mt-1 text-muted-foreground">Confirming on-chain…</div>
+          </div>
+        )}
         {result && (
           <div className="rounded-md border border-yes/30 bg-yes/10 p-2.5 text-xs">
             <div className="font-semibold text-yes">
