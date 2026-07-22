@@ -87,9 +87,12 @@ export type WalletSummary = {
 const API =
   process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
-/// Browser-side base: same-origin /backend/* — proxied to the API by the
-/// rewrite in next.config.js. Works identically in local dev and the cloud
-/// (no build-time NEXT_PUBLIC_ URL baking).
+/// Browser-side base: same-origin /backend/* — proxied to the API by
+/// src/app/backend/[...path]/route.ts (a Route Handler, not a
+/// next.config.js rewrite — rewrites are evaluated at build time, which
+/// would bake in the wrong URL; a Route Handler reads API_URL fresh on
+/// every request). Works identically in local dev and the cloud (no
+/// build-time NEXT_PUBLIC_ URL baking).
 export const BROWSER_API = "/backend";
 
 export async function getMarkets(category?: string, q?: string): Promise<Market[]> {

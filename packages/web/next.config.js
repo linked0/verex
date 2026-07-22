@@ -2,13 +2,12 @@
 const nextConfig = {
   // Produce a self-contained server build (.next/standalone) for a lean Docker image.
   output: "standalone",
-  // Browser-side API calls go to /backend/* and are proxied here to the API.
-  // API_URL is read at server start (runtime), so the same image works in any
-  // environment — no NEXT_PUBLIC_ build-time baking.
-  async rewrites() {
-    const api = process.env.API_URL ?? "http://localhost:4000";
-    return [{ source: "/backend/:path*", destination: `${api}/:path*` }];
-  },
+  // Browser-side API calls go to /backend/* — proxied by
+  // src/app/backend/[...path]/route.ts, NOT a next.config.js rewrite. A
+  // rewrite's destination is evaluated once at `next build` time, which
+  // would bake in whatever API_URL happens to be set during the Docker
+  // build (never — it's only set later via `gcloud run deploy
+  // --set-env-vars`) rather than reading it per-request at runtime.
 };
 
 module.exports = nextConfig;
