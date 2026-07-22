@@ -23,9 +23,9 @@
     --border: 240 6% 90%;
     --input: 240 6% 88%;
     --ring: 243 75% 55%;
-    --yes: 158 64% 38%; /* emerald-ish for Yes */
+    --yes: 160 84% 39%; /* soft emerald for Yes, per jay's reference screenshot */
     --yes-foreground: 0 0% 100%;
-    --no: 350 78% 50%; /* rose-ish for No */
+    --no: 293 69% 49%; /* magenta for No */
     --no-foreground: 0 0% 100%;
     --radius: 0.625rem;
   }
