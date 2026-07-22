@@ -17,34 +17,50 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///         direct-EOA order signing as the only enabled path. Sufficient
 ///         for S2~S5 work; AA-flavored signing comes back in S7 (§11.4).
 ///
-/// Run on anvil:
+/// Run on anvil (the script reads VEREX_OPERATOR_KEY from the environment
+/// itself via vm.envUint — forge's own --private-key CLI flag is not used/read here):
 ///   anvil &
-///   forge script script/DeployCTF.s.sol \
-///     --rpc-url http://localhost:8545 \
-///     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-///     --broadcast
+///   export VEREX_OPERATOR_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+///   forge script script/DeployCTF.s.sol --rpc-url http://localhost:8545 --broadcast
 contract DeployCTF is Script {
     function run() external returns (address usdc, address ctf, address exchange) {
-        uint256 deployerKey = vm.envOr(
-            "PRIVATE_KEY",
-            uint256(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
-        );
+        // No fallback: on anvil, export VEREX_OPERATOR_KEY=0xac09...ff80
+        // (account[0]) explicitly. A silent fallback here previously meant an
+        // un-exported key deployed with anvil's well-known key as admin/operator
+        // on WHATEVER chain --rpc-url pointed at, with no error — dangerous
+        // on a real chain (see docs/analysis/2026-05-08-v1-security-audit.md
+        // §2.5, action item A1). Failing loudly here is strictly safer.
+        uint256 deployerKey = vm.envUint("VEREX_OPERATOR_KEY");
         address deployer = vm.addr(deployerKey);
 
         vm.startBroadcast(deployerKey);
 
         // 1. MockUSDC (6 decimals; open mint)
         usdc = address(new MockUSDC());
+        vm.label(usdc, "MockUSDC");
+        console2.log("[1/3] MockUSDC deployed:         ", usdc);
 
         // 2. ConditionalTokens — deployed from Polymarket's pre-built bytecode
         //    artifact (Solidity 0.5.x source, compiled into bytecode that runs
-        //    on any post-Byzantium EVM, including 0.8 networks).
+        //    on any post-Byzantium EVM, including 0.8 networks). Raw create(),
+        //    not `new ContractName()` — forge has no compiled artifact of its
+        //    own to match this deployment against, so the --broadcast summary
+        //    prints this one with NO "Contract:" name line (unlike the other
+        //    two below). vm.label() doesn't fix that specific summary — it's
+        //    forge's own artifact-matching, not something a script can set —
+        //    but it does make this address readable in trace output, and the
+        //    console2.log line right here is printed in the same 1-2-3 order
+        //    as the broadcast summary, so you can match it up positionally.
         ctf = _deployCTF();
+        vm.label(ctf, "ConditionalTokens");
+        console2.log("[2/3] ConditionalTokens deployed: ", ctf, "<- unlabeled in the broadcast summary, see comment above");
 
         // 3. CTFExchange — Polymarket's exchange contract, deployed from its
         //    pre-built artifact. Constructor: (_collateral, _ctf,
         //    _proxyFactory, _safeFactory). We pass 0/0 for factories.
         exchange = _deployCTFExchange(usdc, ctf, address(0), address(0));
+        vm.label(exchange, "CTFExchange");
+        console2.log("[3/3] CTFExchange deployed:      ", exchange);
 
         vm.stopBroadcast();
 

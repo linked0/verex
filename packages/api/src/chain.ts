@@ -1,24 +1,36 @@
 // Chain plumbing shared by the seed script and the trading routes.
 //
-// Demo-wallet model: users are anvil's deterministic mnemonic accounts
-// (index 1..9); account 0 is the operator (deployer, manual oracle, exchange
+// Demo-wallet model: users are deterministic mnemonic accounts (index
+// 1..9); account 0 is the operator (deployer, manual oracle, exchange
 // operator, and MM inventory holder). The server holds these keys because
-// this is a local demo chain — the production path (real wallets, session
-// keys) is the S7 AA work.
+// this is a demo — the production path (real wallets, session keys) is the
+// S7 AA work.
+//
+// Local dev (default, no env vars set) uses anvil's well-known public
+// mnemonic/chain — fine, it's an ephemeral local chain with no adversaries.
+// Any real chain (VEREX_CHAIN_ID != 31337) must supply VEREX_DEMO_MNEMONIC
+// (a *private* mnemonic nobody else knows — anvil's default is famous, so
+// reusing it on a public chain would let anyone derive the same keys) and
+// should supply VEREX_OPERATOR_KEY for the operator specifically.
+//
+// Account derivation and viem client construction live in @verex/sdk
+// (packages/sdk/src/chain.ts) — this file just resolves the env vars into
+// an explicit AccountConfig and adds the API-specific bits (the ChainConfig
+// DB row / loadChain() below). packages/cli builds its own separate,
+// deliberately env-insensitive AccountConfig for the same SDK functions.
 
+import type { Hex, PublicClient, WalletClient } from "viem";
 import {
-  createPublicClient,
-  createWalletClient,
-  http,
-  type PublicClient,
-  type WalletClient,
-} from "viem";
-import { mnemonicToAccount } from "viem/accounts";
-import { foundry } from "viem/chains";
-import {
+  ANVIL_MNEMONIC,
+  CHAINS,
+  account as sdkAccount,
+  accountAddress as sdkAccountAddress,
+  makePublicClient as sdkMakePublicClient,
+  makeWalletClient as sdkMakeWalletClient,
   createCTClient,
   createExchangeClient,
   createUsdcClient,
+  type AccountConfig,
   type Address,
   type CTClient,
   type ExchangeClient,
@@ -26,30 +38,55 @@ import {
 } from "@verex/sdk";
 import { prisma } from "./db";
 
-export const ANVIL_MNEMONIC =
-  "test test test test test test test test test test test junk";
+export { ANVIL_MNEMONIC };
 
 export const RPC_URL = process.env.VEREX_RPC_URL ?? "http://127.0.0.1:8545";
-export const CHAIN_ID = 31337;
+export const CHAIN_ID = Number(process.env.VEREX_CHAIN_ID ?? 31337);
+const CHAIN = CHAINS[CHAIN_ID] ?? CHAINS[31337]!;
+
+// Lazy on purpose: throwing here (rather than at module import) means a
+// deploy that never actually calls account(1..9) — e.g. browse-only/
+// DB-only mode — still boots. An import-time throw would take down the
+// whole API process, including market-browsing requests that never touch
+// a demo-wallet account. Passed to the SDK as a thunk (not called here) for
+// the same reason — building an operator-key-only config must not force
+// this check for calls that never end up needing a mnemonic.
+function demoMnemonic(): string {
+  const mnemonic = process.env.VEREX_DEMO_MNEMONIC;
+  if (mnemonic) return mnemonic;
+  if (CHAIN_ID !== 31337) {
+    throw new Error(
+      "VEREX_DEMO_MNEMONIC must be set when VEREX_CHAIN_ID points at a real " +
+        "chain — anvil's default mnemonic is public, so anyone could derive " +
+        "the same demo-wallet keys.",
+    );
+  }
+  return ANVIL_MNEMONIC;
+}
+
+function chainAccounts(): AccountConfig {
+  // Secret Manager / heredoc values commonly pick up a trailing newline;
+  // privateKeyToAccount throws on anything but exactly 0x + 64 hex chars.
+  const operatorKey = process.env.VEREX_OPERATOR_KEY?.trim() as
+    | Hex
+    | undefined;
+  return { rpcUrl: RPC_URL, chain: CHAIN, operatorKey, mnemonic: demoMnemonic };
+}
 
 export function account(index: number) {
-  return mnemonicToAccount(ANVIL_MNEMONIC, { addressIndex: index });
+  return sdkAccount(chainAccounts(), index);
 }
 
 export function accountAddress(index: number): Address {
-  return account(index).address;
+  return sdkAccountAddress(chainAccounts(), index);
 }
 
 export function makePublicClient(): PublicClient {
-  return createPublicClient({ chain: foundry, transport: http(RPC_URL) });
+  return sdkMakePublicClient(chainAccounts());
 }
 
 export function makeWalletClient(index: number): WalletClient {
-  return createWalletClient({
-    account: account(index),
-    chain: foundry,
-    transport: http(RPC_URL),
-  });
+  return sdkMakeWalletClient(chainAccounts(), index);
 }
 
 export interface ChainCtx {
@@ -88,6 +125,19 @@ export async function loadChain(): Promise<ChainCtx> {
     return cached;
   }
   const publicClient = makePublicClient();
+  // cfg.chainId === 0 is the DB-only/trading-disabled sentinel (no real RPC
+  // behind it) — skip the check there, it'd just fail against whatever
+  // RPC_URL happens to default to.
+  if (cfg.chainId !== 0) {
+    const liveChainId = await publicClient.getChainId();
+    if (liveChainId !== cfg.chainId) {
+      throw new Error(
+        `Chain id mismatch: RPC at ${RPC_URL} reports chain ${liveChainId}, ` +
+          `but ChainConfig expects ${cfg.chainId} — check VEREX_RPC_URL points ` +
+          "at the right network.",
+      );
+    }
+  }
   const ctx: ChainCtx = {
     chainId: cfg.chainId,
     rpcUrl: cfg.rpcUrl,

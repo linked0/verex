@@ -2,6 +2,9 @@
 //
 // Layered design:
 //   - Types: Order, Side, SignatureType, OrderDomain, ClientConfig
+//   - Chain: account derivation + viem client construction from an explicit
+//     `AccountConfig` — no env-var reading here, that's each consumer's own
+//     call (see packages/api/src/chain.ts and packages/cli/src/clients.ts).
 //   - Flat helpers: `signOrder`, `hashOrder`, `getConditionId`, plus thin
 //     wrappers around CTFExchange / IConditionalTokens / MockUSDC. Useful
 //     for one-off calls and tests.
@@ -10,6 +13,7 @@
 //     the same address gets passed around (CLI, MM agent).
 
 export * from "./types";
+export * from "./chain";
 
 // Off-chain primitives
 export { getConditionId } from "./conditions";

@@ -17,18 +17,18 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///         plan §2.2.7 / §4 oracle progression (Stage 1 of 3). Chainlink
 ///         (Stage 2) and UMA (Stage 3) come in S6.
 ///
-///         Two entrypoints, invoked via --sig:
+///         Two entrypoints, invoked via --sig (the script reads
+///         VEREX_OPERATOR_KEY from the environment itself via
+///         vm.envOr — forge's own --private-key CLI flag is not read here):
 ///
 ///         Setup a tradable market:
 ///           forge script script/DemoMarket.s.sol --sig "setup()" \
-///             --rpc-url http://localhost:8545 \
-///             --private-key 0xac0974... --broadcast
+///             --rpc-url http://localhost:8545 --broadcast
 ///
 ///         Resolve a market (YES wins or NO wins):
 ///           forge script script/DemoMarket.s.sol \
 ///             --sig "resolve(uint256,uint256)" 1 0 \
-///             --rpc-url http://localhost:8545 \
-///             --private-key 0xac0974... --broadcast
+///             --rpc-url http://localhost:8545 --broadcast
 ///
 ///         Required env: USDC_ADDR, CTF_ADDR, EXCHANGE_ADDR (from DeployCTF
 ///         broadcast output). QUESTION_ID is optional — defaults to a fixed
@@ -139,7 +139,7 @@ contract DemoMarket is Script {
 
     function _operatorKey() internal view returns (uint256) {
         return vm.envOr(
-            "PRIVATE_KEY",
+            "VEREX_OPERATOR_KEY",
             uint256(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80)
         );
     }

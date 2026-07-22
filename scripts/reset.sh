@@ -19,6 +19,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 RPC_URL="${VEREX_RPC_URL:-http://127.0.0.1:8545}"
+# See scripts/dev-local.sh for why this default is here, not in DeployCTF.s.sol.
+export VEREX_OPERATOR_KEY="${VEREX_OPERATOR_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 
 echo "▶ Checking anvil at $RPC_URL"
 if ! curl -sf -X POST "$RPC_URL" -H "content-type: application/json" \

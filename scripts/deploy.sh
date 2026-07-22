@@ -21,6 +21,9 @@ DB_INSTANCE=${DB_INSTANCE:-verex-db}
 DB_NAME=${DB_NAME:-verex}
 DB_USER=${DB_USER:-verex}
 DOMAIN=${DOMAIN:-}                       # e.g. staging.verex.jaylabs.xyz (setup-dns.sh hint)
+VEREX_CHAIN_ID=${VEREX_CHAIN_ID:-}       # unset = today's DB-only/trading-disabled deploy;
+                                          # 11155111 = Ethereum Sepolia, 84532 = Base
+                                          # Sepolia — requires the 3 secrets below
 SECRET_NAME="verex-database-url-${DB_NAME}" # per-DB secret so staging/prod don't collide
 AR_REPO=${AR_REPO:-verex}
 API_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/api:${DB_NAME}"
@@ -58,6 +61,33 @@ fi
 gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
   --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
 
+# --- Chain secrets (only when VEREX_CHAIN_ID is set — leaves DB-only deploys untouched) ---
+# These three must already exist in Secret Manager before running this script — see
+# docs/runbooks/testnet-deploy.md for exact creation commands (RPC URL and operator
+# key are yours to provide; the demo mnemonic must be a FRESH one you generate, never
+# anvil's public default). This script only reads them, it never creates or prints them.
+SEED_CHAIN_ENV=()
+API_CHAIN_SECRETS=""
+if [ -n "$VEREX_CHAIN_ID" ]; then
+  echo "▶ Chain secrets (chain id $VEREX_CHAIN_ID)"
+  RPC_SECRET="verex-rpc-url-${DB_NAME}"
+  OPERATOR_SECRET="verex-operator-key-${DB_NAME}"
+  MNEMONIC_SECRET="verex-demo-mnemonic-${DB_NAME}"
+  for s in "$RPC_SECRET" "$OPERATOR_SECRET" "$MNEMONIC_SECRET"; do
+    gcloud secrets describe "$s" >/dev/null 2>&1 \
+      || { echo "❌ $s missing — see docs/runbooks/testnet-deploy.md, then re-run"; exit 1; }
+    gcloud secrets add-iam-policy-binding "$s" \
+      --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
+  done
+  SEED_CHAIN_ENV=(
+    "VEREX_RPC_URL=$(gcloud secrets versions access latest --secret="$RPC_SECRET")"
+    "VEREX_CHAIN_ID=$VEREX_CHAIN_ID"
+    "VEREX_OPERATOR_KEY=$(gcloud secrets versions access latest --secret="$OPERATOR_SECRET")"
+    "VEREX_DEMO_MNEMONIC=$(gcloud secrets versions access latest --secret="$MNEMONIC_SECRET")"
+  )
+  API_CHAIN_SECRETS=",VEREX_RPC_URL=${RPC_SECRET}:latest,VEREX_OPERATOR_KEY=${OPERATOR_SECRET}:latest,VEREX_DEMO_MNEMONIC=${MNEMONIC_SECRET}:latest"
+fi
+
 # --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
 echo "▶ Migrate + seed (Cloud SQL Auth Proxy)"
 PROXY=./cloud-sql-proxy
@@ -75,9 +105,17 @@ sleep 5
 # Rewrite the socket URL to a local-TCP URL through the proxy (keeps user:pass).
 LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@localhost/([^?]+)\?host=.*#@localhost:5433/\1#')
 DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api exec prisma migrate deploy
-# SEED_DB_ONLY=1: cloud has no chain yet (Task 2 chain decision pending) —
-# markets browse fine; trades return "trading is disabled in this environment".
-DATABASE_URL="$LOCAL_URL" SEED_DB_ONLY=1 pnpm --filter @verex/api exec tsx prisma/seed.ts
+if [ -n "$VEREX_CHAIN_ID" ]; then
+  # Operator must already hold gas on this chain before this runs — it
+  # self-mints/approves as its first on-chain actions. Real deploy: ~32
+  # sequential operator-signed transactions, budget several minutes.
+  echo "  - seeding against chain id $VEREX_CHAIN_ID (real deploy, can take a few minutes)"
+  DATABASE_URL="$LOCAL_URL" env "${SEED_CHAIN_ENV[@]+"${SEED_CHAIN_ENV[@]}"}" pnpm --filter @verex/api exec tsx prisma/seed.ts
+else
+  # No VEREX_CHAIN_ID set — markets browse fine; trades return "trading is
+  # disabled in this environment".
+  DATABASE_URL="$LOCAL_URL" SEED_DB_ONLY=1 pnpm --filter @verex/api exec tsx prisma/seed.ts
+fi
 kill "$PROXY_PID" 2>/dev/null || true
 trap - EXIT
 
@@ -92,9 +130,12 @@ pnpm --filter @verex/sdk sync-abis   # generated abis must exist in the build co
 gcloud builds submit --config cloudbuild-api.yaml --substitutions "_IMAGE=$API_IMAGE" .
 
 echo "▶ Deploy $SERVICE_API"
+API_ENV_ARGS=()
+[ -n "$VEREX_CHAIN_ID" ] && API_ENV_ARGS=(--set-env-vars "VEREX_CHAIN_ID=$VEREX_CHAIN_ID")
 gcloud run deploy "$SERVICE_API" --image "$API_IMAGE" --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
-  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest" \
+  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}" \
+  "${API_ENV_ARGS[@]+"${API_ENV_ARGS[@]}"}" \
   --allow-unauthenticated
 API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --format='value(status.url)')
 
@@ -108,7 +149,11 @@ WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --forma
 echo
 echo "✅ API: $API_URL   (health: curl $API_URL/health)"
 echo "✅ Web: $WEB_URL   ← TEST HERE FIRST (before mapping the domain)"
-echo "⚠️  Trading is disabled in the cloud until the Task 2 chain decision (DB-only seed)."
+if [ -n "$VEREX_CHAIN_ID" ]; then
+  echo "✅ Trading is live against chain id $VEREX_CHAIN_ID."
+else
+  echo "⚠️  Trading is disabled in the cloud — set VEREX_CHAIN_ID in scripts/deploy.env to go live."
+fi
 if [ -n "$DOMAIN" ]; then
   echo "👉 Go live — domain mapping + Cloud DNS record in one step:"
   echo "    ./scripts/setup-dns.sh $PROJECT_ID $REGION $SERVICE_WEB $DOMAIN"

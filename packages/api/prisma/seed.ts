@@ -2,7 +2,8 @@
 //
 // What it does (run after `prisma migrate reset` for a clean slate):
 //   1. Deploys the CTF backbone via forge (or reuses USDC_ADDR/CTF_ADDR/
-//      EXCHANGE_ADDR from env) and stores addresses in ChainConfig.
+//      EXCHANGE_ADDR — from the shell env, or from packages/contracts/.env if
+//      you saved them there after deploying) and stores addresses in ChainConfig.
 //   2. One-time exchange setup: operator allowlist + USDC approvals.
 //   3. Per market: prepareCondition → registerToken → split operator
 //      inventory, then writes the Market/Outcome rows + synthetic price
@@ -13,7 +14,7 @@
 //   anvil &
 //   pnpm --filter @verex/api db:reset   (migrate reset --force + this seed)
 
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
 import { execSync } from "node:child_process";
 import { resolve as pathResolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -34,10 +35,19 @@ import {
   CHAIN_ID,
 } from "../src/chain";
 
-const prisma = new PrismaClient();
-
 const CONTRACTS_DIR = pathResolve(__dirname, "../../contracts");
 const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
+
+loadEnv(); // packages/api/.env
+// USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
+// (one-time deploy outputs, not persistent API config — see docs/runbooks/
+// testnet-deploy.md step 5) — but if they're saved in packages/contracts/.env
+// after a deploy, pick them up from there too. dotenv never overrides a key
+// that's already set, so anything already in packages/api/.env or the shell
+// environment still wins over this.
+loadEnv({ path: pathResolve(CONTRACTS_DIR, ".env") });
+
+const prisma = new PrismaClient();
 
 /// Operator liquidity per market (YES+NO inventory) and USDC buffer for
 /// buying tokens back when users sell.
