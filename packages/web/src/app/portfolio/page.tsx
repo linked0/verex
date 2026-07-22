@@ -6,10 +6,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, Wallet } from "lucide-react";
+import { BriefcaseBusiness, Wallet, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useWallet } from "@/components/WalletProvider";
 import {
   postRedeem,
@@ -31,6 +32,7 @@ export default function PortfolioPage() {
   const [toast, setToast] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
+  const [pnlDetails, setPnlDetails] = React.useState<HistoryRow | null>(null);
 
   const loadHistory = React.useCallback(async () => {
     setHistory(isAdmin ? [] : await getWalletHistory(accountIndex));
@@ -39,6 +41,15 @@ export default function PortfolioPage() {
   React.useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  React.useEffect(() => {
+    if (!pnlDetails) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPnlDetails(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pnlDetails]);
 
   const onRedeem = async (p: Position) => {
     setRedeeming(p.slug);
@@ -220,16 +231,25 @@ export default function PortfolioPage() {
                   key={h.id}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b pb-2 text-sm last:border-b-0 last:pb-0"
                 >
-                  <span
-                    className={cn(
-                      "w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-semibold",
-                      h.side === "BUY" && "bg-yes/10 text-yes",
-                      h.side === "SELL" && "bg-no/10 text-no",
-                      h.side === "REDEEM" && "bg-primary/10 text-primary",
-                    )}
-                  >
-                    {h.side}
-                  </span>
+                  {h.side === "REDEEM" && h.realizedPnl !== undefined ? (
+                    <button
+                      type="button"
+                      onClick={() => setPnlDetails(h)}
+                      className="w-16 shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-center text-xs font-semibold text-primary underline-offset-2 hover:underline"
+                    >
+                      {h.side}
+                    </button>
+                  ) : (
+                    <span
+                      className={cn(
+                        "w-16 shrink-0 rounded px-1.5 py-0.5 text-center text-xs font-semibold",
+                        h.side === "BUY" && "bg-yes/10 text-yes",
+                        h.side === "SELL" && "bg-no/10 text-no",
+                      )}
+                    >
+                      {h.side}
+                    </span>
+                  )}
                   <Link
                     href={`/market/${h.marketSlug}`}
                     className="min-w-0 flex-1 truncate font-medium hover:underline"
@@ -267,6 +287,81 @@ export default function PortfolioPage() {
           )}
         </CardContent>
       </Card>
+
+      {pnlDetails && pnlDetails.realizedPnl !== undefined && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setPnlDetails(null)}
+        >
+          <Card
+            className="w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
+              <div className="min-w-0">
+                <CardTitle className="text-base">Redemption P&amp;L</CardTitle>
+                <p className="truncate text-xs text-muted-foreground">{pnlDetails.marketTitle}</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setPnlDetails(null)}
+                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Outcome</span>
+                <span className="font-medium">
+                  {pnlDetails.tokenAmount.toFixed(1)} {pnlDetails.outcome} @ {cents(pnlDetails.price)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Cost basis</span>
+                <span className="tabular-nums">
+                  {money(pnlDetails.usdcAmount - pnlDetails.realizedPnl)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Redeemed for</span>
+                <span className="tabular-nums">{money(pnlDetails.usdcAmount)}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between font-semibold">
+                <span>Realized P&amp;L</span>
+                <span
+                  className={cn(
+                    "tabular-nums",
+                    pnlDetails.realizedPnl >= 0 ? "text-yes" : "text-no",
+                  )}
+                >
+                  {signedMoney(pnlDetails.realizedPnl)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Redeemed for {money(pnlDetails.usdcAmount)} − cost basis{" "}
+                {money(pnlDetails.usdcAmount - pnlDetails.realizedPnl)} ={" "}
+                {signedMoney(pnlDetails.realizedPnl)}
+              </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Wallet balance now</span>
+                <span className="font-semibold tabular-nums">
+                  {summary ? money(summary.usdc) : "…"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {new Date(pnlDetails.createdAt).toLocaleString("en-US", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </main>
   );
 }
