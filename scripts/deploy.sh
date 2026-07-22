@@ -21,6 +21,14 @@ DB_INSTANCE=${DB_INSTANCE:-verex-db}
 DB_NAME=${DB_NAME:-verex}
 DB_USER=${DB_USER:-verex}
 DOMAIN=${DOMAIN:-}                       # e.g. staging.verex.jaylabs.xyz (setup-dns.sh hint)
+SKIP_SEED=${SKIP_SEED:-}                 # set to skip seed.ts entirely (schema migration
+                                          # still runs) — for a backbone that's already
+                                          # been prepared/seeded elsewhere (re-running
+                                          # seed.ts's on-chain calls against an
+                                          # already-prepared backbone reverts, it isn't
+                                          # idempotent); populate the DB by other means
+                                          # first (e.g. a dump/restore from another seeded
+                                          # DB) before deploying with this set
 VEREX_CHAIN_ID=${VEREX_CHAIN_ID:-}       # unset = today's DB-only/trading-disabled deploy;
                                           # 11155111 = Ethereum Sepolia, 84532 = Base
                                           # Sepolia — requires the 3 secrets below
@@ -105,7 +113,9 @@ sleep 5
 # Rewrite the socket URL to a local-TCP URL through the proxy (keeps user:pass).
 LOCAL_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#@localhost/([^?]+)\?host=.*#@localhost:5433/\1#')
 DATABASE_URL="$LOCAL_URL" pnpm --filter @verex/api exec prisma migrate deploy
-if [ -n "$VEREX_CHAIN_ID" ]; then
+if [ -n "$SKIP_SEED" ]; then
+  echo "  - SKIP_SEED set — leaving DB rows as-is (expects them already populated, e.g. via a prior dump/restore)"
+elif [ -n "$VEREX_CHAIN_ID" ]; then
   # Operator must already hold gas on this chain before this runs — it
   # self-mints/approves as its first on-chain actions. Real deploy: ~32
   # sequential operator-signed transactions, budget several minutes.
