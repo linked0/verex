@@ -32,6 +32,18 @@ import { publicClient, walletClient, accountAddress, RPC_URL } from "./clients";
 const CONTRACTS_DIR = pathResolve(__dirname, "../../contracts");
 const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 const CHAIN_ID = 31337;
+// DeployCTF.s.sol requires VEREX_OPERATOR_KEY explicitly (no in-contract
+// fallback, by design — see docs/analysis/2026-05-08-v1-security-audit.md
+// §2.5). This script is anvil-only (see header comment), so defaulting to
+// anvil's well-known account[0] key here is safe — a real key already in
+// the environment still wins.
+const FORGE_ENV = {
+  ...process.env,
+  PATH: FOUNDRY_PATH,
+  VEREX_OPERATOR_KEY:
+    process.env.VEREX_OPERATOR_KEY ??
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+};
 
 const QUESTION_ID: Hex = keccak256(toHex("demo: Will Brazil win the 2026 World Cup?"));
 
@@ -74,7 +86,7 @@ async function main() {
     console.log(`[1] deploying CTF backbone via forge script...`);
     const out = execSync(
       `forge script script/DeployCTF.s.sol --rpc-url ${RPC_URL} --broadcast`,
-      { cwd: CONTRACTS_DIR, env: { ...process.env, PATH: FOUNDRY_PATH } },
+      { cwd: CONTRACTS_DIR, env: FORGE_ENV },
     ).toString();
     backbone = parseDeployOutput(out);
   }

@@ -98,6 +98,10 @@ bugs (Cloud SQL socket, CORS, OAuth redirect) only surface once deployed — so 
 `*.run.app` URL first, fix + redeploy, and map `verex.jaylabs.xyz` **last** (= go live), so the
 real domain is never broken.
 
+By default this deploys with trading disabled (no chain wired up yet — markets browse fine).
+To go live on a real testnet, see
+[docs/runbooks/testnet-deploy.md](docs/runbooks/testnet-deploy.md).
+
 ### CLI demo (end-to-end on anvil)
 
 `packages/cli` ships a one-shot demo that deploys the CTF backbone and runs a full

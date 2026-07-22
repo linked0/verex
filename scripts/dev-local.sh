@@ -19,6 +19,12 @@ PG_CONTAINER=verex-pg
 PG_PASSWORD=dev
 DB_NAME=verex
 export DATABASE_URL="postgresql://postgres:${PG_PASSWORD}@localhost:5432/${DB_NAME}"
+# DeployCTF.s.sol requires VEREX_OPERATOR_KEY explicitly (no in-contract
+# fallback, by design — see docs/analysis/2026-05-08-v1-security-audit.md §2.5).
+# Default to anvil's well-known account[0] key here instead — this script is
+# local-anvil-only, so it's safe here in a way it wasn't safe living inside the
+# Solidity script itself. A real key already in the environment still wins.
+export VEREX_OPERATOR_KEY="${VEREX_OPERATOR_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}"
 
 echo "▶ Postgres ($PG_CONTAINER)"
 if [ -z "$(docker ps -aq -f "name=^${PG_CONTAINER}$")" ]; then
