@@ -38,3 +38,4 @@ packages/sdk/src/abis/
 
 # Claude Code personal settings
 .claude/settings.local.json
+scripts/deploy.env.prod

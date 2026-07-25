@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# ⛔ SUPERSEDED (2026-07-25) — DO NOT USE for asia-northeast3.
+# Cloud Run built-in domain mapping does NOT support asia-northeast3 (Seoul) — the
+# `domain-mappings create` step below fails there (official region list:
+# docs.cloud.google.com/run/docs/mapping-custom-domains). Also note the jaylabs.xyz
+# Cloud DNS zone lives in doubletree-498007, not this project, which this script
+# didn't account for. Use ./scripts/setup-domain-firebase.sh instead (Firebase
+# Hosting rewrite — region-independent, ~free, Google-managed TLS). Kept for
+# reference in case verex ever moves to a mapping-supported region.
+#
 # verex.jaylabs.xyz → Cloud Run 도메인 매핑 + Cloud DNS 레코드 등록. 재실행 안전(idempotent).
 #
 # 전제:
