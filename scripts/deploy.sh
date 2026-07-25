@@ -11,8 +11,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-[ -f scripts/deploy.env ] || { echo "❌ scripts/deploy.env missing — copy scripts/deploy.env.example"; exit 1; }
-source scripts/deploy.env # PROJECT_ID / REGION / SERVICE_WEB / SERVICE_API
+# Env file is selectable so one script serves both environments (Task 5 isolation):
+#   test (default):  ./scripts/deploy.sh                          → scripts/deploy.env
+#   production:      DEPLOY_ENV=scripts/deploy.env.prod ./scripts/deploy.sh
+ENV_FILE=${DEPLOY_ENV:-scripts/deploy.env}
+[ -f "$ENV_FILE" ] || { echo "❌ $ENV_FILE missing — copy scripts/deploy.env.example"; exit 1; }
+source "$ENV_FILE" # PROJECT_ID / REGION / SERVICE_WEB / SERVICE_API
 : "${PROJECT_ID:?set PROJECT_ID in scripts/deploy.env}"
 REGION=${REGION:-asia-northeast3}
 SERVICE_WEB=${SERVICE_WEB:-verex-web}

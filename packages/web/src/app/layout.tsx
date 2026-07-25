@@ -18,8 +18,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SiteNav />
           </Suspense>
           {children}
-          <footer className="container border-t py-6 text-center text-xs text-muted-foreground">
-            Verex · markets settle on-chain (local anvil · CTF Exchange backbone)
+          <footer className="container flex items-center justify-center border-t py-6 text-xs text-muted-foreground">
+            <a
+              href="https://www.jaylabs.xyz"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- tiny static badge, not worth next/image */}
+              <img
+                src="/jaylabs.png"
+                alt="JayLabs"
+                width={20}
+                height={20}
+                className="h-5 w-5 rounded-full"
+              />
+              powered by JayLabs
+            </a>
           </footer>
         </WalletProvider>
       </body>
