@@ -4,7 +4,7 @@
     "rewrites": [
       {
         "source": "**",
-        "run": { "serviceId": "verex-web", "region": "asia-northeast3" }
+        "run": { "serviceId": "verex-web-prod", "region": "asia-northeast3" }
       }
     ]
   }
