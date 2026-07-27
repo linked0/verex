@@ -1,4 +1,4 @@
-// One-off helper for the testnet deploy runbook (docs/runbooks/testnet-deploy.md):
+// One-off helper for the testnet deploy runbook (docs/runbooks/contracts-testnet-deploy.md):
 // checks the native-ETH balance of the 5 demo-wallet addresses (indices 1-5,
 // the only ones the UI dropdown exposes) derived from a demo mnemonic — the
 // exact same derivation chain.ts / gen-demo-mnemonic.ts use, so what you see

@@ -41,7 +41,7 @@ const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 loadEnv(); // packages/api/.env
 // USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
 // (one-time deploy outputs, not persistent API config — see docs/runbooks/
-// testnet-deploy.md step 5) — but if they're saved in packages/contracts/.env
+// contracts-testnet-deploy.md step 5) — but if they're saved in packages/contracts/.env
 // after a deploy, pick them up from there too. dotenv never overrides a key
 // that's already set, so anything already in packages/api/.env or the shell
 // environment still wins over this.

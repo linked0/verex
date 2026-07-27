@@ -75,7 +75,7 @@ gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
 
 # --- Chain secrets (only when VEREX_CHAIN_ID is set — leaves DB-only deploys untouched) ---
 # These three must already exist in Secret Manager before running this script — see
-# docs/runbooks/testnet-deploy.md for exact creation commands (RPC URL and operator
+# docs/runbooks/contracts-testnet-deploy.md for exact creation commands (RPC URL and operator
 # key are yours to provide; the demo mnemonic must be a FRESH one you generate, never
 # anvil's public default). This script only reads them, it never creates or prints them.
 SEED_CHAIN_ENV=()
@@ -87,7 +87,7 @@ if [ -n "$VEREX_CHAIN_ID" ]; then
   MNEMONIC_SECRET="verex-demo-mnemonic-${DB_NAME}"
   for s in "$RPC_SECRET" "$OPERATOR_SECRET" "$MNEMONIC_SECRET"; do
     gcloud secrets describe "$s" >/dev/null 2>&1 \
-      || { echo "❌ $s missing — see docs/runbooks/testnet-deploy.md, then re-run"; exit 1; }
+      || { echo "❌ $s missing — see docs/runbooks/contracts-testnet-deploy.md, then re-run"; exit 1; }
     gcloud secrets add-iam-policy-binding "$s" \
       --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
   done

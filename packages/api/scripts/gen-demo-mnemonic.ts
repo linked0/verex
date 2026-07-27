@@ -1,4 +1,4 @@
-// One-off helper for the testnet deploy runbook (docs/runbooks/testnet-deploy.md):
+// One-off helper for the testnet deploy runbook (docs/runbooks/contracts-testnet-deploy.md):
 // generates a FRESH, private BIP-39 mnemonic, prints the 5 demo-wallet addresses
 // (indices 1-5, the only ones the UI dropdown exposes) it derives — the exact same
 // derivation chain.ts uses, so what you see here is what the app will actually use —
