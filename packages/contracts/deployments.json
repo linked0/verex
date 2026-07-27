@@ -1,0 +1,14 @@
+{
+  "test": {
+    "chainId": 11155111,
+    "usdc": "0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD",
+    "ctf": "0xCa4d32755Fa9a6A04bECF42D6FE501AFF0dcaCBB",
+    "exchange": "0x19f303463CFC1181D9111B1AEf6EE3115a89DD22"
+  },
+  "prod": {
+    "chainId": 11155111,
+    "usdc": "0xAc0328f49c4ED8ea1B1C1AaBb86441dD9682b6B6",
+    "ctf": "0xEB100D76E2F3E3B5176593b5aAfbEB5a1d90Fb04",
+    "exchange": "0xcB2271f5Eb6337a1938ab8a9190e12A9773599Cf"
+  }
+}

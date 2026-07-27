@@ -36,6 +36,9 @@ SKIP_SEED=${SKIP_SEED:-}                 # set to skip seed.ts entirely (schema 
 VEREX_CHAIN_ID=${VEREX_CHAIN_ID:-}       # unset = today's DB-only/trading-disabled deploy;
                                           # 11155111 = Ethereum Sepolia, 84532 = Base
                                           # Sepolia — requires the 3 secrets below
+DEPLOY_TARGET=${DEPLOY_TARGET:-}         # test|prod — which committed backbone entry in
+                                          # packages/contracts/deployments.json seed.ts
+                                          # uses; required whenever VEREX_CHAIN_ID is set
 SECRET_NAME="verex-database-url-${DB_NAME}" # per-DB secret so staging/prod don't collide
 AR_REPO=${AR_REPO:-verex}
 API_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/api:${DB_NAME}"
@@ -75,23 +78,28 @@ gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
 
 # --- Chain secrets (only when VEREX_CHAIN_ID is set — leaves DB-only deploys untouched) ---
 # These three must already exist in Secret Manager before running this script — see
-# docs/runbooks/contracts-testnet-deploy.md for exact creation commands (RPC URL and operator
+# docs/runbooks/deploy.md for exact creation commands (RPC URL and operator
 # key are yours to provide; the demo mnemonic must be a FRESH one you generate, never
 # anvil's public default). This script only reads them, it never creates or prints them.
 SEED_CHAIN_ENV=()
 API_CHAIN_SECRETS=""
 if [ -n "$VEREX_CHAIN_ID" ]; then
+  case "$DEPLOY_TARGET" in
+    test|prod) ;;
+    *) echo "❌ DEPLOY_TARGET must be 'test' or 'prod' in $ENV_FILE (picks the deployments.json backbone)"; exit 1;;
+  esac
   echo "▶ Chain secrets (chain id $VEREX_CHAIN_ID)"
   RPC_SECRET="verex-rpc-url-${DB_NAME}"
   OPERATOR_SECRET="verex-operator-key-${DB_NAME}"
   MNEMONIC_SECRET="verex-demo-mnemonic-${DB_NAME}"
   for s in "$RPC_SECRET" "$OPERATOR_SECRET" "$MNEMONIC_SECRET"; do
     gcloud secrets describe "$s" >/dev/null 2>&1 \
-      || { echo "❌ $s missing — see docs/runbooks/contracts-testnet-deploy.md, then re-run"; exit 1; }
+      || { echo "❌ $s missing — see docs/runbooks/deploy.md, then re-run"; exit 1; }
     gcloud secrets add-iam-policy-binding "$s" \
       --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
   done
   SEED_CHAIN_ENV=(
+    "VEREX_DEPLOY_TARGET=$DEPLOY_TARGET"
     "VEREX_RPC_URL=$(gcloud secrets versions access latest --secret="$RPC_SECRET")"
     "VEREX_CHAIN_ID=$VEREX_CHAIN_ID"
     "VEREX_OPERATOR_KEY=$(gcloud secrets versions access latest --secret="$OPERATOR_SECRET")"
@@ -163,6 +171,8 @@ WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --forma
 echo
 echo "✅ API: $API_URL   (health: curl $API_URL/health)"
 echo "✅ Web: $WEB_URL   ← TEST HERE FIRST (before mapping the domain)"
+echo "ℹ️  Environment stack (isolated per env — data may LOOK identical, both seed the"
+echo "    same markets): Cloud SQL $DB_INSTANCE / DB $DB_NAME / secrets verex-*-${DB_NAME}"
 if [ -n "$VEREX_CHAIN_ID" ]; then
   echo "✅ Trading is live against chain id $VEREX_CHAIN_ID."
 else
