@@ -100,8 +100,8 @@ real domain is never broken.
 
 By default this deploys with trading disabled (no chain wired up yet — markets browse fine).
 To go live on a real testnet, see
-[docs/runbooks/contracts-testnet-deploy.md](docs/runbooks/contracts-testnet-deploy.md)
-(production server: [docs/runbooks/prod-deploy.md](docs/runbooks/prod-deploy.md)).
+[docs/runbooks/deploy.md](docs/runbooks/deploy.md) — one parameterized runbook for
+both the test and production environments.
 
 ### CLI demo (end-to-end on anvil)
 

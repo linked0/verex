@@ -9,7 +9,7 @@
   wallets — real users still need an actual deposit flow, out of scope here). §3 (SSE
   staged progress) stays deferred per the original recommendation.
 - **Why now:** invisible on anvil (auto-mine, no perceptible delay) but real on any chain
-  from [contracts-testnet-deploy.md](../../runbooks/contracts-testnet-deploy.md) — Base/Ethereum Sepolia block
+  from [deploy.md](../../runbooks/deploy.md) — Base/Ethereum Sepolia block
   times are ~2–15s per confirmation, and a single BUY can chain up to three sequential
   confirmations.
 
