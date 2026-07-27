@@ -80,10 +80,10 @@ export function SiteNav() {
             >
               {[1, 2, 3, 4, 5].map((i) => (
                 <option key={i} value={i}>
-                  Demo #{i}
+                  Demo Wallet {i}
                 </option>
               ))}
-              <option value={0}>Operator #0 (admin)</option>
+              <option value={0}>Operator Wallet</option>
             </select>
             <span className="tabular-nums text-muted-foreground">
               {isAdmin

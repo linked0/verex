@@ -97,7 +97,7 @@ export default function PortfolioPage() {
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-              <Wallet className="h-4 w-4" /> Demo #{accountIndex} balance
+              <Wallet className="h-4 w-4" /> Demo Wallet {accountIndex} balance
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold tabular-nums">

@@ -220,7 +220,7 @@ export function TradePanel({ market }: { market: Market }) {
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Trades settle on the local anvil chain via CTFExchange against the
-          operator&apos;s inventory. Demo wallet #{accountIndex}
+          operator&apos;s inventory. Demo Wallet {accountIndex}
           {summary ? ` · $${summary.usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })} USDC` : ""}
         </p>
       </CardContent>
