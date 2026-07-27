@@ -206,3 +206,7 @@ Then in `scripts/deploy.env`, set `VEREX_CHAIN_ID` to whichever chain id you use
 (`11155111` or `84532`) and run `scripts/deploy.sh` as usual — it reads these three
 secrets (never creates or prints them) and threads them into both the seed step and the
 API Cloud Run service.
+
+Deploying the **production** server (a second, fully isolated environment on the same
+chain) has its own runbook: [prod-deploy.md](prod-deploy.md) — it reuses §1–§6 here with
+fresh keys/secrets and the `-verex_prod` suffix.
