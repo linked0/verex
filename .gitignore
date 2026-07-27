@@ -21,6 +21,7 @@ packages/contracts/broadcast/
 .env
 .env.local
 .env.*.local
+.env.prod
 scripts/deploy.env
 
 # Cloud SQL Auth Proxy binary (downloaded by deploy.sh)

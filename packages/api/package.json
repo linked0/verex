@@ -11,6 +11,8 @@
     "db:push": "prisma db push",
     "migrate": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "check-deployment": "tsx scripts/check-deployment.ts",
+    "save-deployment": "tsx scripts/save-deployment.ts",
     "db:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts"
   },
   "prisma": {

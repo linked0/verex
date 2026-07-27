@@ -1,9 +1,11 @@
 // Seed: real CTF markets on anvil + DB mirror.
 //
 // What it does (run after `prisma migrate reset` for a clean slate):
-//   1. Deploys the CTF backbone via forge (or reuses USDC_ADDR/CTF_ADDR/
-//      EXCHANGE_ADDR — from the shell env, or from packages/contracts/.env if
-//      you saved them there after deploying) and stores addresses in ChainConfig.
+//   1. Resolves the CTF backbone and stores its addresses in ChainConfig:
+//      VEREX_DEPLOY_TARGET=test|prod reads the committed entry in
+//      packages/contracts/deployments.json (after an on-chain code preflight);
+//      local (the default) deploys fresh via forge, or reuses USDC_ADDR/
+//      CTF_ADDR/EXCHANGE_ADDR from the shell env / packages/contracts/.env.
 //   2. One-time exchange setup: operator allowlist + USDC approvals.
 //   3. Per market: prepareCondition → registerToken → split operator
 //      inventory, then writes the Market/Outcome rows + synthetic price
@@ -16,6 +18,7 @@
 
 import { config as loadEnv } from "dotenv";
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { keccak256, toHex, parseUnits } from "viem";
@@ -41,11 +44,20 @@ const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 loadEnv(); // packages/api/.env
 // USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
 // (one-time deploy outputs, not persistent API config — see docs/runbooks/
-// contracts-testnet-deploy.md step 5) — but if they're saved in packages/contracts/.env
+// deploy.md §5) — but if they're saved in packages/contracts/.env
 // after a deploy, pick them up from there too. dotenv never overrides a key
 // that's already set, so anything already in packages/api/.env or the shell
 // environment still wins over this.
 loadEnv({ path: pathResolve(CONTRACTS_DIR, ".env") });
+
+// Which deployed backbone to seed against. 'local' (the default) keeps the
+// anvil flow: env addresses or a fresh forge deploy. 'test'/'prod' read the
+// committed manifest below — cloud deploys pass this via deploy.sh, so a prod
+// seed physically can't pick up the test backbone (or vice versa).
+const DEPLOY_TARGET = process.env.VEREX_DEPLOY_TARGET ?? "local";
+if (!["local", "test", "prod"].includes(DEPLOY_TARGET)) {
+  throw new Error(`VEREX_DEPLOY_TARGET must be local|test|prod, got '${DEPLOY_TARGET}'`);
+}
 
 const prisma = new PrismaClient();
 
@@ -176,6 +188,35 @@ interface Backbone {
   exchange: Address;
 }
 
+const DEPLOYMENTS_PATH = pathResolve(CONTRACTS_DIR, "deployments.json");
+
+/// test/prod backbones come from the committed manifest (written by
+/// scripts/save-deployment.ts right after a forge deploy), never from mutable
+/// .env files — so seeding one environment can't silently pick up another's
+/// addresses. Addresses are public on-chain data; committing them is safe and
+/// gives an audit trail of which backbone each environment ran on.
+function manifestBackbone(target: string): Backbone {
+  let entries: Record<string, ({ chainId: number } & Backbone) | undefined>;
+  try {
+    entries = JSON.parse(readFileSync(DEPLOYMENTS_PATH, "utf8"));
+  } catch {
+    throw new Error(`could not read ${DEPLOYMENTS_PATH} — it should be committed to the repo`);
+  }
+  const entry = entries[target];
+  if (!entry) {
+    throw new Error(
+      `no '${target}' entry in deployments.json — deploy the backbone first, then run: ` +
+        `pnpm --filter @verex/api save-deployment ${target}`,
+    );
+  }
+  if (entry.chainId !== CHAIN_ID) {
+    throw new Error(
+      `deployments.json '${target}' is for chain ${entry.chainId}, but VEREX_CHAIN_ID=${CHAIN_ID}`,
+    );
+  }
+  return { usdc: entry.usdc, ctf: entry.ctf, exchange: entry.exchange };
+}
+
 function parseDeployOutput(out: string): Backbone {
   const grab = (label: string) => {
     const re = new RegExp(`${label}:\\s*(0x[a-fA-F0-9]{40})`);
@@ -282,9 +323,29 @@ async function main() {
     throw new Error(`anvil not reachable at ${RPC_URL} — start it first ("anvil")`);
   }
 
-  // 1. Deploy or reuse the backbone
+  // 1. Resolve the backbone: manifest for test/prod, env/fresh-deploy for local
   let backbone: Backbone;
-  if (process.env.USDC_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
+  if (DEPLOY_TARGET !== "local") {
+    backbone = manifestBackbone(DEPLOY_TARGET);
+    if (process.env.USDC_ADDR && process.env.USDC_ADDR !== backbone.usdc) {
+      console.warn(
+        `    (ignoring USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR from env — the manifest wins for target '${DEPLOY_TARGET}')`,
+      );
+    }
+    // Preflight: all three addresses must hold contract code on this RPC —
+    // a wrong-RPC or stale-manifest mixup fails here in seconds instead of
+    // partway through ~32 real transactions.
+    for (const [name, addr] of Object.entries(backbone)) {
+      const code = await pc.getCode({ address: addr as Address });
+      if (!code || code === "0x") {
+        throw new Error(
+          `preflight failed: no contract code at ${name} ${addr} on ${RPC_URL} — ` +
+            `wrong RPC for target '${DEPLOY_TARGET}', or a stale deployments.json entry`,
+        );
+      }
+    }
+    console.log(`[1] using '${DEPLOY_TARGET}' backbone from deployments.json (preflight OK)`);
+  } else if (process.env.USDC_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
     backbone = {
       usdc: process.env.USDC_ADDR as Address,
       ctf: process.env.CTF_ADDR as Address,
