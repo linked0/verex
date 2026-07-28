@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
 import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
-import { resolveMarket, redeemPosition } from "./resolve";
+import { resolveMarket, resolveGroup, redeemPosition } from "./resolve";
 import { startWorker } from "./worker";
 import {
   placeOrder,
@@ -32,17 +32,105 @@ app.get("/categories", async () => {
 });
 
 // List markets, highest-volume first; optional ?category= and ?q= filters.
+// With ?q= the group MEMBERS match too (searching "Judge" should find the
+// Derby market); without it members stay hidden — the homepage shows the
+// group card instead.
 app.get("/markets", async (req) => {
   const { category, q } = req.query as { category?: string; q?: string };
   const markets = await prisma.market.findMany({
     where: {
+      ...(q ? {} : { groupId: null }),
       ...(category ? { category } : {}),
       ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
     },
     orderBy: { volume: "desc" },
-    include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      outcomes: { orderBy: { sortOrder: "asc" } },
+      group: { select: { slug: true, title: true } },
+    },
   });
   return { markets, count: markets.length };
+});
+
+// List market groups (homepage cards): members summarized by probability.
+app.get("/market-groups", async (req) => {
+  const { category, q } = req.query as { category?: string; q?: string };
+  const groups = await prisma.marketGroup.findMany({
+    where: {
+      status: { in: ["OPEN", "RESOLVED"] }, // CREATING stays hidden
+      ...(category ? { category } : {}),
+      ...(q ? { title: { contains: q, mode: "insensitive" as const } } : {}),
+    },
+    include: {
+      markets: {
+        orderBy: { sortOrder: "asc" },
+        include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+      },
+    },
+  });
+  // Highest-volume first, volume = Σ members.
+  const shaped = groups
+    .map((g) => ({
+      ...g,
+      volume: g.markets.reduce((a, m) => a + Number(m.volume), 0),
+    }))
+    .sort((a, b) => b.volume - a.volume);
+  return { groups: shaped, count: shaped.length };
+});
+
+// Group detail by slug (members ordered by current probability, desc).
+app.get("/market-groups/:slug", async (req, reply) => {
+  const { slug } = req.params as { slug: string };
+  const group = await prisma.marketGroup.findUnique({
+    where: { slug },
+    include: {
+      markets: {
+        include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+      },
+    },
+  });
+  if (!group) return reply.status(404).send({ error: "Group not found" });
+  group.markets.sort((a, b) => Number(b.quoteCenter) - Number(a.quoteCenter));
+  return group;
+});
+
+// Per-member YES-price history — one series per outcome for the group chart.
+app.get("/market-groups/:slug/history", async (req, reply) => {
+  const { slug } = req.params as { slug: string };
+  const group = await prisma.marketGroup.findUnique({
+    where: { slug },
+    include: { markets: { select: { id: true, slug: true, groupLabel: true, quoteCenter: true } } },
+  });
+  if (!group) return reply.status(404).send({ error: "Group not found" });
+  const members = [...group.markets].sort((a, b) => Number(b.quoteCenter) - Number(a.quoteCenter));
+  const series = await Promise.all(
+    members.map(async (m) => ({
+      slug: m.slug,
+      label: m.groupLabel ?? m.slug,
+      points: await prisma.pricePoint.findMany({
+        where: { marketId: m.id },
+        orderBy: { at: "asc" },
+        select: { price: true, at: true },
+      }),
+    })),
+  );
+  return { series };
+});
+
+// Resolve a whole group: winner reports Yes, everyone else No (operator #0).
+app.post("/market-groups/:slug/resolve", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const body = req.body as { winnerSlug: string; accountIndex: number };
+    return await resolveGroup({ groupSlug: slug, winnerSlug: body.winnerSlug, accountIndex: body.accountIndex });
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "resolve failed",
+      detail: revertDetail(e),
+    });
+  }
 });
 
 // Market detail by slug.
