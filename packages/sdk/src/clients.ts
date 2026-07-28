@@ -68,6 +68,12 @@ export interface ExchangeClient {
   registerToken: (yesTokenId: bigint, noTokenId: bigint, conditionId: Hex) => Promise<Hex>;
   addOperator: (operator: Address) => Promise<Hex>;
   fillOrder: (order: Order, fillAmount: bigint) => Promise<Hex>;
+  matchOrders: (
+    takerOrder: Order,
+    makerOrders: Order[],
+    takerFillAmount: bigint,
+    makerFillAmounts: bigint[],
+  ) => Promise<Hex>;
   cancelOrder: (order: Order) => Promise<Hex>;
 
   hashOrderViaContract: (order: Order) => Promise<Hex>;
@@ -94,6 +100,16 @@ export function createExchangeClient(args: {
       exchange.addOperator(publicClient, requireWallet(), address, operator),
     fillOrder: (order, fillAmount) =>
       exchange.fillOrder(publicClient, requireWallet(), address, order, fillAmount),
+    matchOrders: (takerOrder, makerOrders, takerFillAmount, makerFillAmounts) =>
+      exchange.matchOrders(
+        publicClient,
+        requireWallet(),
+        address,
+        takerOrder,
+        makerOrders,
+        takerFillAmount,
+        makerFillAmounts,
+      ),
     cancelOrder: (order) =>
       exchange.cancelOrder(publicClient, requireWallet(), address, order),
 
