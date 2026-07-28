@@ -1,9 +1,9 @@
-# Runbook: deploy a verex environment (test or prod)
+# Runbook: deploy a verex environment (staging or prod)
 
 One procedure, two isolated environments. Every step below is written with a
 `<target>` parameter — substitute from this table:
 
-| | **test** | **prod** |
+| | **staging** | **prod** |
 |---|---|---|
 | Deploy config | `scripts/deploy.env` | `scripts/deploy.env.prod` |
 | Chain env file | `packages/contracts/.env` | `packages/contracts/.env.prod` |
@@ -13,6 +13,12 @@ One procedure, two isolated environments. Every step below is written with a
 | Secret suffix | `-verex` | `-verex_prod` |
 | Manifest target | `test` | `prod` |
 | Domain | none — `*.run.app` only | `verex.jaylabs.xyz` (§9) |
+
+> **Naming (2026-07-28)**: the pre-production environment is called **staging** (jay's
+> terminology decision; docs previously said "test server"). The *technical* identifier
+> is still `test` — `VEREX_DEPLOY_TARGET=test`, the `test` entry in `deployments.json`,
+> and the unsuffixed service/DB/secret names — because renaming those touches live GCP
+> resources and the committed manifest. Prose says **staging**; commands keep `test`.
 
 Nothing is shared between environments except the GCP project (`verex-499205`), the
 region, and the chain itself. You run every command yourself — nothing here broadcasts
@@ -214,10 +220,10 @@ carry the environment's suffix (`-verex` / `-verex_prod`, `verex-db` / `verex-db
 
 ## 9. Domain — prod only, via Firebase Hosting
 
-The test environment stays on `*.run.app`. For prod, ignore `deploy.sh`'s closing
+The staging environment stays on `*.run.app`. For prod, ignore `deploy.sh`'s closing
 `setup-dns.sh` hint — Cloud Run domain mapping is unsupported in `asia-northeast3`
 (see the header of `scripts/setup-domain-firebase.sh`). Use the Firebase route,
-overriding its default service (which is the **test** service):
+overriding its default service (which is the **staging** service, `verex-web`):
 
 ```bash
 SERVICE=verex-web-prod ./scripts/setup-domain-firebase.sh verex.jaylabs.xyz
