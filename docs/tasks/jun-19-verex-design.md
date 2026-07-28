@@ -7,10 +7,10 @@
 | # | Area | Status |
 |---|------|--------|
 | 1 | **Basic Web UI** — Kalshi-referenced, **binary** markets, **real CTF contracts on anvil** | ✅ **built 2026-07-07** (shadcn UI + on-chain trading; see addendum 2) |
-| 2 | **Deploy to GCP** + Cloud SQL DB + domain `verex.jaylabs.xyz` | ✅ **deployed 2026-07-22** — `verex-api`/`verex-web` live on Cloud Run, Cloud SQL wired, Sepolia trading live (chain decision resolved: (a) testnet); domain mapping to `verex.jaylabs.xyz` still **not done** (still on the raw `*.run.app` URL) |
+| 2 | **Deploy to GCP** + Cloud SQL DB + domain `verex.jaylabs.xyz` | ✅ **complete** — `verex-api`/`verex-web` live on Cloud Run, Cloud SQL wired, Sepolia trading live (chain decision resolved: (a) testnet); custom domain routed via Firebase Hosting (jul-25 `5278191`, prod routing jul-27 `9921e23`) |
 | 3 | **Portfolio page + market resolution** (operator #0 as admin) | ✅ **implemented + verified 2026-07-20** — [details/jul-20-portfolio-resolution-design.md](details/jul-20-portfolio-resolution-design.md) |
-| 4 | **Trade/resolution latency UX** (chained on-chain txs feel slow on a real chain) | 🟡 **partially implemented 2026-07-22** — #1 (demo-wallet pre-warming) + #2 (optimistic trade UI) done and verified live; #3 (`ResolvePanel` optimistic UI) and #4 (SSE fallback) still not built — [details/jul-22-trade-resolution-latency-ux.md](details/jul-22-trade-resolution-latency-ux.md) |
-| 5 | **Per-environment contract isolation** (separate backbone per local/test/production, not shared) | 🟡 **designed 2026-07-22, not implemented** — open question for jay (redo today's deploy now vs. wait for production) — [details/jul-22-per-environment-contract-isolation.md](details/jul-22-per-environment-contract-isolation.md) |
+| 4 | **Trade/resolution latency UX** (chained on-chain txs feel slow on a real chain) | ✅ **complete 2026-07-28** — #1 (demo-wallet pre-warming) + #2 (optimistic trade UI) done and verified live; leftover #3 (`ResolvePanel` optimism) and #4 (SSE) are superseded by the jul-28 async-settlement design ([jul-28-verex-design.md](jul-28-verex-design.md) Task C) — [details/jul-22-trade-resolution-latency-ux.md](details/jul-22-trade-resolution-latency-ux.md) |
+| 5 | **Per-environment contract isolation** (separate backbone per local/test/production, not shared) | ✅ **complete** — separate test/prod backbones recorded in `packages/contracts/deployments.json` and enforced by the seed's `VEREX_DEPLOY_TARGET` manifest + preflight; residual polish rides with future deploy work — [details/jul-22-per-environment-contract-isolation.md](details/jul-22-per-environment-contract-isolation.md) |
 
 ## Decisions (proposed — confirm)
 | Topic | Proposed | Note |
