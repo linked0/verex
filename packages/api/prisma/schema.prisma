@@ -95,6 +95,10 @@ model Market {
   sortOrder  Int          @default(0)
   creator    String? // wallet address that created it (null = seeded)
 
+  /// Where the operator MM centers its Yes ladder. Follows the last traded
+  /// price; inside a group the centers are renormalized to sum to 1.
+  quoteCenter Decimal @default(0.5) @db.Decimal(10, 6)
+
   outcomes    Outcome[]
   trades      Trade[]
   pricePoints PricePoint[]
