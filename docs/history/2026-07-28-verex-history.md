@@ -3,6 +3,40 @@
 > Source docs: [`docs/tasks/jul-28-verex.md`](../tasks/jul-28-verex.md) (task spec) →
 > [`docs/tasks/jul-28-verex-design.md`](../tasks/jul-28-verex-design.md) (design written today).
 
+### Jul-28 features implemented — CLOB, multi-outcome groups, async settlement, create-market, how-to guide
+
+All four tasks landed on `claude/jul-28-features` (11 feature commits, per the approved rev-2
+design). Technical summary:
+
+- **CLOB** (`api/src/book.ts`, `Order` table): off-chain book, price-time-priority matching in
+  one row-locked DB transaction (market-row lock + `FOR UPDATE` on crossable makers); resting
+  limit orders are EIP-712-signed at placement (they become makers), IOC taker sub-orders are
+  signed per fill at the maker's exact ratio (ceil buys / floor sells) so
+  `CTFExchange.matchOrders`' crossing checks pass and chain state mirrors the DB to 1e-6 dust.
+- **ChainJob queue** (`api/src/worker.ts`): single serial in-process lane (= operator nonce
+  management), atomic PENDING→RUNNING claim, 5/25/125s backoff, stuck-RUNNING recovery,
+  per-fill idempotent settlement, terminal-failure compensation (fills reversed, groups
+  cancelled). FIFO order guarantees redeem never lands before its resolve.
+- **Operator MM** (`api/src/mm.ts`): 5-level 1¢ ladders weighted 5:4:3:2:1 (≤2k tokens, asks
+  bounded by minted inventory). After each user fill, the traded market's quote center follows
+  the last price and the group's centers renormalize to Σ=1 — deterministic coherence, the
+  clean-room replacement for nostra's ±5% arb-bot band.
+- **Groups**: `MarketGroup` + N binary member markets (CTFExchange's registry is structurally
+  binary). Seeded HR Derby (7), World Series (8), TIME PotY (6). Group endpoints, group resolve
+  (N payouts in one job), multi-series chart, selectable outcome rows, depth widget.
+- **Create market** (`api/src/group-create.ts`, `/create`): solvency pre-flight, CREATING→OPEN
+  via CREATE_GROUP job (idempotent resume per member; failure deletes members + cancels the
+  group), operator funds L USDC/outcome (cap 1,000), Yes/No⇒standalone binary. Found live: the
+  seed's exact-amount CTF allowance is exhausted at runtime — the job now tops it up.
+- **Web**: settlement chips (2s poll of `/jobs/:id`) on trade/resolve/redeem + activity badges;
+  `/how-to` guide with 6 sections and real screenshots (headless Chrome capture), including
+  faucet + checking results per jay's request.
+- **Verified end-to-end on a fresh reset**: group trade fills and settles on-chain,
+  renormalization holds Σ=1, group resolve = 7 payout txs, queued redeem pays exactly the
+  expected amount, created 4-outcome group opens with quoted books at mid 1/N.
+- Left pristine: final `./scripts/reset.sh` run — 10 binary markets + 3 groups, wallets #1–5
+  at 1,000 USDC.
+
 ### Jul-28 features: design doc drafted, awaiting jay's approval
 
 Explored verex + the nostra-server reference and wrote the full implementation plan into
