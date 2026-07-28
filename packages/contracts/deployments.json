@@ -1,5 +1,5 @@
 {
-  "test": {
+  "staging": {
     "chainId": 11155111,
     "usdc": "0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD",
     "ctf": "0xCa4d32755Fa9a6A04bECF42D6FE501AFF0dcaCBB",

@@ -1,19 +1,19 @@
 // One-off helper for the deploy runbook (docs/runbooks/deploy.md §2):
 // records a just-deployed backbone's addresses into
 // packages/contracts/deployments.json — the committed per-environment
-// manifest seed.ts reads when VEREX_DEPLOY_TARGET=test|prod. Reads the
+// manifest seed.ts reads when VEREX_DEPLOY_TARGET=staging|prod. Reads the
 // addresses from forge's own broadcast artifact (the `returns` block of
 // DeployCTF.s.sol's run-latest.json) instead of asking you to copy-paste
 // them, so a typo'd or stale address can't enter the manifest.
 //
 // Run it IMMEDIATELY after the forge deploy: run-latest.json is per chain id,
-// and test/prod share Sepolia — the next deploy on the same chain overwrites
+// and staging/prod share Sepolia — the next deploy on the same chain overwrites
 // it, so "latest" is only guaranteed to be yours right after you deployed.
 //
 // Loads packages/api/.env itself (same as the other helpers here); chain id
 // comes from $VEREX_CHAIN_ID there or in your shell.
 //
-//   pnpm --filter @verex/api save-deployment test
+//   pnpm --filter @verex/api save-deployment staging
 //   pnpm --filter @verex/api save-deployment prod
 
 import "dotenv/config";
@@ -24,9 +24,13 @@ const CONTRACTS_DIR = pathResolve(__dirname, "../../contracts");
 const DEPLOYMENTS_PATH = pathResolve(CONTRACTS_DIR, "deployments.json");
 
 const target = process.argv[2];
-if (target !== "test" && target !== "prod") {
+if (target === "test") {
+  console.error("target 'test' was renamed to 'staging' (2026-07-28) — use: save-deployment staging");
+  process.exit(1);
+}
+if (target !== "staging" && target !== "prod") {
   console.error(
-    "Usage: pnpm --filter @verex/api save-deployment <test|prod>\n" +
+    "Usage: pnpm --filter @verex/api save-deployment <staging|prod>\n" +
       "('local' is never recorded — anvil backbones are throwaway)",
   );
   process.exit(1);
