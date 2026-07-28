@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/components/WalletProvider";
+import { SettlementChip } from "@/components/SettlementChip";
 import { cents, postTrade, type Market, type TradeResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -185,7 +186,7 @@ export function TradePanel({ market }: { market: Market }) {
           onClick={submit}
         >
           {busy
-            ? "Confirming on-chain…"
+            ? "Matching against the book…"
             : `${side === "BUY" ? "Buy" : "Sell"} ${outcome}`}
         </Button>
 
@@ -195,16 +196,21 @@ export function TradePanel({ market }: { market: Market }) {
               Pending: {pending.side} ~{pending.tokensOut.toFixed(2)} {pending.outcome} for ~$
               {pending.usdcOut.toFixed(2)}
             </div>
-            <div className="mt-1 text-muted-foreground">Confirming on-chain…</div>
+            <div className="mt-1 text-muted-foreground">Matching against the book…</div>
           </div>
         )}
         {result && (
           <div className="rounded-md border border-yes/30 bg-yes/10 p-2.5 text-xs">
             <div className="font-semibold text-yes">
-              Filled on-chain: {result.side} {result.tokenAmount.toFixed(2)} {result.outcome} for $
+              Filled: {result.side} {result.tokenAmount.toFixed(2)} {result.outcome} for $
               {result.usdcAmount.toFixed(2)}
+              {result.price != null ? ` (avg ${Math.round(result.price * 100)}¢)` : ""}
             </div>
-            <div className="mt-1 break-all text-muted-foreground">tx {result.txHash}</div>
+            {result.jobId && (
+              <div className="mt-1">
+                <SettlementChip jobId={result.jobId} onSettled={() => void refresh()} />
+              </div>
+            )}
             {result.faucetMinted && (
               <div className="mt-1 text-muted-foreground">
                 (Demo faucet topped up your USDC automatically)
@@ -219,8 +225,8 @@ export function TradePanel({ market }: { market: Market }) {
         )}
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Trades settle on the local anvil chain via CTFExchange against the
-          operator&apos;s inventory. Demo Wallet {accountIndex}
+          Orders fill instantly against the book; matched pairs settle
+          on-chain via CTFExchange right after. Demo Wallet {accountIndex}
           {summary ? ` · $${summary.usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })} USDC` : ""}
         </p>
       </CardContent>

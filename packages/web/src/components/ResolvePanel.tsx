@@ -9,13 +9,15 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettlementChip } from "@/components/SettlementChip";
 import { postResolve, type Market } from "@/lib/api";
 
 export function ResolvePanel({ market }: { market: Market }) {
   const router = useRouter();
   const [confirming, setConfirming] = React.useState<"Yes" | "No" | null>(null);
   const [busy, setBusy] = React.useState(false);
-  const [txHash, setTxHash] = React.useState<string | null>(null);
+  const [jobId, setJobId] = React.useState<string | null>(null);
+  const [resolved, setResolved] = React.useState<"Yes" | "No" | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const resolve = async (outcome: "Yes" | "No") => {
@@ -23,7 +25,8 @@ export function ResolvePanel({ market }: { market: Market }) {
     setError(null);
     try {
       const r = await postResolve({ slug: market.slug, outcome, accountIndex: 0 });
-      setTxHash(r.txHash);
+      setJobId(r.jobId);
+      setResolved(outcome); // the DB already flipped — show it immediately
       router.refresh();
     } catch (e: any) {
       setError(e?.message ?? "resolve failed");
@@ -45,7 +48,17 @@ export function ResolvePanel({ market }: { market: Market }) {
           Report the final outcome as the oracle. This is <strong>irreversible</strong>:
           trading stops, the winning token pays $1, the losing token pays $0.
         </p>
-        {confirming ? (
+        {resolved ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">
+              RESOLVED —{" "}
+              <span className={resolved === "Yes" ? "text-yes" : "text-no"}>
+                {resolved.toUpperCase()}
+              </span>
+            </p>
+            {jobId && <SettlementChip jobId={jobId} onSettled={() => router.refresh()} />}
+          </div>
+        ) : confirming ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">
               Resolve as <span className={confirming === "Yes" ? "text-yes" : "text-no"}>{confirming}</span>?
@@ -72,22 +85,19 @@ export function ResolvePanel({ market }: { market: Market }) {
           <div className="flex gap-2">
             <Button
               className="flex-1 bg-yes text-white hover:bg-yes/90"
-              disabled={busy || !!txHash}
+              disabled={busy}
               onClick={() => setConfirming("Yes")}
             >
               Resolve YES
             </Button>
             <Button
               className="flex-1 bg-no text-white hover:bg-no/90"
-              disabled={busy || !!txHash}
+              disabled={busy}
               onClick={() => setConfirming("No")}
             >
               Resolve NO
             </Button>
           </div>
-        )}
-        {txHash && (
-          <p className="break-all text-xs text-muted-foreground">Resolved · tx {txHash}</p>
         )}
         {error && <p className="text-sm text-no">{error}</p>}
       </CardContent>

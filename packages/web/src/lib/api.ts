@@ -69,7 +69,8 @@ export type Trade = {
   usdcAmount: string;
   tokenAmount: string;
   price: string;
-  txHash: string;
+  txHash: string | null;
+  settlement?: "PENDING" | "CONFIRMED" | "FAILED";
   createdAt: string;
   outcome: { label: string };
 };
@@ -83,13 +84,18 @@ export type HistoryRow = {
   usdcAmount: number;
   tokenAmount: number;
   price: number;
-  txHash: string;
+  txHash: string | null;
+  settlement?: "PENDING" | "CONFIRMED" | "FAILED";
   createdAt: string;
   realizedPnl?: number;
 };
 
 export type TradeResult = {
-  txHash: string;
+  /// Null on arrival — fills are instant in the DB book; the chain settles
+  /// behind `jobId` (SettlementChip polls it).
+  txHash: string | null;
+  jobId: string | null;
+  settlement: "PENDING" | "NONE";
   side: "BUY" | "SELL";
   outcome: "Yes" | "No";
   usdcAmount: number;
@@ -272,7 +278,7 @@ export async function postResolve(body: {
   slug: string;
   outcome: "Yes" | "No";
   accountIndex: number;
-}): Promise<{ txHash: string; resolvedOutcome: "Yes" | "No" }> {
+}): Promise<{ jobId: string; resolvedOutcome: "Yes" | "No" }> {
   const res = await fetch(`${BROWSER_API}/markets/${body.slug}/resolve`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -286,7 +292,7 @@ export async function postResolve(body: {
 export async function postRedeem(body: {
   slug: string;
   accountIndex: number;
-}): Promise<{ txHash: string; usdcReceived: number; usdc: number }> {
+}): Promise<{ jobId: string; expectedUsdc: number }> {
   const res = await fetch(`${BROWSER_API}/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
