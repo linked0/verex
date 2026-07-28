@@ -43,6 +43,15 @@ pnpm build
 
 ### Run locally
 
+Everything local runs against **anvil, which is in-memory only**: every time anvil (or the
+machine) restarts, all deployed contracts are gone. The DB, however, persists in Docker — so
+after an anvil restart the DB still points at contract addresses that no longer exist. The rule
+of thumb:
+
+> **anvil restarted ⇒ run `./scripts/reset.sh`** (fresh backbone + reseed) before using the app.
+
+#### First-time setup
+
 Four terminals (or background the first two). The seed deploys real contracts, so **anvil must
 be running before step 2**.
 
@@ -65,10 +74,53 @@ Open http://localhost:3000 and trade with the demo wallets (#1–5, anvil's defa
 seeded with 1,000 USDC each).
 This is where you catch **app/logic bugs** before committing.
 
+#### Daily start (after a reboot or anvil restart)
+
+anvil comes back **empty**, so the contracts referenced by the DB are gone — redeploy and
+reseed before opening the app:
+
+```bash
+# 1. Local blockchain — separate terminal, leave it running
+anvil
+
+# 2. Fresh backbone + reseed (also restarts the verex-pg Postgres container)
+./scripts/reset.sh
+
+# 3–4. Dev servers, same as first-time setup
+pnpm --filter @verex/api dev
+pnpm --filter @verex/web dev
+```
+
+Skipping step 2 shows stale markets from the DB, and every trade fails because the
+contracts behind them no longer exist on the fresh chain.
+
+**No `.env` step for contract addresses — ever (locally).** The seed writes the fresh
+`USDC`/`CTF`/`Exchange` addresses into the DB (`ChainConfig` row), and the API re-reads that
+row on every call, rebuilding its clients when the addresses change (`packages/api/src/chain.ts`,
+`loadChain`). That's exactly why a reset needs no `.env` edits and no server restarts.
+Copying the printed addresses into `.env` is not just unnecessary — it recreates the
+stale-address failure in the gotcha below on the next anvil restart.
+
+#### Gotcha: seed fails with `returned no data ("0x")`
+
+The seed reuses `USDC_ADDR` / `CTF_ADDR` / `EXCHANGE_ADDR` as the local backbone whenever all
+three are set — whether exported in your shell or left in `packages/contracts/.env` (they get
+saved there for `DemoMarket.s.sol` runs against Sepolia). If those addresses don't exist on
+the current anvil chain, the seed dies mid-way:
+
+```
+seed failed: The contract function "approve" returned no data ("0x").
+```
+
+Fix: comment the three lines out of `packages/contracts/.env` (or `unset` them in the shell)
+and rerun `./scripts/reset.sh` — the seed then falls through to a fresh
+`forge script script/DeployCTF.s.sol` deploy. The Sepolia backbone doesn't need those env
+lines anyway; it lives in `packages/contracts/deployments.json` (`test`/`prod` manifests).
+
 ### Reset (start over)
 
-When the local state gets messy — resolved test markets, junk trades, odd balances —
-reset everything without touching the running servers:
+Run this after **every anvil restart** (see above), or whenever local state gets messy —
+resolved test markets, junk trades, odd balances. Servers can keep running:
 
 ```bash
 # Prerequisite: anvil is running (and dev-local.sh has been run once before).
@@ -77,12 +129,12 @@ reset everything without touching the running servers:
 
 What it does, in order:
 1. Wipes **all** DB data — markets, trades, portfolio history (`prisma migrate reset`).
-2. Deploys a **fresh** contract backbone (USDC / CTF / Exchange) on the same anvil.
+2. Deploys a **fresh** contract backbone (USDC / CTF / Exchange) on the current anvil.
 3. Reseeds 10 OPEN markets and pre-funds demo wallets #1–5 with 1,000 USDC.
 
 No restarts needed afterwards: the running API detects the new contract addresses
-automatically — just **refresh the web page**. The old contracts remain on anvil as
-orphaned leftovers; nothing references them, so they're harmless. (Reusing the old
+automatically — just **refresh the web page**. On a long-lived anvil the old contracts
+remain as orphaned leftovers; nothing references them, so they're harmless. (Reusing the old
 backbone across resets is unsupported — the CTF rejects re-preparing existing
 conditions.)
 
