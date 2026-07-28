@@ -138,7 +138,10 @@ app.get("/markets/:slug", async (req, reply) => {
   const { slug } = req.params as { slug: string };
   const market = await prisma.market.findUnique({
     where: { slug },
-    include: { outcomes: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      outcomes: { orderBy: { sortOrder: "asc" } },
+      group: { select: { slug: true, title: true } },
+    },
   });
   if (!market) return reply.status(404).send({ error: "Market not found" });
   return market;

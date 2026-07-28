@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   getCategories,
+  getGroups,
   getHistory,
   getMarkets,
   cents,
@@ -8,10 +9,12 @@ import {
   pct,
   usd,
   type Market,
+  type MarketGroup,
 } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CategoryTabs } from "@/components/CategoryTabs";
+import { GroupCard } from "@/components/GroupCard";
 import { MarketCard } from "@/components/MarketCard";
 import { ProbChart } from "@/components/ProbChart";
 
@@ -116,12 +119,22 @@ export default async function Home({
 }) {
   const active = searchParams.category ?? "All";
   const q = searchParams.q;
-  const [markets, categories] = await Promise.all([
+  const [markets, groups, categories] = await Promise.all([
     getMarkets(active, q),
+    getGroups(active, q),
     getCategories(),
   ]);
   const [featured, ...rest] = markets;
   const hot = [...markets].slice(0, 5);
+  const total = markets.length + groups.length;
+
+  // Groups and standalone markets share the grid, highest volume first.
+  const gridItems: ({ kind: "group"; group: MarketGroup } | { kind: "market"; market: Market })[] = [
+    ...groups.map((g) => ({ kind: "group" as const, group: g, volume: g.volume })),
+    ...rest.map((m) => ({ kind: "market" as const, market: m, volume: Number(m.volume) })),
+  ]
+    .sort((a, b) => b.volume - a.volume)
+    .map(({ kind, ...item }: any) => ({ kind, ...item }));
 
   return (
     <main className="container space-y-6 py-6">
@@ -129,11 +142,11 @@ export default async function Home({
 
       {q && (
         <p className="text-sm text-muted-foreground">
-          {markets.length} result{markets.length === 1 ? "" : "s"} for “{q}”
+          {total} result{total === 1 ? "" : "s"} for “{q}”
         </p>
       )}
 
-      {markets.length === 0 ? (
+      {total === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             No markets found.
@@ -144,9 +157,13 @@ export default async function Home({
           <div className="space-y-6">
             {featured && <Featured market={featured} />}
             <div className="grid gap-4 sm:grid-cols-2">
-              {rest.map((m) => (
-                <MarketCard key={m.id} market={m} />
-              ))}
+              {gridItems.map((item) =>
+                item.kind === "group" ? (
+                  <GroupCard key={`g-${item.group.id}`} group={item.group} />
+                ) : (
+                  <MarketCard key={item.market.id} market={item.market} />
+                ),
+              )}
             </div>
           </div>
           <aside className="hidden lg:block">
