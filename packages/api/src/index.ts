@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { prisma } from "./db";
 import { executeTrade, walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
 import { resolveMarket, redeemPosition } from "./resolve";
+import { startWorker } from "./worker";
 
 const app = Fastify({ logger: true });
 
@@ -147,6 +148,17 @@ app.get("/wallet/:index/history", async (req, reply) => {
   return { history: await walletHistory(index) };
 });
 
+// Poll a queued chain job (settlement / resolution / redemption / creation).
+app.get("/jobs/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const job = await prisma.chainJob.findUnique({
+    where: { id },
+    select: { id: true, type: true, status: true, result: true, attempts: true, updatedAt: true },
+  });
+  if (!job) return reply.status(404).send({ error: "job not found" });
+  return job;
+});
+
 // Demo faucet: mint test USDC to a demo wallet.
 app.post("/faucet", async (req, reply) => {
   const { accountIndex } = (req.body ?? {}) as { accountIndex?: number };
@@ -157,6 +169,7 @@ app.post("/faucet", async (req, reply) => {
 });
 
 const start = async () => {
+  startWorker();
   await app.listen({ port: Number(process.env.PORT ?? 4000), host: "0.0.0.0" });
 };
 
