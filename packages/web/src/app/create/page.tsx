@@ -221,8 +221,9 @@ export default function CreateMarketPage() {
               onChange={(e) => setLiquidity(e.target.value)}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Operator funding for the opening order books. Total: {totalFunding || 0} USDC ·
-              max 1,000 per outcome.
+              Each outcome&apos;s USDC is split on-chain into equal Yes/No token inventory —
+              1 USDC mints 1 Yes + 1 No — which the operator uses to quote both sides of that
+              outcome&apos;s order book. Total: {totalFunding || 0} USDC · max 1,000 per outcome.
             </p>
           </div>
 
