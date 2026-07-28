@@ -22,6 +22,36 @@ enum TradeSide {
   REDEEM // post-resolution redemption — recorded so portfolio history shows realized P&L
 }
 
+enum GroupStatus {
+  CREATING // batch creation in flight — hidden from the homepage until OPEN
+  OPEN
+  RESOLVED
+  CANCELLED
+}
+
+/// A multi-outcome market ("Who wins the World Cup?") — N mutually exclusive
+/// member Markets, each its own binary CTF condition (the CTFExchange registry
+/// is structurally binary, so N-ary trades as N grouped binaries; see
+/// docs/tasks/jul-28-verex-design.md A.1). DB-only: groups have no chain
+/// identity of their own.
+model MarketGroup {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  title       String // "Who will win the 2026 World Series?"
+  description String?
+  category    String
+  imageUrl    String?
+  status      GroupStatus @default(OPEN)
+  closesAt    DateTime?
+  resolvedMarketId String? // winning member market once RESOLVED
+  creator     String? // wallet address that created it (null = seeded)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  markets     Market[]
+
+  @@index([category, status])
+}
+
 /// Deployed contract addresses for the chain this DB mirrors. Single row
 /// (id=1) written by the seed script — the API reads it at startup so no
 /// env-var coordination is needed between seed and server.
@@ -55,6 +85,15 @@ model Market {
   conditionId String @unique
   yesTokenId  String // ERC-1155 position id (uint256 as decimal string)
   noTokenId   String
+
+  // Group membership (null = standalone binary market). Inside a group the
+  // market's `title` stays the full legal question; `groupLabel` is the short
+  // outcome chip ("Brazil").
+  groupId    String?
+  group      MarketGroup? @relation(fields: [groupId], references: [id])
+  groupLabel String?
+  sortOrder  Int          @default(0)
+  creator    String? // wallet address that created it (null = seeded)
 
   outcomes    Outcome[]
   trades      Trade[]
