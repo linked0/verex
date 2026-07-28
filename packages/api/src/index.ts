@@ -13,6 +13,7 @@ import {
   type PlaceOrderRequest,
 } from "./book";
 import "./mm"; // wires the after-fill re-quote hook into the book
+import { createMarketGroup, type CreateGroupRequest } from "./group-create";
 
 const app = Fastify({ logger: true });
 
@@ -115,6 +116,22 @@ app.get("/market-groups/:slug/history", async (req, reply) => {
     })),
   );
   return { series };
+});
+
+// Create a market (group or binary) with operator-funded liquidity. 202 +
+// jobId — the batch job does the on-chain work; poll /jobs/:id.
+app.post("/market-groups", async (req, reply) => {
+  try {
+    const result = await createMarketGroup(req.body as CreateGroupRequest);
+    return reply.status(202).send(result);
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "creation failed",
+      detail: revertDetail(e),
+    });
+  }
 });
 
 // Resolve a whole group: winner reports Yes, everyone else No (operator #0).

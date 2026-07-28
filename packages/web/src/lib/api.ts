@@ -332,6 +332,47 @@ export async function getBookSnapshot(slug: string, outcome: string): Promise<Bo
   }
 }
 
+export type CreateGroupBody = {
+  title: string;
+  category: string;
+  description?: string;
+  imageUrl?: string;
+  outcomes: { label: string }[];
+  liquidityPerOutcome: number;
+  closesAt: string;
+  creatorIndex: number;
+};
+
+export async function postCreateGroup(
+  body: CreateGroupBody,
+): Promise<{ jobId: string; kind: "group" | "binary"; slug: string }> {
+  const res = await fetch(`${BROWSER_API}/market-groups`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "creation failed");
+  return data;
+}
+
+export type JobInfo = {
+  id: string;
+  type: string;
+  status: "PENDING" | "RUNNING" | "CONFIRMED" | "FAILED";
+  result?: { progress?: { done: number; total: number; stage: string }; error?: string } & Record<string, unknown>;
+};
+
+export async function getJob(jobId: string): Promise<JobInfo | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/jobs/${jobId}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as JobInfo;
+  } catch {
+    return null;
+  }
+}
+
 export async function postFaucet(accountIndex: number): Promise<{ usdc: number } | null> {
   try {
     const res = await fetch(`${BROWSER_API}/faucet`, {
