@@ -118,7 +118,17 @@ model Outcome {
   @@index([marketId])
 }
 
-/// A real on-chain fill (CTFExchange.fillOrder). One row per trade.
+/// How far a trade's on-chain settlement has progressed. Fills happen
+/// instantly in the DB book; the chain follows via the ChainJob worker.
+enum SettlementStatus {
+  PENDING
+  CONFIRMED
+  FAILED // terminally failed after retries — the fill was compensated (reversed)
+}
+
+/// A fill. One row per matched pair per user side (taker always; maker too
+/// when the maker is a demo user rather than the operator MM). `txHash` is
+/// null until the ChainJob worker settles the match on-chain.
 model Trade {
   id          String    @id @default(cuid())
   marketId    String
@@ -130,11 +140,46 @@ model Trade {
   usdcAmount  Decimal   @db.Decimal(20, 6) // collateral paid/received
   tokenAmount Decimal   @db.Decimal(20, 6) // outcome tokens received/sold
   price       Decimal   @db.Decimal(10, 6) // executed price (USDC per token)
-  txHash      String
+  txHash      String?
+  settlement  SettlementStatus @default(CONFIRMED)
   createdAt   DateTime  @default(now())
 
   @@index([marketId, createdAt])
   @@index([user])
+}
+
+enum ChainJobType {
+  SETTLE_MATCH // settle matched order pairs via CTFExchange.matchOrders
+  RESOLVE // reportPayouts for a market (or every member of a group)
+  REDEEM // redeemPositions for a user in a resolved market
+  CREATE_GROUP // batch-create a market group's on-chain backbone
+}
+
+enum ChainJobStatus {
+  PENDING
+  RUNNING
+  CONFIRMED
+  FAILED
+}
+
+/// Queued on-chain work. The API responds from the DB immediately and a
+/// single in-process worker executes these strictly serially — every tx is
+/// sent by the operator or a server-held demo key, so serial execution
+/// doubles as nonce management.
+model ChainJob {
+  id          String         @id @default(cuid())
+  type        ChainJobType
+  status      ChainJobStatus @default(PENDING)
+  payload     Json
+  result      Json? // {txHashes: []} on success / error detail on failure
+  attempts    Int            @default(0)
+  maxAttempts Int            @default(3)
+  runAfter    DateTime       @default(now()) // backoff scheduling
+  claimedAt   DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status, runAfter])
 }
 
 /// YES-price history for charts. Seeded with synthetic history, appended on

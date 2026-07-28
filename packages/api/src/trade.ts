@@ -302,7 +302,7 @@ export interface HistoryRow {
   usdcAmount: number;
   tokenAmount: number;
   price: number;
-  txHash: string;
+  txHash: string | null; // null while on-chain settlement is pending
   createdAt: string;
   /// REDEEM rows only: usdcAmount − net cost of the outcome (Σ BUY − Σ SELL)
   /// at redemption — the realized win/loss of the closed position.
