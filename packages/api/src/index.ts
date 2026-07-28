@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
 import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
-import { resolveMarket, resolveGroup, redeemPosition } from "./resolve";
+import { resolveMarket, resolveGroup, redeemPosition, pendingRedeems } from "./resolve";
 import { startWorker } from "./worker";
 import {
   placeOrder,
@@ -327,6 +327,16 @@ app.get("/wallet/:index", async (req, reply) => {
     return reply.status(400).send({ error: "index must be 0..9" });
   }
   return walletSummary(index);
+});
+
+// Demo wallet: in-flight redemptions (pending/running REDEEM jobs) — lets
+// the portfolio re-attach its status chips after a revisit.
+app.get("/wallet/:index/redeems", async (req, reply) => {
+  const index = Number((req.params as { index: string }).index);
+  if (!Number.isInteger(index) || index < 1 || index > 9) {
+    return reply.status(400).send({ error: "index must be 1..9" });
+  }
+  return { redeems: await pendingRedeems(index) };
 });
 
 // Demo wallet: trade + redemption history (newest first), with realized P&L on redeems.

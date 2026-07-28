@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { useWallet } from "@/components/WalletProvider";
 import { SettlementChip } from "@/components/SettlementChip";
 import {
+  getPendingRedeems,
   postRedeem,
   getWalletHistory,
   cents,
@@ -30,7 +31,10 @@ const signedMoney = (v: number) => `${v >= 0 ? "+" : "−"}${money(Math.abs(v))}
 export default function PortfolioPage() {
   const { accountIndex, summary, refresh, isAdmin } = useWallet();
   const [redeeming, setRedeeming] = React.useState<string | null>(null);
-  const [redeemJob, setRedeemJob] = React.useState<string | null>(null);
+  /// slug → jobId of in-flight redemptions. Seeded from the server on every
+  /// visit (a redeem takes real time on Sepolia — leaving the page must not
+  /// lose its status), extended locally when a new redeem starts.
+  const [redeemJobs, setRedeemJobs] = React.useState<Record<string, string>>({});
   const [toast, setToast] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
@@ -52,6 +56,21 @@ export default function PortfolioPage() {
     void loadHistory();
   }, [loadHistory]);
 
+  // Restore in-flight redemption chips on mount / wallet switch.
+  React.useEffect(() => {
+    if (isAdmin) {
+      setRedeemJobs({});
+      return;
+    }
+    let alive = true;
+    void getPendingRedeems(accountIndex).then((rows) => {
+      if (alive) setRedeemJobs(Object.fromEntries(rows.map((r) => [r.slug, r.jobId])));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [accountIndex, isAdmin]);
+
   React.useEffect(() => {
     if (!pnlDetails) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -63,24 +82,30 @@ export default function PortfolioPage() {
 
   const onRedeem = async (p: Position) => {
     setRedeeming(p.slug);
-    setRedeemJob(null);
     setError(null);
     setToast(null);
     try {
       const r = await postRedeem({ slug: p.slug, accountIndex });
       setToast(`Redeeming ${p.slug} — expecting $${r.expectedUsdc.toFixed(2)} USDC`);
-      setRedeemJob(r.jobId); // the chip polls; balances refresh when it settles
+      setRedeemJobs((m) => ({ ...m, [p.slug]: r.jobId })); // row chip polls; balances refresh on settle
     } catch (e: any) {
       setError(e?.message ?? "redeem failed");
+    } finally {
       setRedeeming(null);
     }
   };
 
   const onRedeemSettled = React.useCallback(
-    async (status: "CONFIRMED" | "FAILED") => {
-      if (status === "CONFIRMED") setToast((t) => t?.replace("Redeeming", "Redeemed").replace("expecting", "received") ?? t);
-      else setError("redeem failed on-chain — your tokens are untouched");
-      setRedeeming(null);
+    (slug: string) => async (status: "CONFIRMED" | "FAILED") => {
+      if (status === "CONFIRMED") {
+        setToast((t) => t?.replace("Redeeming", "Redeemed").replace("expecting", "received") ?? t);
+      } else {
+        setError(`redeem of ${slug} failed on-chain — your tokens are untouched`);
+      }
+      setRedeemJobs((m) => {
+        const { [slug]: _, ...rest } = m;
+        return rest;
+      });
       await refresh();
       await loadHistory();
     },
@@ -197,12 +222,7 @@ export default function PortfolioPage() {
         </Card>
       </div>
 
-      {toast && (
-        <p className="flex flex-wrap items-center gap-2 rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">
-          {toast}
-          {redeemJob && <SettlementChip jobId={redeemJob} onSettled={onRedeemSettled} />}
-        </p>
-      )}
+      {toast && <p className="rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">{toast}</p>}
       {error && <p className="rounded-md bg-no/10 px-3 py-2 text-sm text-no">{error}</p>}
 
       <Card>
@@ -261,15 +281,21 @@ export default function PortfolioPage() {
                   >
                     {signedMoney(p.pnl)}
                   </div>
-                  {p.marketStatus === "RESOLVED" && (
-                    <Button
-                      size="sm"
-                      disabled={redeeming === p.slug}
-                      onClick={() => onRedeem(p)}
-                    >
-                      {redeeming === p.slug ? "Redeeming…" : "Redeem"}
-                    </Button>
-                  )}
+                  {p.marketStatus === "RESOLVED" &&
+                    (redeemJobs[p.slug] ? (
+                      <SettlementChip
+                        jobId={redeemJobs[p.slug]!}
+                        onSettled={onRedeemSettled(p.slug)}
+                      />
+                    ) : (
+                      <Button
+                        size="sm"
+                        disabled={redeeming === p.slug}
+                        onClick={() => onRedeem(p)}
+                      >
+                        {redeeming === p.slug ? "Redeeming…" : "Redeem"}
+                      </Button>
+                    ))}
                 </div>
               ))}
             </div>
