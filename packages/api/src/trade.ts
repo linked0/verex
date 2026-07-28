@@ -110,6 +110,7 @@ export interface HistoryRow {
   tokenAmount: number;
   price: number;
   txHash: string | null; // null while on-chain settlement is pending
+  settlement: "PENDING" | "CONFIRMED" | "FAILED";
   createdAt: string;
   /// REDEEM rows only: usdcAmount − net cost of the outcome (Σ BUY − Σ SELL)
   /// at redemption — the realized win/loss of the closed position.
@@ -143,6 +144,7 @@ export async function walletHistory(accountIndex: number): Promise<HistoryRow[]>
     tokenAmount: Number(t.tokenAmount),
     price: Number(t.price),
     txHash: t.txHash,
+    settlement: t.settlement,
     createdAt: t.createdAt.toISOString(),
     ...(t.side === "REDEEM"
       ? { realizedPnl: Number((Number(t.usdcAmount) - (netCost.get(t.outcome.id) ?? 0)).toFixed(2)) }

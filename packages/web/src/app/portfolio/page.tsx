@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useWallet } from "@/components/WalletProvider";
+import { SettlementChip } from "@/components/SettlementChip";
 import {
   postRedeem,
   getWalletHistory,
@@ -29,6 +30,7 @@ const signedMoney = (v: number) => `${v >= 0 ? "+" : "−"}${money(Math.abs(v))}
 export default function PortfolioPage() {
   const { accountIndex, summary, refresh, isAdmin } = useWallet();
   const [redeeming, setRedeeming] = React.useState<string | null>(null);
+  const [redeemJob, setRedeemJob] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
@@ -53,19 +55,29 @@ export default function PortfolioPage() {
 
   const onRedeem = async (p: Position) => {
     setRedeeming(p.slug);
+    setRedeemJob(null);
     setError(null);
     setToast(null);
     try {
       const r = await postRedeem({ slug: p.slug, accountIndex });
-      setToast(`Redeemed ${p.slug} — received $${r.usdcReceived.toFixed(2)} USDC`);
-      await refresh();
-      await loadHistory();
+      setToast(`Redeeming ${p.slug} — expecting $${r.expectedUsdc.toFixed(2)} USDC`);
+      setRedeemJob(r.jobId); // the chip polls; balances refresh when it settles
     } catch (e: any) {
       setError(e?.message ?? "redeem failed");
-    } finally {
       setRedeeming(null);
     }
   };
+
+  const onRedeemSettled = React.useCallback(
+    async (status: "CONFIRMED" | "FAILED") => {
+      if (status === "CONFIRMED") setToast((t) => t?.replace("Redeeming", "Redeemed").replace("expecting", "received") ?? t);
+      else setError("redeem failed on-chain — your tokens are untouched");
+      setRedeeming(null);
+      await refresh();
+      await loadHistory();
+    },
+    [refresh, loadHistory],
+  );
 
   if (isAdmin) {
     return (
@@ -142,7 +154,12 @@ export default function PortfolioPage() {
         </Card>
       </div>
 
-      {toast && <p className="rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">{toast}</p>}
+      {toast && (
+        <p className="flex flex-wrap items-center gap-2 rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">
+          {toast}
+          {redeemJob && <SettlementChip jobId={redeemJob} onSettled={onRedeemSettled} />}
+        </p>
+      )}
       {error && <p className="rounded-md bg-no/10 px-3 py-2 text-sm text-no">{error}</p>}
 
       <Card>
@@ -259,6 +276,16 @@ export default function PortfolioPage() {
                   <span className="text-xs text-muted-foreground">
                     {h.tokenAmount.toFixed(1)} {h.outcome} @ {cents(h.price)}
                   </span>
+                  {h.settlement === "PENDING" && (
+                    <Badge variant="outline" className="border-primary/40 text-primary">
+                      settling…
+                    </Badge>
+                  )}
+                  {h.settlement === "FAILED" && (
+                    <Badge variant="outline" className="border-no text-no">
+                      reverted
+                    </Badge>
+                  )}
                   <span className="w-20 text-right tabular-nums">
                     {h.side === "BUY" ? `−${money(h.usdcAmount)}` : `+${money(h.usdcAmount)}`}
                   </span>
