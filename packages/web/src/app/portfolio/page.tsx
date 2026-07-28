@@ -6,7 +6,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, Wallet, X } from "lucide-react";
+import { BriefcaseBusiness, Check, Copy, Wallet, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,14 @@ export default function PortfolioPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
   const [pnlDetails, setPnlDetails] = React.useState<HistoryRow | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  const copyAddress = async () => {
+    if (!summary?.address) return;
+    await navigator.clipboard.writeText(summary.address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1_500);
+  };
 
   const loadHistory = React.useCallback(async () => {
     setHistory(isAdmin ? [] : await getWalletHistory(accountIndex));
@@ -82,13 +90,31 @@ export default function PortfolioPage() {
   if (isAdmin) {
     return (
       <main className="container max-w-3xl space-y-4 py-8">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <BriefcaseBusiness className="h-6 w-6" /> Portfolio
-        </h1>
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <BriefcaseBusiness className="h-6 w-6" /> Portfolio
+          </h1>
+          {summary?.address && (
+            <button
+              type="button"
+              onClick={copyAddress}
+              title="Copy the operator address"
+              className="mt-1.5 inline-flex items-center gap-1.5 break-all text-left font-mono text-xs text-muted-foreground hover:text-foreground"
+            >
+              Operator · {summary.address}
+              {copied ? (
+                <Check className="h-3.5 w-3.5 shrink-0 text-yes" />
+              ) : (
+                <Copy className="h-3.5 w-3.5 shrink-0" />
+              )}
+            </button>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground">
           The operator (#0) has no portfolio — its holdings are market-making inventory
-          across every market. Switch to a demo wallet (#1–5) to see a portfolio, or open
-          a market page to resolve it.
+          across every market
+          {summary ? ` (treasury: ${money(summary.usdc)} USDC)` : ""}. Switch to a demo
+          wallet (#1–5) to see a portfolio, or open a market page to resolve it.
         </p>
       </main>
     );
@@ -101,9 +127,26 @@ export default function PortfolioPage() {
 
   return (
     <main className="container max-w-4xl space-y-6 py-8">
-      <h1 className="flex items-center gap-2 text-2xl font-bold">
-        <BriefcaseBusiness className="h-6 w-6" /> Portfolio
-      </h1>
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <BriefcaseBusiness className="h-6 w-6" /> Portfolio
+        </h1>
+        {summary?.address && (
+          <button
+            type="button"
+            onClick={copyAddress}
+            title="Copy the wallet address"
+            className="mt-1.5 inline-flex items-center gap-1.5 break-all text-left font-mono text-xs text-muted-foreground hover:text-foreground"
+          >
+            {summary.address}
+            {copied ? (
+              <Check className="h-3.5 w-3.5 shrink-0 text-yes" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+            )}
+          </button>
+        )}
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>

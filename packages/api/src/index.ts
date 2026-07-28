@@ -318,11 +318,13 @@ app.post("/redeem", async (req, reply) => {
   }
 });
 
-// Demo wallet: address, USDC balance, on-chain positions.
+// Demo wallet: address, USDC balance, on-chain positions. Index 0 (the
+// operator) returns address + balance only — identity display, no
+// portfolio.
 app.get("/wallet/:index", async (req, reply) => {
   const index = Number((req.params as { index: string }).index);
-  if (!Number.isInteger(index) || index < 1 || index > 9) {
-    return reply.status(400).send({ error: "index must be 1..9" });
+  if (!Number.isInteger(index) || index < 0 || index > 9) {
+    return reply.status(400).send({ error: "index must be 0..9" });
   }
   return walletSummary(index);
 });

@@ -45,6 +45,8 @@ export interface WalletSummary {
 }
 
 /// Balance + per-market outcome-token positions, read straight from chain.
+/// Index 0 (the operator) gets address + balance only — its token holdings
+/// are MM inventory across every market, not a portfolio.
 export async function walletSummary(accountIndex: number): Promise<WalletSummary> {
   const chain = await loadChain();
   const user = account(accountIndex).address as Address;
@@ -53,6 +55,9 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
   }
   const userCt = chain.ctAs(0); // reads only — any wallet binding works
   const usdcBal = await chain.usdcAs(0).balanceOf(user);
+  if (accountIndex === 0) {
+    return { accountIndex, address: user, usdc: Number(formatUnits(usdcBal, 6)), positions: [] };
+  }
 
   const markets = await prisma.market.findMany({ include: { outcomes: true } });
 
