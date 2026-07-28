@@ -12,6 +12,7 @@ import {
   openOrders,
   type PlaceOrderRequest,
 } from "./book";
+import "./mm"; // wires the after-fill re-quote hook into the book
 
 const app = Fastify({ logger: true });
 

@@ -83,6 +83,16 @@ interface FillPlan {
   makerFillE6: bigint;
 }
 
+/// Called after a user placement produced fills: (marketId, outcomeLabel,
+/// lastFillPrice). Wired by mm.ts (re-quote + group renormalization) —
+/// injected as a hook to avoid a book↔mm import cycle. Never fired for MM
+/// placements, so the MM re-centering can't recurse.
+type AfterFillHook = (marketId: string, outcomeLabel: string, lastPrice: number) => Promise<void>;
+let afterFillHook: AfterFillHook | null = null;
+export function setAfterFillHook(hook: AfterFillHook) {
+  afterFillHook = hook;
+}
+
 const isApprovedForAllAbi = [
   {
     name: "isApprovedForAll",
@@ -257,14 +267,19 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
         : ceilDiv(parseUnits(req.amount.toFixed(6), 6) * parseUnits(limitPrice!.toFixed(6), 6), E6)
       : 0n;
   const sizeE6 = req.side === "SELL" || req.type === "limit" ? parseUnits(req.amount.toFixed(6), 6) : 0n;
-  const faucetMinted = await ensureFunds({
-    index: req.accountIndex,
-    side: req.side,
-    usdcE6: budgetE6,
-    tokensE6: sizeE6,
-    tokenId,
-    outcomeLabel: outcome.label,
-  });
+  // The operator MM is pre-approved and solvent by construction (seed mints
+  // its buffer + inventory) — skipping the per-order chain reads keeps a
+  // 20-order re-quote cheap.
+  const faucetMinted = isMM
+    ? false
+    : await ensureFunds({
+        index: req.accountIndex,
+        side: req.side,
+        usdcE6: budgetE6,
+        tokensE6: sizeE6,
+        tokenId,
+        outcomeLabel: outcome.label,
+      });
 
   // ── Match + persist, all inside one row-locked transaction ─────────────
   const result = await prisma.$transaction(async (tx) => {
@@ -477,6 +492,17 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
 
     return { takerOrder, fills, tradeIdsByFill, totalTokens, totalUsdc, newYesPrice };
   });
+
+  // Re-quote the MM around the traded price (and renormalize the group's
+  // centers) — user fills only, so the MM's own placements can't recurse.
+  if (!isMM && result.fills.length > 0 && afterFillHook) {
+    const lastPrice = result.fills[result.fills.length - 1]!.price;
+    try {
+      await afterFillHook(market.id, outcome.label, lastPrice);
+    } catch (e) {
+      console.error(`after-fill re-quote failed for ${market.slug}:`, e);
+    }
+  }
 
   // Queue on-chain settlement for the fills (outside the DB transaction —
   // the job row itself is the durable record).
