@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle } from "lucide-react";
+import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle, CircleHelp } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,13 @@ export function SiteNav() {
         </form>
 
         <div className="ml-auto flex items-center gap-2">
+          <Link
+            href="/how-to"
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            <CircleHelp className="h-4 w-4" />
+            How to use
+          </Link>
           <Link
             href="/create"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
