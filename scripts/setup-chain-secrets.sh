@@ -14,15 +14,16 @@
 # missing ones are created. Ends with a round-trip verification that prints
 # nothing sensitive.
 #
-# Usage: ./scripts/setup-chain-secrets.sh test|prod
+# Usage: ./scripts/setup-chain-secrets.sh staging|prod
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TARGET=${1:-}
 case "$TARGET" in
-  test) ENV_FILE=scripts/deploy.env ;;
+  staging) ENV_FILE=scripts/deploy.env ;;
   prod) ENV_FILE=scripts/deploy.env.prod ;;
-  *) echo "Usage: $0 test|prod"; exit 1 ;;
+  test) echo "❌ target 'test' was renamed to 'staging' (2026-07-28) — run: $0 staging"; exit 1 ;;
+  *) echo "Usage: $0 staging|prod"; exit 1 ;;
 esac
 [ -f "$ENV_FILE" ] || { echo "❌ $ENV_FILE missing"; exit 1; }
 # shellcheck disable=SC1090

@@ -16,7 +16,7 @@
 //   pnpm --filter @verex/api exec tsx scripts/gen-demo-mnemonic.ts
 //   pnpm --filter @verex/api exec tsx scripts/gen-demo-mnemonic.ts --store prod
 //
-// --store test|prod stores the mnemonic straight into Secret Manager
+// --store staging|prod stores the mnemonic straight into Secret Manager
 // (verex-demo-mnemonic-<DB_NAME>, names/project read from the matching
 // scripts/deploy.env* file) BEFORE funding — via gcloud stdin, never argv —
 // so no copy-paste bridge to §4 is needed at all: setup-chain-secrets.sh
@@ -51,7 +51,7 @@ function printCheckCommand(mnemonic: string) {
 /// Store the mnemonic into Secret Manager for the given deploy target.
 /// PROJECT_ID/DB_NAME come from the same env file deploy.sh uses, so the
 /// secret name can't drift; the value travels via gcloud's stdin, never argv.
-function storeToSecretManager(mnemonic: string, target: "test" | "prod") {
+function storeToSecretManager(mnemonic: string, target: "staging" | "prod") {
   const envFile = pathResolve(
     __dirname,
     "../../../scripts",
@@ -83,8 +83,12 @@ function storeToSecretManager(mnemonic: string, target: "test" | "prod") {
 async function main() {
   const storeIdx = process.argv.indexOf("--store");
   const storeTarget = storeIdx === -1 ? null : process.argv[storeIdx + 1];
-  if (storeIdx !== -1 && storeTarget !== "test" && storeTarget !== "prod") {
-    console.error("Usage: gen-demo-mnemonic.ts [--store test|prod]");
+  if (storeTarget === "test") {
+    console.error("target 'test' was renamed to 'staging' (2026-07-28) — use: --store staging");
+    process.exit(1);
+  }
+  if (storeIdx !== -1 && storeTarget !== "staging" && storeTarget !== "prod") {
+    console.error("Usage: gen-demo-mnemonic.ts [--store staging|prod]");
     process.exit(1);
   }
 

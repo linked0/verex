@@ -115,7 +115,7 @@ seed failed: The contract function "approve" returned no data ("0x").
 Fix: comment the three lines out of `packages/contracts/.env` (or `unset` them in the shell)
 and rerun `./scripts/reset.sh` — the seed then falls through to a fresh
 `forge script script/DeployCTF.s.sol` deploy. The Sepolia backbone doesn't need those env
-lines anyway; it lives in `packages/contracts/deployments.json` (`test`/`prod` manifests).
+lines anyway; it lives in `packages/contracts/deployments.json` (`staging`/`prod` manifests).
 
 ### Reset (start over)
 

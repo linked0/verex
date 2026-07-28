@@ -108,6 +108,17 @@ Replaced the footer "powered by" image with jay's profile avatar (from the rabbi
 old logo kept as `jaylabs-old.png`, avatar now `jaylabs.png`, `layout.tsx` unchanged in the end.
 Verified in the browser. (Source: jay's request in conversation, no task file.)
 
+### Environment rename: deploy target `test` → `staging` (docs first, then the technical id)
+
+jay renamed the pre-production environment to "staging". First pass changed docs prose
+only; jay then asked for the technical identifier too, across all scripts: the
+`deployments.json` manifest key, `VEREX_DEPLOY_TARGET`, `scripts/deploy.env`,
+deploy.sh/setup-chain-secrets.sh, and the api helper scripts (save-deployment,
+check-deployment, gen-demo-mnemonic). Every entry point now fails fast on the old
+`test` value with a rename hint, so a stale habit or env file can't silently misfire.
+GCP resource names are unsuffixed and unaffected.
+(Source: jay's requests in conversation, no task file.)
+
 ### Noted: pre-existing uncommitted MarketCard.tsx polish left untouched
 
 The working tree already had cosmetic hover/probability-bar changes to

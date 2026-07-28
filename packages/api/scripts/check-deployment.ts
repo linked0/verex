@@ -7,8 +7,8 @@
 //      from $VEREX_OPERATOR_KEY. The deploy key becomes the exchange's
 //      permanent admin/operator (the runbooks' critical rule); recording a
 //      backbone whose admin is some other key bricks every operator call.
-//   2. cross-target collision — run-latest is per CHAIN id and test/prod
-//      share Sepolia, so a stale file (e.g. the test deploy) can masquerade
+//   2. cross-target collision — run-latest is per CHAIN id and staging/prod
+//      share Sepolia, so a stale file (e.g. the staging deploy) can masquerade
 //      as the prod one. Hard-fails if the OTHER target in deployments.json
 //      already holds these addresses; warns if the broadcast is >60 min old.
 //   3. on-chain liveness + wiring — all three addresses hold code on
@@ -48,8 +48,12 @@ function fail(msg: string) {
 
 async function main() {
   const target = process.argv[2];
-  if (target !== "test" && target !== "prod") {
-    console.error("Usage: pnpm --filter @verex/api check-deployment <test|prod>");
+  if (target === "test") {
+    console.error("target 'test' was renamed to 'staging' (2026-07-28) — use: check-deployment staging");
+    process.exit(1);
+  }
+  if (target !== "staging" && target !== "prod") {
+    console.error("Usage: pnpm --filter @verex/api check-deployment <staging|prod>");
     process.exit(1);
   }
   const rpcUrl = process.env.VEREX_RPC_URL;
@@ -128,7 +132,7 @@ async function main() {
   } catch {
     // no manifest yet — nothing to collide with
   }
-  const other = target === "prod" ? "test" : "prod";
+  const other = target === "prod" ? "staging" : "prod";
   if (manifest[other]?.exchange?.toLowerCase() === candidate.exchange.toLowerCase()) {
     fail(
       `these are the '${other}' backbone's addresses (same exchange as the existing ` +

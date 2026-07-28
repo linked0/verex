@@ -314,7 +314,7 @@ POST /market-groups
 ```
 
 - **Pre-flight solvency check** (kept from the reference design — it's a good idea): read
-  operator USDC balance; if `< L × N`, on local/test **mint the shortfall** (MockUSDC), on prod
+  operator USDC balance; if `< L × N`, on local/staging **mint the shortfall** (MockUSDC), on prod
   reject with `{required, available}`.
 - The handler only writes a `ChainJob {type: CREATE_GROUP}` + a `MarketGroup` row with a new
   status `CREATING` (markets appear on the homepage only once OPEN). Everything on-chain happens

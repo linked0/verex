@@ -11,14 +11,15 @@ One procedure, two isolated environments. Every step below is written with a
 | Cloud Run services | `verex-web` / `verex-api` | `verex-web-prod` / `verex-api-prod` |
 | Cloud SQL / DB | `verex-db` / `verex` | `verex-db-prod` / `verex_prod` |
 | Secret suffix | `-verex` | `-verex_prod` |
-| Manifest target | `test` | `prod` |
+| Manifest target | `staging` | `prod` |
 | Domain | none — `*.run.app` only | `verex.jaylabs.xyz` (§9) |
 
-> **Naming (2026-07-28)**: the pre-production environment is called **staging** (jay's
-> terminology decision; docs previously said "test server"). The *technical* identifier
-> is still `test` — `VEREX_DEPLOY_TARGET=test`, the `test` entry in `deployments.json`,
-> and the unsuffixed service/DB/secret names — because renaming those touches live GCP
-> resources and the committed manifest. Prose says **staging**; commands keep `test`.
+> **Naming (2026-07-28)**: the pre-production environment is **staging** — both in prose
+> and in the technical identifier (`VEREX_DEPLOY_TARGET=staging`, the `staging` entry in
+> `deployments.json`, `<target> = staging` in every script; the old `test` value now
+> fails fast with a rename hint). GCP resource names stay unsuffixed (`verex-web`,
+> `verex-db`, `-verex` secrets) — those are live infrastructure and were never named
+> "test".
 
 Nothing is shared between environments except the GCP project (`verex-499205`), the
 region, and the chain itself. You run every command yourself — nothing here broadcasts

@@ -12,8 +12,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Env file is selectable so one script serves both environments (Task 5 isolation):
-#   test (default):  ./scripts/deploy.sh                          → scripts/deploy.env
-#   production:      DEPLOY_ENV=scripts/deploy.env.prod ./scripts/deploy.sh
+#   staging (default):  ./scripts/deploy.sh                          → scripts/deploy.env
+#   production:         DEPLOY_ENV=scripts/deploy.env.prod ./scripts/deploy.sh
 ENV_FILE=${DEPLOY_ENV:-scripts/deploy.env}
 [ -f "$ENV_FILE" ] || { echo "❌ $ENV_FILE missing — copy scripts/deploy.env.example"; exit 1; }
 source "$ENV_FILE" # PROJECT_ID / REGION / SERVICE_WEB / SERVICE_API
@@ -85,8 +85,9 @@ SEED_CHAIN_ENV=()
 API_CHAIN_SECRETS=""
 if [ -n "$VEREX_CHAIN_ID" ]; then
   case "$DEPLOY_TARGET" in
-    test|prod) ;;
-    *) echo "❌ DEPLOY_TARGET must be 'test' or 'prod' in $ENV_FILE (picks the deployments.json backbone)"; exit 1;;
+    staging|prod) ;;
+    test) echo "❌ DEPLOY_TARGET 'test' was renamed to 'staging' (2026-07-28) — update $ENV_FILE"; exit 1;;
+    *) echo "❌ DEPLOY_TARGET must be 'staging' or 'prod' in $ENV_FILE (picks the deployments.json backbone)"; exit 1;;
   esac
   echo "▶ Chain secrets (chain id $VEREX_CHAIN_ID)"
   RPC_SECRET="verex-rpc-url-${DB_NAME}"

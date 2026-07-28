@@ -2,7 +2,7 @@
 //
 // What it does (run after `prisma migrate reset` for a clean slate):
 //   1. Resolves the CTF backbone and stores its addresses in ChainConfig:
-//      VEREX_DEPLOY_TARGET=test|prod reads the committed entry in
+//      VEREX_DEPLOY_TARGET=staging|prod reads the committed entry in
 //      packages/contracts/deployments.json (after an on-chain code preflight);
 //      local (the default) deploys fresh via forge, or reuses USDC_ADDR/
 //      CTF_ADDR/EXCHANGE_ADDR from the shell env / packages/contracts/.env.
@@ -52,12 +52,15 @@ loadEnv(); // packages/api/.env
 loadEnv({ path: pathResolve(CONTRACTS_DIR, ".env") });
 
 // Which deployed backbone to seed against. 'local' (the default) keeps the
-// anvil flow: env addresses or a fresh forge deploy. 'test'/'prod' read the
+// anvil flow: env addresses or a fresh forge deploy. 'staging'/'prod' read the
 // committed manifest below — cloud deploys pass this via deploy.sh, so a prod
-// seed physically can't pick up the test backbone (or vice versa).
+// seed physically can't pick up the staging backbone (or vice versa).
 const DEPLOY_TARGET = process.env.VEREX_DEPLOY_TARGET ?? "local";
-if (!["local", "test", "prod"].includes(DEPLOY_TARGET)) {
-  throw new Error(`VEREX_DEPLOY_TARGET must be local|test|prod, got '${DEPLOY_TARGET}'`);
+if (DEPLOY_TARGET === "test") {
+  throw new Error("VEREX_DEPLOY_TARGET 'test' was renamed to 'staging' (2026-07-28)");
+}
+if (!["local", "staging", "prod"].includes(DEPLOY_TARGET)) {
+  throw new Error(`VEREX_DEPLOY_TARGET must be local|staging|prod, got '${DEPLOY_TARGET}'`);
 }
 
 const prisma = new PrismaClient();
