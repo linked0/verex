@@ -23,6 +23,10 @@ export function SettlementChip({
   const [status, setStatus] = React.useState<JobStatus>("PENDING");
   const [txHash, setTxHash] = React.useState<string | null>(null);
   const settledRef = React.useRef(false);
+  // Ref'd so an inline callback from the parent doesn't reset the polling
+  // effect on every render.
+  const onSettledRef = React.useRef(onSettled);
+  onSettledRef.current = onSettled;
 
   React.useEffect(() => {
     let alive = true;
@@ -37,7 +41,7 @@ export function SettlementChip({
         if (hash) setTxHash(hash);
         if ((job.status === "CONFIRMED" || job.status === "FAILED") && !settledRef.current) {
           settledRef.current = true;
-          onSettled?.(job.status);
+          onSettledRef.current?.(job.status);
         }
       } catch {
         /* transient — keep polling */
@@ -52,7 +56,7 @@ export function SettlementChip({
       alive = false;
       clearInterval(t);
     };
-  }, [jobId, onSettled]);
+  }, [jobId]);
 
   if (status === "FAILED") {
     return (

@@ -289,6 +289,19 @@ export async function postResolve(body: {
   return data;
 }
 
+/// In-flight redemptions for a wallet — slug → jobId. Used to restore the
+/// portfolio's "Redeeming…" chips after a page revisit.
+export async function getPendingRedeems(index: number): Promise<{ jobId: string; slug: string }[]> {
+  try {
+    const res = await fetch(`${BROWSER_API}/wallet/${index}/redeems`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.redeems ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function postRedeem(body: {
   slug: string;
   accountIndex: number;

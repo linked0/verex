@@ -234,9 +234,36 @@ interface RedeemPayload {
   accountIndex: number;
 }
 
+/// A wallet's in-flight redemptions — pending/running REDEEM jobs, keyed
+/// by market slug. The portfolio uses this to re-attach its status chips
+/// after a page revisit (a redeem takes real time on Sepolia).
+export async function pendingRedeems(accountIndex: number): Promise<{ jobId: string; slug: string }[]> {
+  const jobs = await prisma.chainJob.findMany({
+    where: {
+      type: "REDEEM",
+      status: { in: ["PENDING", "RUNNING"] },
+      payload: { path: ["accountIndex"], equals: accountIndex },
+    },
+    select: { id: true, payload: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (jobs.length === 0) return [];
+  const marketIds = jobs.map((j) => (j.payload as unknown as RedeemPayload).marketId);
+  const markets = await prisma.market.findMany({
+    where: { id: { in: marketIds } },
+    select: { id: true, slug: true },
+  });
+  const slugById = new Map(markets.map((m) => [m.id, m.slug]));
+  return jobs.flatMap((j) => {
+    const slug = slugById.get((j.payload as unknown as RedeemPayload).marketId);
+    return slug ? [{ jobId: j.id, slug }] : [];
+  });
+}
+
 /// Redeem the caller's position in a resolved market — queued behind any
 /// pending resolution (FIFO worker), so the payout report always lands
-/// first.
+/// first. Idempotent per (market, wallet): while a redeem is in flight,
+/// asking again returns the same job instead of queueing a duplicate burn.
 export async function redeemPosition(req: RedeemRequest): Promise<RedeemResult> {
   if (req.accountIndex < 1 || req.accountIndex > 9) throw httpError("accountIndex must be 1..9", 400);
   const chain = await loadChain();
@@ -256,6 +283,21 @@ export async function redeemPosition(req: RedeemRequest): Promise<RedeemResult> 
   if (winning) {
     const bal = await chain.ctAs(0).balanceOf(user, BigInt(winning.tokenId));
     expectedUsdc = Number(formatUnits(bal, 6));
+  }
+
+  const existing = await prisma.chainJob.findFirst({
+    where: {
+      type: "REDEEM",
+      status: { in: ["PENDING", "RUNNING"] },
+      AND: [
+        { payload: { path: ["marketId"], equals: market.id } },
+        { payload: { path: ["accountIndex"], equals: req.accountIndex } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return { jobId: existing.id, slug: market.slug, expectedUsdc, settlement: "PENDING" };
   }
 
   const jobId = await enqueueJob("REDEEM", { marketId: market.id, accountIndex: req.accountIndex } satisfies RedeemPayload);
