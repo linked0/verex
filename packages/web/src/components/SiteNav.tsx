@@ -58,7 +58,7 @@ export function SiteNav() {
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <CircleHelp className="h-4 w-4" />
-            How to use
+            Guide
           </Link>
           <Link
             href="/create"
