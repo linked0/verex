@@ -42,5 +42,24 @@ export function MarketSidePanel({ market }: { market: Market }) {
     );
   }
 
+  if (isAdmin && market.group) {
+    // Group members resolve together (mutually exclusive outcomes) — send
+    // the operator to the group's winner picker instead.
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Resolve via the group</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          This market is one outcome of{" "}
+          <a href={`/group/${market.group.slug}`} className="underline hover:text-foreground">
+            {market.group.title}
+          </a>
+          . Pick the winner there — all member markets resolve together.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return isAdmin ? <ResolvePanel market={market} /> : <TradePanel market={market} />;
 }

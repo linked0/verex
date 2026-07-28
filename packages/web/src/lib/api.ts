@@ -21,6 +21,43 @@ export type Market = {
   closesAt?: string | null;
   conditionId: string;
   outcomes: Outcome[];
+  // Group membership (rev 2): set when this market is one outcome of a
+  // multi-outcome group.
+  groupId?: string | null;
+  groupLabel?: string | null;
+  quoteCenter?: string;
+  group?: { slug: string; title: string } | null;
+};
+
+/// A multi-outcome market: N mutually exclusive member Markets under one
+/// question ("Who wins the World Cup?"). Yes prices across members sum to 1.
+export type MarketGroup = {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  imageUrl?: string | null;
+  status: "CREATING" | "OPEN" | "RESOLVED" | "CANCELLED";
+  closesAt?: string | null;
+  resolvedMarketId?: string | null;
+  creator?: string | null;
+  volume: number;
+  markets: Market[];
+};
+
+export type GroupSeries = {
+  slug: string;
+  label: string;
+  points: PricePoint[];
+};
+
+export type BookLevel = { price: number; size: number };
+export type BookSnapshot = {
+  outcome: string;
+  bids: BookLevel[];
+  asks: BookLevel[];
+  mid: number | null;
 };
 
 export type PricePoint = { price: string; at: string };
@@ -117,6 +154,44 @@ export async function getMarket(slug: string): Promise<Market | null> {
     return (await res.json()) as Market;
   } catch {
     return null;
+  }
+}
+
+export async function getGroups(category?: string, q?: string): Promise<MarketGroup[]> {
+  const params = new URLSearchParams();
+  if (category && category !== "All") params.set("category", category);
+  if (q) params.set("q", q);
+  const qs = params.toString();
+  try {
+    const res = await fetch(`${API}/market-groups${qs ? `?${qs}` : ""}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.groups ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getGroup(slug: string): Promise<MarketGroup | null> {
+  try {
+    const res = await fetch(`${API}/market-groups/${slug}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const group = (await res.json()) as MarketGroup;
+    group.volume = group.markets.reduce((a, m) => a + Number(m.volume), 0);
+    return group;
+  } catch {
+    return null;
+  }
+}
+
+export async function getGroupHistory(slug: string): Promise<GroupSeries[]> {
+  try {
+    const res = await fetch(`${API}/market-groups/${slug}/history`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.series ?? [];
+  } catch {
+    return [];
   }
 }
 
@@ -220,6 +295,35 @@ export async function postRedeem(body: {
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? "redeem failed");
   return data;
+}
+
+export async function postGroupResolve(body: {
+  groupSlug: string;
+  winnerSlug: string;
+  accountIndex: number;
+}): Promise<{ jobId: string; winnerSlug: string; winnerLabel: string | null }> {
+  const res = await fetch(`${BROWSER_API}/market-groups/${body.groupSlug}/resolve`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ winnerSlug: body.winnerSlug, accountIndex: body.accountIndex }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "resolve failed");
+  return data;
+}
+
+/// Order-book depth for one outcome (browser-side, polled by BookPanel).
+export async function getBookSnapshot(slug: string, outcome: string): Promise<BookSnapshot | null> {
+  try {
+    const res = await fetch(
+      `${BROWSER_API}/markets/${slug}/book?outcome=${encodeURIComponent(outcome)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as BookSnapshot;
+  } catch {
+    return null;
+  }
 }
 
 export async function postFaucet(accountIndex: number): Promise<{ usdc: number } | null> {

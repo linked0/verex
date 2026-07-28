@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ProbChart } from "@/components/ProbChart";
 import { MarketSidePanel } from "@/components/MarketSidePanel";
+import { BookPanel } from "@/components/BookPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,11 @@ export default async function MarketPage({ params }: { params: { slug: string } 
   return (
     <main className="container space-y-6 py-6">
       <Link
-        href="/"
+        href={market.group ? `/group/${market.group.slug}` : "/"}
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="h-4 w-4" /> All markets
+        <ArrowLeft className="h-4 w-4" />
+        {market.group ? market.group.title : "All markets"}
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -156,9 +158,10 @@ export default async function MarketPage({ params }: { params: { slug: string } 
           </Card>
         </div>
 
-        {/* Right: trade panel (or admin resolve / resolved note) */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
+        {/* Right: trade panel (or admin resolve / resolved note) + book depth */}
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           <MarketSidePanel market={market} />
+          {market.status === "OPEN" && <BookPanel slug={market.slug} outcome="Yes" />}
         </aside>
       </div>
     </main>
