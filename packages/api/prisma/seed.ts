@@ -26,7 +26,6 @@ import {
   createCTClient,
   createExchangeClient,
   createUsdcClient,
-  getConditionId,
   type Address,
   type Hex,
 } from "@verex/sdk";
@@ -37,6 +36,8 @@ import {
   RPC_URL,
   CHAIN_ID,
 } from "../src/chain";
+import { createBinaryMarketOnChain } from "../src/market-create";
+import { postLadders } from "../src/mm";
 
 const CONTRACTS_DIR = pathResolve(__dirname, "../../contracts");
 const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
@@ -64,6 +65,9 @@ const prisma = new PrismaClient();
 /// Operator liquidity per market (YES+NO inventory) and USDC buffer for
 /// buying tokens back when users sell.
 const INVENTORY_PER_MARKET = parseUnits("10000", 6); // 10,000 USDC
+/// Group members get lighter inventory — there are N of them per group and
+/// the MM ladder caps at 2k tokens anyway.
+const INVENTORY_PER_MEMBER = parseUnits("2000", 6); // 2,000 USDC
 const OPERATOR_USDC_BUFFER = parseUnits("100000", 6); // 100,000 USDC
 /// Starting balance for demo wallets #1-5 (matches AUTO_FAUCET_USDC in src/trade.ts).
 const DEMO_WALLET_USDC = parseUnits("1000", 6); // 1,000 USDC
@@ -182,6 +186,103 @@ const MARKETS: SeedMarket[] = [
   },
 ];
 
+type SeedGroupOutcome = {
+  key: string; // slug suffix: "aaron-judge"
+  label: string; // chip text: "Aaron Judge"
+  prob: number; // initial probability — each group's probs sum to 1
+};
+
+type SeedGroup = {
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  closesAt: string;
+  displayVolume: number; // split across members by probability share
+  /// Full legal question for one member, e.g. label → "Will X win …?"
+  question: (label: string) => string;
+  outcomes: SeedGroupOutcome[];
+};
+
+// Multi-outcome groups (rev 2): each outcome is its own binary CTF market;
+// the group is the DB wrapper. Original questions, clean-room.
+const GROUPS: SeedGroup[] = [
+  {
+    slug: "mlb-home-run-derby-2026",
+    title: "Who will win the 2026 MLB Home Run Derby?",
+    description:
+      "Resolves to the player who wins the 2026 MLB Home Run Derby at All-Star week. 'The field' covers any player not listed.",
+    category: "Sports",
+    closesAt: "2026-07-13T22:00:00Z",
+    displayVolume: 1_870_000,
+    question: (label) =>
+      label === "The field"
+        ? "Will a player not listed here win the 2026 MLB Home Run Derby?"
+        : `Will ${label} win the 2026 MLB Home Run Derby?`,
+    outcomes: [
+      { key: "aaron-judge", label: "Aaron Judge", prob: 0.24 },
+      { key: "shohei-ohtani", label: "Shohei Ohtani", prob: 0.2 },
+      { key: "juan-soto", label: "Juan Soto", prob: 0.14 },
+      { key: "kyle-schwarber", label: "Kyle Schwarber", prob: 0.12 },
+      { key: "pete-alonso", label: "Pete Alonso", prob: 0.1 },
+      { key: "vladimir-guerrero-jr", label: "Vladimir Guerrero Jr.", prob: 0.08 },
+      { key: "field", label: "The field", prob: 0.12 },
+    ],
+  },
+  {
+    slug: "world-series-champion-2026",
+    title: "Who will win the 2026 World Series?",
+    description:
+      "Resolves to the team that wins the 2026 World Series. 'The field' covers any team not listed.",
+    category: "Sports",
+    closesAt: "2026-11-05T00:00:00Z",
+    displayVolume: 4_930_000,
+    question: (label) =>
+      label === "The field"
+        ? "Will a team not listed here win the 2026 World Series?"
+        : `Will the ${label} win the 2026 World Series?`,
+    outcomes: [
+      { key: "dodgers", label: "Los Angeles Dodgers", prob: 0.22 },
+      { key: "yankees", label: "New York Yankees", prob: 0.16 },
+      { key: "braves", label: "Atlanta Braves", prob: 0.13 },
+      { key: "astros", label: "Houston Astros", prob: 0.11 },
+      { key: "phillies", label: "Philadelphia Phillies", prob: 0.1 },
+      { key: "orioles", label: "Baltimore Orioles", prob: 0.09 },
+      { key: "mariners", label: "Seattle Mariners", prob: 0.07 },
+      { key: "field", label: "The field", prob: 0.12 },
+    ],
+  },
+  {
+    slug: "time-person-of-year-2026",
+    title: "Who will be TIME Person of the Year 2026?",
+    description:
+      "Resolves to TIME magazine's announced Person of the Year for 2026. 'The field' covers anyone not listed.",
+    category: "Culture",
+    closesAt: "2026-12-10T00:00:00Z",
+    displayVolume: 640_000,
+    question: (label) =>
+      label === "The field"
+        ? "Will someone not listed here be named TIME Person of the Year 2026?"
+        : `Will ${label} be named TIME Person of the Year 2026?`,
+    outcomes: [
+      { key: "trump", label: "Donald Trump", prob: 0.18 },
+      { key: "altman", label: "Sam Altman", prob: 0.15 },
+      { key: "swift", label: "Taylor Swift", prob: 0.12 },
+      { key: "zelenskyy", label: "Volodymyr Zelenskyy", prob: 0.1 },
+      { key: "powell", label: "Jerome Powell", prob: 0.08 },
+      { key: "field", label: "The field", prob: 0.37 },
+    ],
+  },
+];
+
+// Guard: a group whose probabilities don't sum to 1 renders nonsense.
+for (const g of GROUPS) {
+  const sum = g.outcomes.reduce((a, o) => a + o.prob, 0);
+  if (Math.abs(sum - 1) > 1e-9) {
+    throw new Error(`seed group ${g.slug}: probs sum to ${sum}, expected 1`);
+  }
+}
+
 interface Backbone {
   usdc: Address;
   ctf: Address;
@@ -268,10 +369,13 @@ function priceHistory(slug: string, endPrice: number): { price: number; at: Date
 /// (Task 2: testnet vs hosted anvil).
 async function mainDbOnly() {
   console.log("[db-only] seeding without a chain (trading disabled)");
+  await prisma.chainJob.deleteMany();
   await prisma.trade.deleteMany();
+  await prisma.order.deleteMany();
   await prisma.pricePoint.deleteMany();
   await prisma.outcome.deleteMany();
   await prisma.market.deleteMany();
+  await prisma.marketGroup.deleteMany();
   await prisma.chainConfig.deleteMany();
   const ZERO = "0x0000000000000000000000000000000000000000";
   await prisma.chainConfig.create({
@@ -308,7 +412,55 @@ async function mainDbOnly() {
     });
     console.log(`[db-only] ${m.slug}`);
   }
-  console.log(`\n✓ seeded ${MARKETS.length} DB-only markets (no chain)`);
+
+  // Groups get the same pseudo-id treatment so the cloud staging UI can
+  // render them (trading stays disabled there anyway).
+  for (const g of GROUPS) {
+    const group = await prisma.marketGroup.create({
+      data: {
+        slug: g.slug,
+        title: g.title,
+        description: g.description,
+        category: g.category,
+        status: "OPEN",
+        closesAt: new Date(g.closesAt),
+      },
+    });
+    for (const [i, o] of g.outcomes.entries()) {
+      const slug = `${g.slug}-${o.key}`;
+      const yesTokenId = BigInt(keccak256(toHex(`verex-yes:${slug}`))).toString();
+      const noTokenId = BigInt(keccak256(toHex(`verex-no:${slug}`))).toString();
+      const market = await prisma.market.create({
+        data: {
+          slug,
+          title: g.question(o.label),
+          description: g.description,
+          category: g.category,
+          volume: Math.round(g.displayVolume * o.prob),
+          closesAt: new Date(g.closesAt),
+          questionId: keccak256(toHex(`verex:${slug}`)),
+          conditionId: keccak256(toHex(`verex-cond:${slug}`)),
+          yesTokenId,
+          noTokenId,
+          groupId: group.id,
+          groupLabel: o.label,
+          sortOrder: i,
+          quoteCenter: o.prob,
+          outcomes: {
+            create: [
+              { label: "Yes", price: o.prob, tokenId: yesTokenId, sortOrder: 0 },
+              { label: "No", price: Number((1 - o.prob).toFixed(4)), tokenId: noTokenId, sortOrder: 1 },
+            ],
+          },
+        },
+      });
+      await prisma.pricePoint.createMany({
+        data: priceHistory(slug, o.prob).map((p) => ({ marketId: market.id, price: p.price, at: p.at })),
+      });
+    }
+    console.log(`[db-only] group ${g.slug}`);
+  }
+  console.log(`\n✓ seeded ${MARKETS.length} DB-only markets + ${GROUPS.length} groups (no chain)`);
 }
 
 async function main() {
@@ -372,11 +524,13 @@ async function main() {
   console.log("[2] operator setup (allowlist + approvals + USDC buffer)...");
   await exchange.addOperator(operator);
   await ct.setApprovalForAll(backbone.exchange, true); // exchange pulls YES/NO on fills
-  const totalMint =
-    OPERATOR_USDC_BUFFER + INVENTORY_PER_MARKET * BigInt(MARKETS.length);
+  const memberCount = GROUPS.reduce((a, g) => a + g.outcomes.length, 0);
+  const totalInventory =
+    INVENTORY_PER_MARKET * BigInt(MARKETS.length) + INVENTORY_PER_MEMBER * BigInt(memberCount);
+  const totalMint = OPERATOR_USDC_BUFFER + totalInventory;
   await usdc.mint(operator, totalMint);
-  await usdc.approve(backbone.ctf, INVENTORY_PER_MARKET * BigInt(MARKETS.length)); // splits pull via CTF
-  await usdc.approve(backbone.exchange, OPERATOR_USDC_BUFFER); // SELL fills pull the operator's USDC via the exchange
+  await usdc.approve(backbone.ctf, totalInventory); // splits pull via CTF
+  await usdc.approve(backbone.exchange, OPERATOR_USDC_BUFFER); // fills pull the operator's USDC (MM bids) via the exchange
 
   // Pre-fund + pre-approve demo wallets #1-5. Funding is a top-up (not blind
   // mint) so re-running the seed against a reused backbone doesn't inflate
@@ -402,10 +556,13 @@ async function main() {
 
   // 3. Reset DB content and store chain config
   console.log("[3] resetting DB rows...");
+  await prisma.chainJob.deleteMany();
   await prisma.trade.deleteMany();
+  await prisma.order.deleteMany();
   await prisma.pricePoint.deleteMany();
   await prisma.outcome.deleteMany();
   await prisma.market.deleteMany();
+  await prisma.marketGroup.deleteMany();
   await prisma.chainConfig.deleteMany();
   await prisma.chainConfig.create({
     data: {
@@ -419,48 +576,110 @@ async function main() {
     },
   });
 
-  // 4. Per-market on-chain setup + DB mirror
-  for (const m of MARKETS) {
-    const questionId: Hex = keccak256(toHex(`verex:${m.slug}`));
-    const conditionId = getConditionId(operator, questionId, 2n);
-    console.log(`[4] ${m.slug}`);
-
-    await ct.prepareCondition(operator, questionId, 2n);
-    const ids = await ct.getBinaryPositionIds(backbone.usdc, conditionId);
-    await exchange.registerToken(ids.yes, ids.no, conditionId);
-    await ct.splitBinary(backbone.usdc, conditionId, INVENTORY_PER_MARKET);
-
+  // 4. Per-market on-chain setup + DB mirror (shared with the CREATE_GROUP
+  // batch job — see src/market-create.ts).
+  const seededMarketIds: { id: string; yesPrice: number }[] = [];
+  const seedOneMarket = async (args: {
+    slug: string;
+    title: string;
+    description: string;
+    category: string;
+    yesPrice: number;
+    displayVolume: number;
+    closesAt: string;
+    inventoryE6: bigint;
+    groupId?: string;
+    groupLabel?: string;
+    sortOrder?: number;
+  }) => {
+    const onchain = await createBinaryMarketOnChain({
+      ct,
+      exchange,
+      usdcAddr: backbone.usdc,
+      operator,
+      questionKey: `verex:${args.slug}`,
+      inventoryE6: args.inventoryE6,
+    });
     const market = await prisma.market.create({
       data: {
-        slug: m.slug,
-        title: m.title,
-        description: m.description,
-        category: m.category,
-        volume: m.displayVolume, // synthetic demo volume; real fills add to it
-        closesAt: new Date(m.closesAt),
-        questionId,
-        conditionId,
-        yesTokenId: ids.yes.toString(),
-        noTokenId: ids.no.toString(),
+        slug: args.slug,
+        title: args.title,
+        description: args.description,
+        category: args.category,
+        volume: args.displayVolume, // synthetic demo volume; real fills add to it
+        closesAt: new Date(args.closesAt),
+        questionId: onchain.questionId,
+        conditionId: onchain.conditionId,
+        yesTokenId: onchain.yesTokenId,
+        noTokenId: onchain.noTokenId,
+        groupId: args.groupId,
+        groupLabel: args.groupLabel,
+        sortOrder: args.sortOrder ?? 0,
+        quoteCenter: args.yesPrice,
         outcomes: {
           create: [
-            { label: "Yes", price: m.yesPrice, tokenId: ids.yes.toString(), sortOrder: 0 },
-            { label: "No", price: Number((1 - m.yesPrice).toFixed(4)), tokenId: ids.no.toString(), sortOrder: 1 },
+            { label: "Yes", price: args.yesPrice, tokenId: onchain.yesTokenId, sortOrder: 0 },
+            { label: "No", price: Number((1 - args.yesPrice).toFixed(4)), tokenId: onchain.noTokenId, sortOrder: 1 },
           ],
         },
       },
     });
-
     await prisma.pricePoint.createMany({
-      data: priceHistory(m.slug, m.yesPrice).map((p) => ({
+      data: priceHistory(args.slug, args.yesPrice).map((p) => ({
         marketId: market.id,
         price: p.price,
         at: p.at,
       })),
     });
+    seededMarketIds.push({ id: market.id, yesPrice: args.yesPrice });
+    return market;
+  };
+
+  for (const m of MARKETS) {
+    console.log(`[4] ${m.slug}`);
+    await seedOneMarket({ ...m, inventoryE6: INVENTORY_PER_MARKET });
   }
 
-  console.log(`\n✓ seeded ${MARKETS.length} on-chain markets (chain ${CHAIN_ID}, operator ${operator})`);
+  // 5. Multi-outcome groups: one binary CTF market per outcome + the DB
+  // wrapper. Initial probabilities sum to 1 per group (checked above).
+  for (const g of GROUPS) {
+    console.log(`[5] group ${g.slug} (${g.outcomes.length} outcomes)`);
+    const group = await prisma.marketGroup.create({
+      data: {
+        slug: g.slug,
+        title: g.title,
+        description: g.description,
+        category: g.category,
+        status: "OPEN",
+        closesAt: new Date(g.closesAt),
+      },
+    });
+    for (const [i, o] of g.outcomes.entries()) {
+      await seedOneMarket({
+        slug: `${g.slug}-${o.key}`,
+        title: g.question(o.label),
+        description: g.description,
+        category: g.category,
+        yesPrice: o.prob,
+        displayVolume: Math.round(g.displayVolume * o.prob),
+        closesAt: g.closesAt,
+        inventoryE6: INVENTORY_PER_MEMBER,
+        groupId: group.id,
+        groupLabel: o.label,
+        sortOrder: i,
+      });
+    }
+  }
+
+  // 6. Initial MM ladders — the books every market opens with.
+  console.log(`[6] posting MM ladders for ${seededMarketIds.length} markets...`);
+  for (const m of seededMarketIds) {
+    await postLadders(m.id, m.yesPrice);
+  }
+
+  console.log(
+    `\n✓ seeded ${MARKETS.length} binary markets + ${GROUPS.length} groups (${memberCount} members) with MM books (chain ${CHAIN_ID}, operator ${operator})`,
+  );
 }
 
 main()
