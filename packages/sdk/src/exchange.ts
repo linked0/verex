@@ -109,6 +109,32 @@ export async function fillOrder(
   return hash;
 }
 
+/// Operator-only. Crosses a taker order against maker orders — the CLOB
+/// settlement primitive. `takerFillAmount` is in the taker order's
+/// makerAmount units; each `makerFillAmounts[i]` is in that maker order's
+/// makerAmount units (see Polymarket Trading.sol).
+export async function matchOrders(
+  publicClient: PublicClient,
+  walletClient: WalletClient,
+  exchange: Address,
+  takerOrder: Order,
+  makerOrders: Order[],
+  takerFillAmount: bigint,
+  makerFillAmounts: bigint[],
+): Promise<Hex> {
+  const account = requireAccount(walletClient);
+  const { request } = await publicClient.simulateContract({
+    address: exchange,
+    abi: CTFExchangeAbi,
+    functionName: "matchOrders",
+    args: [orderForCall(takerOrder), makerOrders.map(orderForCall), takerFillAmount, makerFillAmounts],
+    account,
+  });
+  const hash = await walletClient.writeContract(request);
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
 /// Maker-only. Cancels a signed order on-chain by burning its nonce. Use
 /// when the off-chain book has retracted an order and we want to guarantee
 /// it can never be filled even if the operator misbehaves.

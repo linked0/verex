@@ -98,6 +98,7 @@ model Market {
   outcomes    Outcome[]
   trades      Trade[]
   pricePoints PricePoint[]
+  orders      Order[]
 
   @@index([category, status])
 }
@@ -114,6 +115,7 @@ model Outcome {
   tokenId   String // ERC-1155 position id backing this outcome
   sortOrder Int     @default(0)
   trades    Trade[]
+  orders    Order[]
 
   @@index([marketId])
 }
@@ -142,10 +144,56 @@ model Trade {
   price       Decimal   @db.Decimal(10, 6) // executed price (USDC per token)
   txHash      String?
   settlement  SettlementStatus @default(CONFIRMED)
+  /// Book fills: which orders produced this row (no FK — keep deletes simple).
+  takerOrderId String?
+  makerOrderId String?
   createdAt   DateTime  @default(now())
 
   @@index([marketId, createdAt])
   @@index([user])
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  OPEN
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  EXPIRED
+}
+
+/// A limit order in the off-chain book. Matching is price-time priority and
+/// happens in the DB; matched pairs settle on-chain asynchronously via
+/// CTFExchange.matchOrders (SETTLE_MATCH ChainJob). `signedOrder` holds the
+/// full EIP-712 order (bigints as strings) for resting orders — they act as
+/// makers when a later order crosses them. IOC (market) taker orders are
+/// signed at settlement time instead and never rest, so theirs is null.
+model Order {
+  id          String      @id @default(cuid())
+  marketId    String
+  market      Market      @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  outcomeId   String
+  outcome     Outcome     @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
+  maker       String // wallet address
+  makerIndex  Int // demo wallet index (0 = operator MM)
+  side        OrderSide
+  price       Decimal     @db.Decimal(10, 6) // USDC per share, 0.01..0.99
+  size        Decimal     @db.Decimal(20, 6) // outcome tokens
+  sizeFilled  Decimal     @default(0) @db.Decimal(20, 6)
+  status      OrderStatus @default(OPEN)
+  isMM        Boolean     @default(false) // operator ladder order, managed by re-quotes
+  signedOrder Json?
+  orderHash   String?     @unique
+  expiresAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([outcomeId, status, side, price, createdAt])
+  @@index([maker, status])
 }
 
 enum ChainJobType {

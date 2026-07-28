@@ -2,9 +2,16 @@ import "dotenv/config"; // load packages/api/.env into process.env (DATABASE_URL
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
-import { executeTrade, walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
+import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
 import { resolveMarket, redeemPosition } from "./resolve";
 import { startWorker } from "./worker";
+import {
+  placeOrder,
+  cancelOpenOrder,
+  getBook,
+  openOrders,
+  type PlaceOrderRequest,
+} from "./book";
 
 const app = Fastify({ logger: true });
 
@@ -85,11 +92,83 @@ function revertDetail(e: any): string | undefined {
   return e?.metaMessages?.filter(Boolean).slice(0, 3).join(" | ");
 }
 
-// Execute a real on-chain trade (see trade.ts for the maker/taker model).
+// Place an order on the book (market/IOC or limit). Fills are instant in
+// the DB; matched pairs settle on-chain asynchronously (poll /jobs/:id).
+app.post("/orders", async (req, reply) => {
+  try {
+    return await placeOrder(req.body as PlaceOrderRequest);
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "order failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+// Cancel the unfilled remainder of a resting order.
+app.delete("/orders/:id", async (req, reply) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { accountIndex } = (req.body ?? {}) as { accountIndex?: number };
+    if (!Number.isInteger(accountIndex)) {
+      return reply.status(400).send({ error: "accountIndex required" });
+    }
+    return await cancelOpenOrder(id, accountIndex!);
+  } catch (e: any) {
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "cancel failed" });
+  }
+});
+
+// The caller's open (resting) orders, optionally for one market.
+app.get("/orders", async (req, reply) => {
+  const { accountIndex, slug } = req.query as { accountIndex?: string; slug?: string };
+  const index = Number(accountIndex);
+  if (!Number.isInteger(index)) return reply.status(400).send({ error: "accountIndex required" });
+  return { orders: await openOrders(index, slug) };
+});
+
+// Aggregated order-book depth for one outcome.
+app.get("/markets/:slug/book", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const { outcome } = req.query as { outcome?: string };
+    return await getBook(slug, outcome ?? "Yes");
+  } catch (e: any) {
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "book failed" });
+  }
+});
+
+// Legacy trade endpoint — adapts the old body to a market (IOC) order so
+// the existing web panel keeps working. Response keeps the old field names
+// plus the new jobId/settlement pair.
 app.post("/trade", async (req, reply) => {
   try {
-    const result = await executeTrade(req.body as TradeRequest);
-    return result;
+    const body = req.body as TradeRequest;
+    const r = await placeOrder({
+      slug: body.slug,
+      outcome: body.outcome,
+      side: body.side,
+      accountIndex: body.accountIndex,
+      type: "market",
+      amount: body.amount,
+    });
+    if (r.fills.length === 0) {
+      return reply.status(400).send({ error: "no liquidity at this price — try a smaller amount" });
+    }
+    return {
+      txHash: null, // settles asynchronously — poll jobId
+      jobId: r.jobId,
+      settlement: r.settlement,
+      side: r.side,
+      outcome: r.outcome,
+      usdcAmount: r.totalUsdc,
+      tokenAmount: r.totalTokens,
+      price: r.avgPrice,
+      newYesPrice: r.newYesPrice,
+      faucetMinted: r.faucetMinted,
+    };
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
     req.log.error(e);
