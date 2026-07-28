@@ -222,7 +222,8 @@ export default function CreateMarketPage() {
             />
             <p className="mt-1 text-xs text-muted-foreground">
               1 USDC mints 1 Yes + 1 No token — the operator&apos;s opening liquidity.
-              Total: {totalFunding || 0} USDC · max 1,000 per outcome.
+              Max 1,000 per outcome.
+              {totalFunding > 0 && ` Total: ${totalFunding.toLocaleString()} USDC.`}
             </p>
           </div>
 
