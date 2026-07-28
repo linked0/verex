@@ -24,9 +24,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [summary, setSummary] = React.useState<WalletSummary | null>(null);
 
   const refresh = React.useCallback(async () => {
-    // No summary for the operator — its "positions" are market-making
-    // inventory across every market, not a portfolio.
-    setSummary(accountIndex === 0 ? null : await getWallet(accountIndex));
+    // The operator (#0) gets address + balance only from the API — its
+    // token holdings are MM inventory, not a portfolio.
+    setSummary(await getWallet(accountIndex));
   }, [accountIndex]);
 
   React.useEffect(() => {
