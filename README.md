@@ -153,7 +153,7 @@ real domain is never broken.
 By default this deploys with trading disabled (no chain wired up yet — markets browse fine).
 To go live on a real testnet, see
 [docs/runbooks/deploy.md](docs/runbooks/deploy.md) — one parameterized runbook for
-both the test and production environments.
+both the staging and production environments.
 
 ### CLI demo (end-to-end on anvil)
 
