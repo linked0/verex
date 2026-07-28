@@ -31,6 +31,17 @@ fixes the double-execution flaw observed in the reference's queue. Supersedes th
 "job system would be over-engineering" stance — jay explicitly asked for server-side async.
 Caveat for jay: the Cloud Run worker needs `--no-cpu-throttling` + `min-instances 1` (cost).
 
+### jul-28 design rev 2: CLOB adopted per jay's review; 4 other decisions recorded
+
+jay reviewed the design doc inline. Big change: execution model switches from the existing
+`fillOrder` maker/taker flow to a **CLOB** (order book) — "other platforms use CLOB". Doc revised:
+new `Order` table + price-time-priority matching engine (fills instant in the DB), on-chain
+settlement via `CTFExchange.matchOrders` through the ChainJob queue, operator becomes a
+ladder-posting market maker, and group Σ=1 now holds at the MM's renormalized quote centers.
+Also recorded: option (a) grouped binaries ✅, Cloud Run `--no-cpu-throttling`+`min-instances 1` ✅,
+anyone can create markets ✅, fee policy deferred to jay ✅.
+(Source: [jul-28-verex-design.md](../tasks/jul-28-verex-design.md), jay's inline comments.)
+
 ### Root cause: local seed failed with `returned no data ("0x")` — Sepolia addresses leaked into the local backbone
 
 `seed.ts:51` loads `packages/contracts/.env` as a fallback, which still held
