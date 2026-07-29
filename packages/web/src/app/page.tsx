@@ -32,7 +32,7 @@ async function Featured({ market }: { market: Market }) {
         <div className="flex items-start gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element -- external, per-market seeded photo; not worth Next/Image remote-pattern config for a placeholder */}
           <img
-            src={marketThumbnail(market.slug)}
+            src={market.imageUrl ?? marketThumbnail(market.slug)}
             alt=""
             loading="lazy"
             className="h-9 w-9 shrink-0 rounded-lg object-cover"
