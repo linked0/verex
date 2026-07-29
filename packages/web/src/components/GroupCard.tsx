@@ -18,6 +18,13 @@ export function GroupCard({ group }: { group: MarketGroup }) {
   return (
     <Link href={`/group/${group.slug}`} className="group">
       <Card className="h-full overflow-hidden transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg group-hover:shadow-primary/10">
+        {/* Same signature bar as MarketCard — width driven by the leading outcome's probability. */}
+        <div className="h-1 w-full bg-no/20">
+          <div
+            className="h-full bg-gradient-to-r from-primary to-yes transition-[width] duration-500"
+            style={{ width: members[0] ? `${pct(Number(members[0].quoteCenter ?? 0))}%` : "0%" }}
+          />
+        </div>
         <CardHeader className="pb-3">
           <div className="flex items-start gap-2">
             <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg">
