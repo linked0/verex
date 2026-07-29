@@ -54,6 +54,13 @@ called `marketThumbnail(slug)` directly. The imageUrl-fallback sweep had covered
 `MarketCard`/`GroupCard`/detail but missed this fourth call site. All four now use
 `imageUrl ?? marketThumbnail(slug)`.
 
+### Fix: group detail page had no logo at all
+
+Follow-up from jay: the group detail page (`/group/[slug]`) never rendered a logo — unlike
+the market detail page it simply had no `<img>`. Added the same 56px
+`imageUrl ?? marketThumbnail` treatment next to the group title; verified with the Oscars
+group (custom URL) and the World Series group (picsum fallback).
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
