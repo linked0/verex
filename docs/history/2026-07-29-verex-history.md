@@ -109,6 +109,18 @@ DB (Cloud SQL proxy + Prisma; ETH was at 5,620,010) instead of adding a FEATURED
 env override (drafted, then reverted — jay preferred the data route). Side effect,
 accepted: the market now displays $6M Vol and tops the Hot list. No code change.
 
+### Prod re-seed: groups created, empty books refilled — liquidity error resolved
+
+jay hit "no liquidity at this price" on prod and prod had no groups, so we ran the real
+seed against the live prod backbone (jay-approved; DB wipe accepted). Result: 10 binaries
+re-created (existing conditions skipped, inventory topped up) + 3 groups / 21 members
+created fresh on Sepolia + MM ladders posted for all 31 books; curated logos survived via
+the seed change. Verified: books show 5×5 depth, and the previously-failing case
+(kr-world-cup Yes BUY) filled at 32¢ and settled on-chain (`0x441b1a94…6317`) — the
+settlement also exercises the new no-cpu-throttling worker. Root cause of the drained
+books: pre-fix CPU throttling froze the in-process re-quote worker between requests.
+The kpop featured volume bump was wiped by the reset; re-apply pending (permission gate).
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
