@@ -23,6 +23,7 @@ Status is keyed to the 10-step roadmap (**§1.4 in the design document below**):
 | Onboarding & payments | S8–S9 | [onboarding-payments.md](onboarding-payments.md) |
 | Runtime validation (Zod) | incremental — CLI now · api S4 · mm-agent S2.5 | [zod-validation.md](zod-validation.md) — env/ABI/JSON boundary validation + inferred types; folds in audit item A2 |
 | Markets as tokens | post-S2 (exploratory) | [markets-as-tokens.md](markets-as-tokens.md) — ERC-20 wrapper for CTF outcome shares → external DeFi composability (DEX listing, lending, bots) |
+| CCIP market results | S6-adjacent (exploratory) | [ccip-market-result.md](ccip-market-result.md) — Chainlink CCIP `MarketResultReceiver` + `CCIPLocalSimulator` local test setup (Foundry/Hardhat); cross-chain resolution path for the oracle Stage-2 track |
 
 Hierarchy: **Category** (file) → **Feature** (bold item) → **to-do** (checkbox); `(you)` = needs your decision or action.
 
