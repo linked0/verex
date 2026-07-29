@@ -61,6 +61,12 @@ the market detail page it simply had no `<img>`. Added the same 56px
 `imageUrl ?? marketThumbnail` treatment next to the group title; verified with the Oscars
 group (custom URL) and the World Series group (picsum fallback).
 
+### Fix: group cards get the signature probability bar
+
+jay flagged (with a screenshot) that grid cards were inconsistent: `MarketCard` has the
+top gradient bar driven by the Yes price, `GroupCard` had none. Group cards now render the
+same bar with width = the leading outcome's probability (`members[0].quoteCenter`).
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
