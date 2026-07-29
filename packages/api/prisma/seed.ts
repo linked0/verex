@@ -80,6 +80,7 @@ type SeedMarket = {
   title: string;
   description: string;
   category: string;
+  imageUrl?: string; // logo; unset falls back to the per-slug picsum photo
   yesPrice: number; // initial implied probability
   displayVolume: number; // synthetic display volume (demo data)
   closesAt: string;
@@ -93,6 +94,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if a federal bill establishing a regulatory framework for payment stablecoins is signed into law before Jan 1, 2027.",
     category: "Politics",
+    imageUrl:
+      "https://cdn.prod.website-files.com/6779cec685b83bf2876d67f3/67d99e0ff6d01f5a279cfb8e_coin-1.png",
     yesPrice: 0.58,
     displayVolume: 1_240_000,
     closesAt: "2026-12-31T23:59:59Z",
@@ -103,6 +106,7 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if a national referendum on constitutional amendment is held in South Korea before Jan 1, 2028.",
     category: "Politics",
+    imageUrl: "https://cdn12.picryl.com/photo/2016/12/31/seoul-korea-asia-travel-vacation-753950-1024.jpg",
     yesPrice: 0.22,
     displayVolume: 342_000,
     closesAt: "2027-12-31T23:59:59Z",
@@ -113,6 +117,7 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if the South Korean national team plays in a quarterfinal match of the 2026 FIFA World Cup.",
     category: "Sports",
+    imageUrl: "https://live.staticflickr.com/65535/52521280235_977d7b8e77_b.jpg",
     yesPrice: 0.31,
     displayVolume: 2_810_000,
     closesAt: "2026-07-10T00:00:00Z",
@@ -123,6 +128,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if the daily close of ETH/USD exceeds $10,000 on any day in 2026 (major exchange composite).",
     category: "Crypto",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSd4Wb7L9skxMOIaWTrmMY2jjMsBjnnXCzc1yJO92bBzUetn3WbS_XL278r&s=10",
     yesPrice: 0.44,
     displayVolume: 5_620_000,
     closesAt: "2026-12-31T23:59:59Z",
@@ -133,6 +140,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if BTC market-cap dominance prints below 40% at any point in 2026.",
     category: "Crypto",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSWjsrRY1DE4jAOv_ebrdJsjAlZcCWYQ3HieLJ2jlgJOqZx3z_72L08BWw&s=10",
     yesPrice: 0.27,
     displayVolume: 1_980_000,
     closesAt: "2026-12-31T23:59:59Z",
@@ -143,6 +152,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if the upper bound of the federal funds target range is below 3.00% after the December 2026 FOMC meeting.",
     category: "Economics",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR9io1IdJzK1lJW8F860vDWZhE7ucMeEvQskuI3y0tlqDtkH_5ecaYZm5A&s=10",
     yesPrice: 0.36,
     displayVolume: 4_070_000,
     closesAt: "2026-12-16T20:00:00Z",
@@ -153,6 +164,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if an AI system achieves a gold-medal score at the 2026 International Mathematical Olympiad under organizer-sanctioned evaluation.",
     category: "Tech & Science",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT9WR-GNfOIdDzOBanEbWGDSy80hok9HldfjfI7VNQjtsbLTudj-dhB30za&s=10",
     yesPrice: 0.71,
     displayVolume: 3_450_000,
     closesAt: "2026-07-20T00:00:00Z",
@@ -163,6 +176,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if a single humanoid robot model ships at least 100,000 units to customers during 2026.",
     category: "Tech & Science",
+    imageUrl:
+      "https://substackcdn.com/image/fetch/$s_!Ml7f!,f_auto,q_auto:good,fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F102f4fec-b405-4a57-854b-7e642b09d8bb_1024x683.jpeg",
     yesPrice: 0.18,
     displayVolume: 890_000,
     closesAt: "2026-12-31T23:59:59Z",
@@ -173,6 +188,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if 2026 sets a new global mean surface temperature record per NASA GISS or NOAA.",
     category: "Climate",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUP2cxJtOku3W7p4AE0F-_tBn4j_jx5ZsWiAnmwdvr-TKYnuKy625QqqA&s=10",
     yesPrice: 0.52,
     displayVolume: 760_000,
     closesAt: "2027-01-31T00:00:00Z",
@@ -183,6 +200,8 @@ const MARKETS: SeedMarket[] = [
     description:
       "Resolves YES if a K-pop artist or group is announced as a headliner for Coachella 2027.",
     category: "Culture",
+    imageUrl:
+      "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTTKhyy6G_eKm8b8-PEmN9-F6cFnd5HNEIUgWcroDdQpA&s=10",
     yesPrice: 0.63,
     displayVolume: 512_000,
     closesAt: "2027-01-15T00:00:00Z",
@@ -396,6 +415,7 @@ async function mainDbOnly() {
         title: m.title,
         description: m.description,
         category: m.category,
+        imageUrl: m.imageUrl,
         volume: m.displayVolume,
         closesAt: new Date(m.closesAt),
         questionId,
@@ -587,6 +607,7 @@ async function main() {
     title: string;
     description: string;
     category: string;
+    imageUrl?: string;
     yesPrice: number;
     displayVolume: number;
     closesAt: string;
@@ -609,6 +630,7 @@ async function main() {
         title: args.title,
         description: args.description,
         category: args.category,
+        imageUrl: args.imageUrl,
         volume: args.displayVolume, // synthetic demo volume; real fills add to it
         closesAt: new Date(args.closesAt),
         questionId: onchain.questionId,

@@ -93,6 +93,14 @@ Fix requires re-running the real seed against the prod backbone — **destructiv
 prod Trade/PricePoint/Outcome/Market rows, ~15 min of Sepolia txs from the prod
 operator) — parked for jay's decision.
 
+### Seed script: bake in the prod-curated market logos
+
+jay hand-picked logo URLs for all 10 binary markets on the live prod site (via the new
+edit feature); those exact URLs are now in `seed.ts` (`SeedMarket.imageUrl`, threaded
+through both the DB-only and on-chain create paths) so any future seed — including a
+prod group re-seed — reproduces them instead of losing them to the picsum fallback.
+Verified by diffing seed.ts against the prod API per slug: all 10 match.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
