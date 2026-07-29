@@ -5,16 +5,26 @@
 // liquidity, resolution datetime. Submission returns 202 + a batch job;
 // this page polls it and shows per-outcome progress. Exactly Yes/No as
 // the two outcomes creates a standalone binary market.
+//
+// With ?edit=<slug> the same page edits an existing market's display
+// fields instead: image URL, rules, category. Operator (#0) only.
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Info, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useWallet } from "@/components/WalletProvider";
-import { getJob, postCreateGroup, type JobInfo } from "@/lib/api";
+import {
+  getJob,
+  getMarketBrowser,
+  patchMarket,
+  postCreateGroup,
+  type JobInfo,
+  type Market,
+} from "@/lib/api";
 
 const CATEGORIES = [
   "Politics",
@@ -27,8 +37,18 @@ const CATEGORIES = [
 ];
 
 export default function CreateMarketPage() {
+  // useSearchParams needs a Suspense boundary for prerendering.
+  return (
+    <React.Suspense>
+      <CreateMarketInner />
+    </React.Suspense>
+  );
+}
+
+function CreateMarketInner() {
   const router = useRouter();
-  const { accountIndex } = useWallet();
+  const { accountIndex, isAdmin } = useWallet();
+  const editSlug = useSearchParams().get("edit");
 
   const [title, setTitle] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -43,6 +63,22 @@ export default function CreateMarketPage() {
   const [job, setJob] = React.useState<JobInfo | null>(null);
   const [created, setCreated] = React.useState<{ kind: string; slug: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+
+  // Edit mode: load the market and prefill the editable fields.
+  const [editMarket, setEditMarket] = React.useState<Market | null>(null);
+  const [editLoading, setEditLoading] = React.useState(!!editSlug);
+  React.useEffect(() => {
+    if (!editSlug) return;
+    getMarketBrowser(editSlug).then((m) => {
+      if (m) {
+        setEditMarket(m);
+        setCategory(m.category);
+        setImageUrl(m.imageUrl ?? "");
+        setDescription(m.description ?? "");
+      }
+      setEditLoading(false);
+    });
+  }, [editSlug]);
 
   const filled = outcomes.map((o) => o.trim()).filter(Boolean);
   const liq = Number(liquidity) || 0;
@@ -87,8 +123,131 @@ export default function CreateMarketPage() {
     }
   };
 
+  const saveEdit = async () => {
+    if (!editMarket) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await patchMarket({
+        slug: editMarket.slug,
+        accountIndex,
+        imageUrl: imageUrl.trim(),
+        description: description.trim(),
+        category,
+      });
+      router.push(`/market/${editMarket.slug}`);
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "update failed");
+      setSubmitting(false);
+    }
+  };
+
   const progress = job?.result?.progress;
   const failed = job?.status === "FAILED";
+
+  if (editSlug) {
+    // Seeded markets may use a category outside the fixed list — keep it selectable.
+    const categoryOptions =
+      category && !CATEGORIES.includes(category) ? [category, ...CATEGORIES] : CATEGORIES;
+    return (
+      <main className="container max-w-2xl space-y-6 py-8">
+        <div>
+          <h1 className="text-2xl font-bold">Edit market</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Display fields only — outcomes, liquidity, and the resolution date can&apos;t change
+            after creation.
+          </p>
+        </div>
+        {editLoading ? (
+          <p className="text-sm text-muted-foreground">Loading market…</p>
+        ) : !editMarket ? (
+          <p className="text-sm text-no">Market “{editSlug}” not found.</p>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{editMarket.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!isAdmin && (
+                <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div>
+                    Only the <span className="font-semibold">Operator Wallet</span> can edit
+                    markets — switch wallets in the top bar to make changes.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Image URL
+                </label>
+                <Input
+                  placeholder="https://…"
+                  value={imageUrl}
+                  disabled={!isAdmin}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Leave empty to fall back to the default per-market photo.
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Category
+                </label>
+                <select
+                  className="h-9 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-50"
+                  value={category}
+                  disabled={!isAdmin}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {categoryOptions.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Rules / description
+                </label>
+                <textarea
+                  className="min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm disabled:opacity-50"
+                  placeholder="How does this market resolve?"
+                  value={description}
+                  disabled={!isAdmin}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button className="flex-1" disabled={submitting || !isAdmin} onClick={saveEdit}>
+                  {submitting ? "Saving…" : "Save changes"}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() => router.push(`/market/${editMarket.slug}`)}
+                >
+                  Cancel
+                </Button>
+              </div>
+              {error && (
+                <p className="rounded-md border border-no/30 bg-no/10 px-3 py-2 text-sm text-no">
+                  {error}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    );
+  }
 
   if (created && job) {
     return (

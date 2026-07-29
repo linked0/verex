@@ -253,6 +253,38 @@ export async function postTrade(body: {
   return data as TradeResult;
 }
 
+/// Market detail from the browser (client components) — same shape as
+/// getMarket, but through the /backend proxy.
+export async function getMarketBrowser(slug: string): Promise<Market | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/markets/${slug}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as Market;
+  } catch {
+    return null;
+  }
+}
+
+/// Edit a market's display fields. Operator (#0) only — the API rejects
+/// every other accountIndex.
+export async function patchMarket(body: {
+  slug: string;
+  accountIndex: number;
+  imageUrl?: string;
+  description?: string;
+  category?: string;
+}): Promise<Market> {
+  const { slug, ...fields } = body;
+  const res = await fetch(`${BROWSER_API}/markets/${slug}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "update failed");
+  return data as Market;
+}
+
 export async function getWallet(index: number): Promise<WalletSummary | null> {
   try {
     const res = await fetch(`${BROWSER_API}/wallet/${index}`, { cache: "no-store" });

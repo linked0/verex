@@ -23,3 +23,32 @@ Verified live on staging: health OK, 3 groups OPEN with quoted books, one real t
 
 - API: https://verex-api-q6qvjcw5ma-du.a.run.app
 - Web: https://verex-web-q6qvjcw5ma-du.a.run.app
+
+### Market detail logo + edit page (image URL / rules / category)
+
+No task/design doc — implemented directly from jay's chat request (with a Polymarket
+screenshot as the visual reference), on branch `claude/jul-29-market-edit`.
+
+The market detail page now shows the market logo (56px, vs 36px on the grid cards) next to
+the title, preferring `market.imageUrl` over the seeded picsum fallback — `MarketCard` got
+the same `imageUrl ?? marketThumbnail` fallback that `GroupCard` already had. The Create
+page doubles as an edit page via `/create?edit=<slug>` (linked from a pencil icon on the
+detail page): image URL, rules, and category are editable through a new
+`PATCH /markets/:slug`. Permission split per jay's spec: the operator (#0) may only change
+the image URL — rules and category are the creator's copy — enforced in both the UI
+(disabled fields + banner) and the API (403).
+
+### Follow-up: market editing flipped to operator-only
+
+jay clarified the intent ("Only Operator can edit"): the first cut let any wallet edit all
+fields while restricting the operator to the image URL — inverted. Now `PATCH /markets/:slug`
+rejects every accountIndex except 0, the edit form disables all fields (with a banner) for
+non-operator wallets, and the detail page's Edit link renders only for the operator (new
+`EditMarketLink` client component, since the page itself is a server component).
+
+### Gotcha: `next build` while `next dev` is running corrupts `.next`
+
+Running a production `next build` in `packages/web` while jay's dev server was up broke the
+dev server ("Cannot find module './vendor-chunks/tailwind-merge…'") — both write to the same
+`.next` directory. Fix: kill the dev server, `rm -rf .next`, restart. Avoid verifying web
+changes with `pnpm build` when a dev server is already running on the machine.
