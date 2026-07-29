@@ -132,6 +132,15 @@ hidden locally; committed `446f103` and deployed app-only to `verex-web-prod`. D
 gotcha again: adding a new component file mid-run 404'd Next's own chunks → clean-`.next`
 restart.
 
+### Staging parked: down/up scripts, ~95% cost cut while idle
+
+jay asked to stop paying for idle staging. New `scripts/staging-down.sh` /
+`staging-up.sh` (runbook §10 bullet added): down = verex-api scale-to-zero +
+cpu-throttling restored + verex-db stopped (~$40-65/mo → ~$1-2/mo, storage/images/
+secrets kept); up reverses in ~2 min. Deliberately all-or-nothing — a throttled API
+with a live DB would drain the MM books (today's prod incident). Ran down: verex-db
+STOPPED, API min-instances 0, prod verified untouched.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the

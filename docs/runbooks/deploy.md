@@ -240,3 +240,7 @@ REST release is what takes effect, but the checked-in file should mirror it.
 - New markets / backbone changes: that's a **new backbone** — repeat from §2 with a
   fresh `save-deployment`, and treat the next deploy as a first run (real seed, no
   `SKIP_SEED`).
+- Staging idle? `./scripts/staging-down.sh` stops the DB and scales the API to zero
+  (~$40-65/mo → ~$1-2/mo; storage/images/secrets kept). `./scripts/staging-up.sh`
+  reverses it (~2 min). Never half-down it — a throttled API with a live DB drains
+  the MM books (2026-07-29 prod incident).
