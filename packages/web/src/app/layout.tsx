@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { SiteNav } from "@/components/SiteNav";
 import { WalletProvider } from "@/components/WalletProvider";
+import { WelcomeOverlay } from "@/components/WelcomeOverlay";
 
 export const metadata: Metadata = {
   title: "Verex — Prediction Market",
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Suspense>
             <SiteNav />
           </Suspense>
+          <WelcomeOverlay />
           {children}
           <footer className="container flex items-center justify-center border-t py-6 text-xs text-muted-foreground">
             <a
