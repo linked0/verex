@@ -101,6 +101,14 @@ through both the DB-only and on-chain create paths) so any future seed — inclu
 prod group re-seed — reproduces them instead of losing them to the picsum fallback.
 Verified by diffing seed.ts against the prod API per slug: all 10 match.
 
+### Prod: featured market switched to the Coachella K-pop market (volume bump)
+
+jay wanted `kpop-headliner-coachella-2027` featured on prod. Featured is derived (highest
+volume), so per jay's call we set that market's volume to 6,000,000 directly in the prod
+DB (Cloud SQL proxy + Prisma; ETH was at 5,620,010) instead of adding a FEATURED_SLUG
+env override (drafted, then reverted — jay preferred the data route). Side effect,
+accepted: the market now displays $6M Vol and tops the Hot list. No code change.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
