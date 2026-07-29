@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getGroup, getGroupHistory, usd } from "@/lib/api";
+import { getGroup, getGroupHistory, marketThumbnail, usd } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -45,7 +45,18 @@ export default async function GroupPage({ params }: { params: { slug: string } }
               ` · Closes ${new Date(group.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
           </span>
         </div>
-        <h1 className="text-2xl font-bold leading-tight md:text-3xl">{group.title}</h1>
+        <div className="flex items-start gap-3">
+          {/* Same logo as the grid card, one size up (56px vs 36px). */}
+          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+            {/* eslint-disable-next-line @next/next/no-img-element -- external, per-market seeded photo; not worth Next/Image remote-pattern config for a placeholder */}
+            <img
+              src={group.imageUrl ?? marketThumbnail(group.slug)}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <h1 className="text-2xl font-bold leading-tight md:text-3xl">{group.title}</h1>
+        </div>
       </div>
 
       <Card>
