@@ -76,6 +76,23 @@ remainder. (2) Groups are now editable like markets: `PATCH /market-groups/:slug
 (operator-only; category cascades to member markets, mirroring creation), the edit page
 takes `?editGroup=<slug>`, and the group detail header gets the operator-only Edit link.
 
+### Prod deploy: jul-29 branch live on verex.jaylabs.xyz
+
+Deployed `claude/jul-28-features` (through `4cdb36c`) to prod per the runbook day-2 path:
+`SKIP_SEED=1 ./scripts/deploy-prod.sh` — migrate ran, seed skipped, API image built
+(3m17s), both services redeployed. Also applied the staging CPU fix to prod:
+`gcloud run services update verex-api-prod --no-cpu-throttling --min-instances 1`
+(revision `verex-api-prod-00003-t5s`) — prod's rev 00001 predated that discovery.
+Verified live: health OK, both PATCH routes respond 403 to non-operators, market pages
+render the 56px logo, domain serves the new revision.
+
+**Data gap found**: prod has the 10 original binary markets and **zero groups** — its
+one-time seed predates the group feature (staging got its 21 group members via the
+jul-29 idempotent re-seed). Group features are live in code but have nothing to render.
+Fix requires re-running the real seed against the prod backbone — **destructive** (wipes
+prod Trade/PricePoint/Outcome/Market rows, ~15 min of Sepolia txs from the prod
+operator) — parked for jay's decision.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
