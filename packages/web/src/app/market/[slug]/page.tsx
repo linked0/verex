@@ -6,12 +6,14 @@ import {
   getMarket,
   getTrades,
   cents,
+  marketThumbnail,
   pct,
   usd,
 } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { EditMarketLink } from "@/components/EditMarketLink";
 import { ProbChart } from "@/components/ProbChart";
 import { MarketSidePanel } from "@/components/MarketSidePanel";
 import { BookPanel } from "@/components/BookPanel";
@@ -56,8 +58,20 @@ export default async function MarketPage({ params }: { params: { slug: string } 
                 {market.closesAt &&
                   ` · Closes ${new Date(market.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
               </span>
+              <EditMarketLink slug={market.slug} />
             </div>
-            <h1 className="text-2xl font-bold leading-tight md:text-3xl">{market.title}</h1>
+            <div className="flex items-start gap-3">
+              {/* Same logo as the grid card, one size up (56px vs 36px). */}
+              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element -- external, per-market seeded photo; not worth Next/Image remote-pattern config for a placeholder */}
+                <img
+                  src={market.imageUrl ?? marketThumbnail(market.slug)}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <h1 className="text-2xl font-bold leading-tight md:text-3xl">{market.title}</h1>
+            </div>
           </div>
 
           <Card>

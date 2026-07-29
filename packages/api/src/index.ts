@@ -164,6 +164,42 @@ app.get("/markets/:slug", async (req, reply) => {
   return market;
 });
 
+// Edit a market's display fields (image / rules / category). Operator
+// (#0) only — same demo-grade auth as resolution: the caller just claims
+// an accountIndex.
+app.patch("/markets/:slug", async (req, reply) => {
+  const { slug } = req.params as { slug: string };
+  const body = (req.body ?? {}) as {
+    accountIndex?: number;
+    imageUrl?: string;
+    description?: string;
+    category?: string;
+  };
+  if (body.accountIndex !== 0) {
+    return reply.status(403).send({ error: "only the operator (#0) may edit markets" });
+  }
+  if (body.category !== undefined && !body.category.trim()) {
+    return reply.status(400).send({ error: "category cannot be empty" });
+  }
+  const data: Record<string, string | null> = {};
+  if (body.imageUrl !== undefined) data.imageUrl = body.imageUrl.trim() || null;
+  if (body.description !== undefined) data.description = body.description.trim() || null;
+  if (body.category !== undefined) data.category = body.category.trim();
+  if (Object.keys(data).length === 0) {
+    return reply.status(400).send({ error: "nothing to update" });
+  }
+  const existing = await prisma.market.findUnique({ where: { slug }, select: { id: true } });
+  if (!existing) return reply.status(404).send({ error: "Market not found" });
+  return prisma.market.update({
+    where: { id: existing.id },
+    data,
+    include: {
+      outcomes: { orderBy: { sortOrder: "asc" } },
+      group: { select: { slug: true, title: true } },
+    },
+  });
+});
+
 // YES-price history for the probability chart.
 app.get("/markets/:slug/history", async (req, reply) => {
   const { slug } = req.params as { slug: string };
