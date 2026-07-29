@@ -46,6 +46,14 @@ rejects every accountIndex except 0, the edit form disables all fields (with a b
 non-operator wallets, and the detail page's Edit link renders only for the operator (new
 `EditMarketLink` client component, since the page itself is a server component).
 
+### Fix: homepage Featured card ignored the edited image URL
+
+jay's edited logo didn't show on the main page — the market he edited was the
+highest-volume one, which renders as the homepage's **Featured** card, and that card still
+called `marketThumbnail(slug)` directly. The imageUrl-fallback sweep had covered
+`MarketCard`/`GroupCard`/detail but missed this fourth call site. All four now use
+`imageUrl ?? marketThumbnail(slug)`.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
