@@ -5,6 +5,7 @@ import { getGroup, getGroupHistory, marketThumbnail, usd } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { EditMarketLink } from "@/components/EditMarketLink";
 import { GroupChart } from "@/components/GroupChart";
 import { GroupView } from "@/components/GroupView";
 
@@ -44,6 +45,7 @@ export default async function GroupPage({ params }: { params: { slug: string } }
             {group.closesAt &&
               ` · Closes ${new Date(group.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
           </span>
+          <EditMarketLink slug={group.slug} group />
         </div>
         <div className="flex items-start gap-3">
           {/* Same logo as the grid card, one size up (56px vs 36px). */}

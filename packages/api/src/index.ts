@@ -150,6 +150,47 @@ app.post("/market-groups/:slug/resolve", async (req, reply) => {
   }
 });
 
+// Edit a group's display fields (image / rules / category). Operator (#0)
+// only. Category cascades to the member markets — creation keeps group and
+// members in sync, so editing does too.
+app.patch("/market-groups/:slug", async (req, reply) => {
+  const { slug } = req.params as { slug: string };
+  const body = (req.body ?? {}) as {
+    accountIndex?: number;
+    imageUrl?: string;
+    description?: string;
+    category?: string;
+  };
+  if (body.accountIndex !== 0) {
+    return reply.status(403).send({ error: "only the operator (#0) may edit markets" });
+  }
+  if (body.category !== undefined && !body.category.trim()) {
+    return reply.status(400).send({ error: "category cannot be empty" });
+  }
+  const data: Record<string, string | null> = {};
+  if (body.imageUrl !== undefined) data.imageUrl = body.imageUrl.trim() || null;
+  if (body.description !== undefined) data.description = body.description.trim() || null;
+  if (body.category !== undefined) data.category = body.category.trim();
+  if (Object.keys(data).length === 0) {
+    return reply.status(400).send({ error: "nothing to update" });
+  }
+  const existing = await prisma.marketGroup.findUnique({ where: { slug }, select: { id: true } });
+  if (!existing) return reply.status(404).send({ error: "Group not found" });
+  if (data.category) {
+    await prisma.market.updateMany({
+      where: { groupId: existing.id },
+      data: { category: data.category },
+    });
+  }
+  return prisma.marketGroup.update({
+    where: { id: existing.id },
+    data,
+    include: {
+      markets: { include: { outcomes: { orderBy: { sortOrder: "asc" } } } },
+    },
+  });
+});
+
 // Market detail by slug.
 app.get("/markets/:slug", async (req, reply) => {
   const { slug } = req.params as { slug: string };

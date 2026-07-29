@@ -12,15 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import type { GroupSeries } from "@/lib/api";
-
-/// Series palette — starts at the Verex indigo, then diverges.
-const COLORS = [
-  "hsl(243 75% 55%)",
-  "hsl(160 84% 35%)",
-  "hsl(350 80% 55%)",
-  "hsl(38 92% 50%)",
-  "hsl(200 90% 45%)",
-];
+import { GROUP_COLORS as COLORS } from "@/lib/utils";
 
 export function GroupChart({
   series,

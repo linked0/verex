@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { marketThumbnail, pct, usd, type MarketGroup } from "@/lib/api";
+import { GROUP_COLORS } from "@/lib/utils";
 
 /// Homepage card for a multi-outcome group: top candidates with their
 /// probabilities, Polymarket-style rows.
@@ -18,12 +19,19 @@ export function GroupCard({ group }: { group: MarketGroup }) {
   return (
     <Link href={`/group/${group.slug}`} className="group">
       <Card className="h-full overflow-hidden transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-primary/40 group-hover:shadow-lg group-hover:shadow-primary/10">
-        {/* Same signature bar as MarketCard — width driven by the leading outcome's probability. */}
-        <div className="h-1 w-full bg-no/20">
-          <div
-            className="h-full bg-gradient-to-r from-primary to-yes transition-[width] duration-500"
-            style={{ width: members[0] ? `${pct(Number(members[0].quoteCenter ?? 0))}%` : "0%" }}
-          />
+        {/* Signature bar, group edition: one segment per outcome's Yes probability,
+            in the group chart's palette so an outcome keeps its color everywhere. */}
+        <div className="flex h-1 w-full bg-muted">
+          {members.slice(0, GROUP_COLORS.length).map((m, i) => (
+            <div
+              key={m.id}
+              className="h-full transition-[width] duration-500"
+              style={{
+                width: `${pct(Number(m.quoteCenter ?? 0))}%`,
+                backgroundColor: GROUP_COLORS[i],
+              }}
+            />
+          ))}
         </div>
         <CardHeader className="pb-3">
           <div className="flex items-start gap-2">
