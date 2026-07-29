@@ -67,6 +67,15 @@ jay flagged (with a screenshot) that grid cards were inconsistent: `MarketCard` 
 top gradient bar driven by the Yes price, `GroupCard` had none. Group cards now render the
 same bar with width = the leading outcome's probability (`members[0].quoteCenter`).
 
+### Group cards: stacked per-outcome bar; groups get the edit feature
+
+Two more follow-ups from jay. (1) The group card's top bar now stacks one segment per
+member's Yes probability using the group chart's palette — moved to `GROUP_COLORS` in
+`lib/utils.ts` so chart and bar can't drift; the grey track shows through as the "+N more"
+remainder. (2) Groups are now editable like markets: `PATCH /market-groups/:slug`
+(operator-only; category cascades to member markets, mirroring creation), the edit page
+takes `?editGroup=<slug>`, and the group detail header gets the operator-only Edit link.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the

@@ -6,8 +6,9 @@
 // this page polls it and shows per-outcome progress. Exactly Yes/No as
 // the two outcomes creates a standalone binary market.
 //
-// With ?edit=<slug> the same page edits an existing market's display
-// fields instead: image URL, rules, category. Operator (#0) only.
+// With ?edit=<slug> (market) or ?editGroup=<slug> (group) the same page
+// edits an existing market's display fields instead: image URL, rules,
+// category. Operator (#0) only.
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,12 +19,15 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useWallet } from "@/components/WalletProvider";
 import {
+  getGroupBrowser,
   getJob,
   getMarketBrowser,
+  patchGroup,
   patchMarket,
   postCreateGroup,
   type JobInfo,
   type Market,
+  type MarketGroup,
 } from "@/lib/api";
 
 const CATEGORIES = [
@@ -48,7 +52,10 @@ export default function CreateMarketPage() {
 function CreateMarketInner() {
   const router = useRouter();
   const { accountIndex, isAdmin } = useWallet();
-  const editSlug = useSearchParams().get("edit");
+  const searchParams = useSearchParams();
+  const editSlug = searchParams.get("edit");
+  const editGroupSlug = searchParams.get("editGroup");
+  const editing = editGroupSlug ?? editSlug;
 
   const [title, setTitle] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -64,21 +71,22 @@ function CreateMarketInner() {
   const [created, setCreated] = React.useState<{ kind: string; slug: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Edit mode: load the market and prefill the editable fields.
-  const [editMarket, setEditMarket] = React.useState<Market | null>(null);
-  const [editLoading, setEditLoading] = React.useState(!!editSlug);
+  // Edit mode: load the market (or group) and prefill the editable fields.
+  const [editTarget, setEditTarget] = React.useState<Market | MarketGroup | null>(null);
+  const [editLoading, setEditLoading] = React.useState(!!editing);
   React.useEffect(() => {
-    if (!editSlug) return;
-    getMarketBrowser(editSlug).then((m) => {
+    if (!editing) return;
+    const load = editGroupSlug ? getGroupBrowser(editGroupSlug) : getMarketBrowser(editSlug!);
+    load.then((m) => {
       if (m) {
-        setEditMarket(m);
+        setEditTarget(m);
         setCategory(m.category);
         setImageUrl(m.imageUrl ?? "");
         setDescription(m.description ?? "");
       }
       setEditLoading(false);
     });
-  }, [editSlug]);
+  }, [editing, editSlug, editGroupSlug]);
 
   const filled = outcomes.map((o) => o.trim()).filter(Boolean);
   const liq = Number(liquidity) || 0;
@@ -124,18 +132,24 @@ function CreateMarketInner() {
   };
 
   const saveEdit = async () => {
-    if (!editMarket) return;
+    if (!editTarget) return;
     setSubmitting(true);
     setError(null);
     try {
-      await patchMarket({
-        slug: editMarket.slug,
+      const fields = {
+        slug: editTarget.slug,
         accountIndex,
         imageUrl: imageUrl.trim(),
         description: description.trim(),
         category,
-      });
-      router.push(`/market/${editMarket.slug}`);
+      };
+      if (editGroupSlug) {
+        await patchGroup(fields);
+        router.push(`/group/${editTarget.slug}`);
+      } else {
+        await patchMarket(fields);
+        router.push(`/market/${editTarget.slug}`);
+      }
       router.refresh();
     } catch (e: any) {
       setError(e?.message ?? "update failed");
@@ -146,7 +160,7 @@ function CreateMarketInner() {
   const progress = job?.result?.progress;
   const failed = job?.status === "FAILED";
 
-  if (editSlug) {
+  if (editing) {
     // Seeded markets may use a category outside the fixed list — keep it selectable.
     const categoryOptions =
       category && !CATEGORIES.includes(category) ? [category, ...CATEGORIES] : CATEGORIES;
@@ -161,12 +175,14 @@ function CreateMarketInner() {
         </div>
         {editLoading ? (
           <p className="text-sm text-muted-foreground">Loading market…</p>
-        ) : !editMarket ? (
-          <p className="text-sm text-no">Market “{editSlug}” not found.</p>
+        ) : !editTarget ? (
+          <p className="text-sm text-no">
+            {editGroupSlug ? "Group" : "Market"} “{editing}” not found.
+          </p>
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{editMarket.title}</CardTitle>
+              <CardTitle className="text-base">{editTarget.title}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {!isAdmin && (
@@ -232,7 +248,11 @@ function CreateMarketInner() {
                 <Button
                   variant="outline"
                   disabled={submitting}
-                  onClick={() => router.push(`/market/${editMarket.slug}`)}
+                  onClick={() =>
+                    router.push(
+                      editGroupSlug ? `/group/${editTarget.slug}` : `/market/${editTarget.slug}`,
+                    )
+                  }
                 >
                   Cancel
                 </Button>

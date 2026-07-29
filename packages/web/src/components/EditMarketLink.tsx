@@ -7,12 +7,12 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 import { useWallet } from "@/components/WalletProvider";
 
-export function EditMarketLink({ slug }: { slug: string }) {
+export function EditMarketLink({ slug, group = false }: { slug: string; group?: boolean }) {
   const { isAdmin } = useWallet();
   if (!isAdmin) return null;
   return (
     <Link
-      href={`/create?edit=${slug}`}
+      href={group ? `/create?editGroup=${slug}` : `/create?edit=${slug}`}
       className="ml-auto inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
     >
       <Pencil className="h-3.5 w-3.5" /> Edit

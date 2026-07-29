@@ -285,6 +285,36 @@ export async function patchMarket(body: {
   return data as Market;
 }
 
+/// Group detail from the browser — same shape as getGroup, through the proxy.
+export async function getGroupBrowser(slug: string): Promise<MarketGroup | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/market-groups/${slug}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as MarketGroup;
+  } catch {
+    return null;
+  }
+}
+
+/// Edit a group's display fields. Operator (#0) only, like patchMarket.
+export async function patchGroup(body: {
+  slug: string;
+  accountIndex: number;
+  imageUrl?: string;
+  description?: string;
+  category?: string;
+}): Promise<MarketGroup> {
+  const { slug, ...fields } = body;
+  const res = await fetch(`${BROWSER_API}/market-groups/${slug}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(fields),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "update failed");
+  return data as MarketGroup;
+}
+
 export async function getWallet(index: number): Promise<WalletSummary | null> {
   try {
     const res = await fetch(`${BROWSER_API}/wallet/${index}`, { cache: "no-store" });
