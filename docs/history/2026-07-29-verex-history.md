@@ -121,6 +121,17 @@ settlement also exercises the new no-cpu-throttling worker. Root cause of the dr
 books: pre-fix CPU throttling froze the in-process re-quote worker between requests.
 The kpop featured volume bump was wiped by the reset; re-apply pending (permission gate).
 
+### Local re-seed + first-visit welcome overlay
+
+jay asked for a local reset ("seed again" — a prod re-run was started by misreading and
+stopped harmlessly during idempotent operator setup, before the DB wipe). Local seed ran
+clean: 10 binaries + 3 groups, curated logos, fresh MM books on anvil. New
+`WelcomeOverlay` (root layout, localStorage-flagged) tells first-time visitors to trade
+with the Demo Wallets and resolve with the Operator Wallet — verified show/dismiss/stay-
+hidden locally; committed `446f103` and deployed app-only to `verex-web-prod`. Dev-server
+gotcha again: adding a new component file mid-run 404'd Next's own chunks → clean-`.next`
+restart.
+
 ### Gotcha: `next build` while `next dev` is running corrupts `.next`
 
 Running a production `next build` in `packages/web` while jay's dev server was up broke the
