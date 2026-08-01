@@ -14,6 +14,7 @@ import {
 } from "./book";
 import "./mm"; // wires the after-fill re-quote hook into the book
 import { createMarketGroup, type CreateGroupRequest } from "./group-create";
+import { notifyTelegram } from "./telegram-notify";
 
 const app = Fastify({ logger: true });
 
@@ -139,7 +140,9 @@ app.post("/market-groups/:slug/resolve", async (req, reply) => {
   try {
     const { slug } = req.params as { slug: string };
     const body = req.body as { winnerSlug: string; accountIndex: number };
-    return await resolveGroup({ groupSlug: slug, winnerSlug: body.winnerSlug, accountIndex: body.accountIndex });
+    const r = await resolveGroup({ groupSlug: slug, winnerSlug: body.winnerSlug, accountIndex: body.accountIndex });
+    notifyTelegram(`🏁 Group resolved: ${slug} → winner ${r.winnerSlug}`);
+    return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
     req.log.error(e);
@@ -343,6 +346,9 @@ app.post("/trade", async (req, reply) => {
     if (r.fills.length === 0) {
       return reply.status(400).send({ error: "no liquidity at this price — try a smaller amount" });
     }
+    notifyTelegram(
+      `💱 Trade: ${r.side} ${r.outcome} on ${body.slug} — ${r.totalUsdc.toFixed(2)} USDC (account #${body.accountIndex})`
+    );
     return {
       txHash: null, // settles asynchronously — poll jobId
       jobId: r.jobId,
@@ -370,7 +376,9 @@ app.post("/markets/:slug/resolve", async (req, reply) => {
   try {
     const { slug } = req.params as { slug: string };
     const body = req.body as { outcome: "Yes" | "No"; accountIndex: number };
-    return await resolveMarket({ slug, outcome: body.outcome, accountIndex: body.accountIndex });
+    const r = await resolveMarket({ slug, outcome: body.outcome, accountIndex: body.accountIndex });
+    notifyTelegram(`🏁 Market resolved: ${slug} → ${r.resolvedOutcome}`);
+    return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
     req.log.error(e);
@@ -442,7 +450,9 @@ app.post("/faucet", async (req, reply) => {
   if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
     return reply.status(400).send({ error: "accountIndex must be 1..9" });
   }
-  return faucet(accountIndex!);
+  const r = await faucet(accountIndex!);
+  notifyTelegram(`🚰 Faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
+  return r;
 });
 
 const start = async () => {
