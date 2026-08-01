@@ -39,6 +39,9 @@ VEREX_CHAIN_ID=${VEREX_CHAIN_ID:-}       # unset = today's DB-only/trading-disab
 DEPLOY_TARGET=${DEPLOY_TARGET:-}         # test|prod — which committed backbone entry in
                                           # packages/contracts/deployments.json seed.ts
                                           # uses; required whenever VEREX_CHAIN_ID is set
+TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}   # unset = Telegram trade/faucet/resolve notifications
+                                          # simply off; when set, requires the bot-token
+                                          # secret below to already exist
 SECRET_NAME="verex-database-url-${DB_NAME}" # per-DB secret so staging/prod don't collide
 AR_REPO=${AR_REPO:-verex}
 API_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/api:${DB_NAME}"
@@ -109,6 +112,20 @@ if [ -n "$VEREX_CHAIN_ID" ]; then
   API_CHAIN_SECRETS=",VEREX_RPC_URL=${RPC_SECRET}:latest,VEREX_OPERATOR_KEY=${OPERATOR_SECRET}:latest,VEREX_DEMO_MNEMONIC=${MNEMONIC_SECRET}:latest"
 fi
 
+# --- Telegram notification secret (optional; unset TELEGRAM_CHAT_ID = feature simply off) ---
+# Same non-creating pattern as the chain secrets above: this script only reads
+# it. Create with: printf '%s' '<token from @BotFather>' |
+#   gcloud secrets create verex-telegram-bot-token-${DB_NAME} --replication-policy=automatic --data-file=-
+API_TELEGRAM_SECRET=""
+if [ -n "$TELEGRAM_CHAT_ID" ]; then
+  TG_SECRET="verex-telegram-bot-token-${DB_NAME}"
+  gcloud secrets describe "$TG_SECRET" >/dev/null 2>&1 \
+    || { echo "❌ $TG_SECRET missing — create it first (see comment above), then re-run"; exit 1; }
+  gcloud secrets add-iam-policy-binding "$TG_SECRET" \
+    --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
+  API_TELEGRAM_SECRET=",TELEGRAM_BOT_TOKEN=${TG_SECRET}:latest"
+fi
+
 # --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
 echo "▶ Migrate + seed (Cloud SQL Auth Proxy)"
 PROXY=./cloud-sql-proxy
@@ -153,11 +170,14 @@ pnpm --filter @verex/sdk sync-abis   # generated abis must exist in the build co
 gcloud builds submit --config cloudbuild-api.yaml --substitutions "_IMAGE=$API_IMAGE" .
 
 echo "▶ Deploy $SERVICE_API"
+API_ENV_PAIRS=()
+[ -n "$VEREX_CHAIN_ID" ] && API_ENV_PAIRS+=("VEREX_CHAIN_ID=$VEREX_CHAIN_ID")
+[ -n "$TELEGRAM_CHAT_ID" ] && API_ENV_PAIRS+=("TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID")
 API_ENV_ARGS=()
-[ -n "$VEREX_CHAIN_ID" ] && API_ENV_ARGS=(--set-env-vars "VEREX_CHAIN_ID=$VEREX_CHAIN_ID")
+[ ${#API_ENV_PAIRS[@]} -gt 0 ] && API_ENV_ARGS=(--set-env-vars "$(IFS=,; echo "${API_ENV_PAIRS[*]}")")
 gcloud run deploy "$SERVICE_API" --image "$API_IMAGE" --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
-  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}" \
+  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}${API_TELEGRAM_SECRET}" \
   "${API_ENV_ARGS[@]+"${API_ENV_ARGS[@]}"}" \
   --allow-unauthenticated
 API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --format='value(status.url)')
