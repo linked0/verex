@@ -40,3 +40,28 @@ against an already-seeded backbone (documented in the script as reverting, not s
 Flagged this to jay and proposed a scoped `gcloud run deploy`/`services update` (image +
 secret/env update only, skipping migrate/seed) as the safer way to actually ship this to the
 live services — pending his decision.
+
+### deploy: scoped deploy to staging + prod, verified live
+
+jay approved the scoped-update approach. Built and deployed both services (image update +
+`--update-secrets`/`--update-env-vars` only, no `--set-*` — additive, so the existing
+`DATABASE_URL` and chain secrets were never at risk of being overwritten). Recorded baseline
+revisions first (`verex-api-00008-hnr`, `verex-api-prod-00003-t5s`) in case a rollback was ever
+needed.
+
+First staging deploy failed: `Permission denied on secret ... verex-telegram-bot-token-verex`.
+Root cause — I'd created the two Secret Manager secrets directly via `gcloud secrets create`,
+but the IAM-binding step that grants the Cloud Run service account access only lives inside
+`deploy.sh`, which I'd edited but never actually run. Granted the binding manually for both
+secrets and the retry succeeded.
+
+Staging's `/faucet` then failed with a DB connection error — traced to `verex-db` being in
+`STOPPED` state. Confirmed this is pre-existing and unrelated to the deploy: the
+`staging-down.sh`/`staging-up.sh` scripts already in this repo (committed earlier, ~95% cost
+saving when idle) intentionally park it. `/health` and the deploy config itself (cloudsql
+annotation, all secrets) were confirmed correct — left staging DB parked rather than starting
+it without asking, since that's jay's own deliberate cost control.
+
+Prod's DB is always-on, so deployed there too and verified fully end-to-end: a real `/faucet`
+call succeeded (1982.73 USDC minted) and jay confirmed the Telegram message actually arrived.
+First live production-adjacent verification of this whole feature, not just a config check.
