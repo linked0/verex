@@ -65,3 +65,31 @@ it without asking, since that's jay's own deliberate cost control.
 Prod's DB is always-on, so deployed there too and verified fully end-to-end: a real `/faucet`
 call succeeded (1982.73 USDC minted) and jay confirmed the Telegram message actually arrived.
 First live production-adjacent verification of this whole feature, not just a config check.
+
+### fix(web): /portfolio (and /create) served frozen placeholder HTML forever
+
+jay reported the portfolio page looked broken (screenshot: bare layout, "…" balance, "No
+positions yet"). It read like a CSS failure, but wasn't — the CSS file loaded fine (200, with all
+the utility classes and `:root` custom properties present), and the API was healthy the whole
+time (`/backend/wallet/1` returns $1,882.73 and 4 open positions).
+
+Root cause: both `/portfolio` and `/create` are `"use client"` components with no route segment
+config, so Next prerendered them as **static** and the CDN served them with
+`s-maxage=31536000` — a full year (`x-nextjs-cache: HIT`). Their data only arrives client-side,
+so the permanently-cached HTML was the pre-fetch placeholder state. Confirmed by contrast: `/`
+(a server component with `force-dynamic`) correctly served `no-store`.
+
+Key gotcha worth remembering: **`export const dynamic` is ignored inside a `"use client"` file.**
+Adding it directly to the client component changed nothing — the build still reported `○ (Static)`.
+That failed attempt is what pointed at the real fix: split each route into a server `page.tsx`
+holding the config, rendering the client component (`PortfolioClient` / `CreateClient`). Build then
+reported both as `ƒ (Dynamic)`.
+
+`/create` had the same latent bug — its `?edit=<slug>` flow would have served stale field values.
+
+Deployed web-only (scoped `gcloud run deploy --source packages/web`) rather than the full
+`deploy-prod.sh`, since that script's own header warns re-deploys need `SKIP_SEED=1` (re-seeding
+reverts against an already-seeded backbone) and this fix needed no DB/API change. Origin then
+returned `no-store` correctly, but `verex.jaylabs.xyz` still served the old year-cached entry —
+asked jay before purging (a live-CDN action), then ran `firebase deploy --only hosting` on his
+approval. Confirmed fixed: the production domain now returns `no-store` + cache MISS.
