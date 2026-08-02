@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   getCategories,
   getGroups,
@@ -17,6 +18,7 @@ import { CategoryTabs } from "@/components/CategoryTabs";
 import { GroupCard } from "@/components/GroupCard";
 import { MarketCard } from "@/components/MarketCard";
 import { ProbChart } from "@/components/ProbChart";
+import { notifyHomeVisit } from "@/lib/visitor-notify";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +119,7 @@ export default async function Home({
 }: {
   searchParams: { category?: string; q?: string };
 }) {
+  notifyHomeVisit(headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
   const active = searchParams.category ?? "All";
   const q = searchParams.q;
   const [markets, groups, categories] = await Promise.all([

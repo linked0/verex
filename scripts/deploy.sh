@@ -117,6 +117,7 @@ fi
 # it. Create with: printf '%s' '<token from @BotFather>' |
 #   gcloud secrets create verex-telegram-bot-token-${DB_NAME} --replication-policy=automatic --data-file=-
 API_TELEGRAM_SECRET=""
+WEB_TELEGRAM_SECRET=""
 if [ -n "$TELEGRAM_CHAT_ID" ]; then
   TG_SECRET="verex-telegram-bot-token-${DB_NAME}"
   gcloud secrets describe "$TG_SECRET" >/dev/null 2>&1 \
@@ -124,6 +125,9 @@ if [ -n "$TELEGRAM_CHAT_ID" ]; then
   gcloud secrets add-iam-policy-binding "$TG_SECRET" \
     --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
   API_TELEGRAM_SECRET=",TELEGRAM_BOT_TOKEN=${TG_SECRET}:latest"
+  # The web service needs it too — the home page sends a "someone visited" ping
+  # (packages/web/src/lib/visitor-notify.ts), so it reads the same secret.
+  WEB_TELEGRAM_SECRET="TELEGRAM_BOT_TOKEN=${TG_SECRET}:latest"
 fi
 
 # --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
@@ -184,8 +188,13 @@ API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --forma
 
 # --- Deploy Web (uses packages/web/Dockerfile; API_URL is a RUNTIME env, no rebuild needed) ---
 echo "▶ Deploy $SERVICE_WEB"
+WEB_ENV_PAIRS=("API_URL=$API_URL")
+[ -n "$TELEGRAM_CHAT_ID" ] && WEB_ENV_PAIRS+=("TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID")
+WEB_SECRET_ARGS=()
+[ -n "$WEB_TELEGRAM_SECRET" ] && WEB_SECRET_ARGS=(--set-secrets "$WEB_TELEGRAM_SECRET")
 gcloud run deploy "$SERVICE_WEB" --source packages/web --region "$REGION" \
-  --set-env-vars "API_URL=$API_URL" \
+  --set-env-vars "$(IFS=,; echo "${WEB_ENV_PAIRS[*]}")" \
+  "${WEB_SECRET_ARGS[@]+"${WEB_SECRET_ARGS[@]}"}" \
   --allow-unauthenticated
 WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --format='value(status.url)')
 
