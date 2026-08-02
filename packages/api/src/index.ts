@@ -141,7 +141,7 @@ app.post("/market-groups/:slug/resolve", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = req.body as { winnerSlug: string; accountIndex: number };
     const r = await resolveGroup({ groupSlug: slug, winnerSlug: body.winnerSlug, accountIndex: body.accountIndex });
-    notifyTelegram(`🏁 Group resolved: ${slug} → winner ${r.winnerSlug}`);
+    notifyTelegram(`🔮 🏁 Verex — group resolved: ${slug} → winner ${r.winnerSlug}`);
     return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -347,7 +347,7 @@ app.post("/trade", async (req, reply) => {
       return reply.status(400).send({ error: "no liquidity at this price — try a smaller amount" });
     }
     notifyTelegram(
-      `💱 Trade: ${r.side} ${r.outcome} on ${body.slug} — ${r.totalUsdc.toFixed(2)} USDC (account #${body.accountIndex})`
+      `🔮 💱 Verex — trade: ${r.side} ${r.outcome} on ${body.slug} — ${r.totalUsdc.toFixed(2)} USDC (account #${body.accountIndex})`
     );
     return {
       txHash: null, // settles asynchronously — poll jobId
@@ -377,7 +377,7 @@ app.post("/markets/:slug/resolve", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = req.body as { outcome: "Yes" | "No"; accountIndex: number };
     const r = await resolveMarket({ slug, outcome: body.outcome, accountIndex: body.accountIndex });
-    notifyTelegram(`🏁 Market resolved: ${slug} → ${r.resolvedOutcome}`);
+    notifyTelegram(`🔮 🏁 Verex — market resolved: ${slug} → ${r.resolvedOutcome}`);
     return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -451,7 +451,7 @@ app.post("/faucet", async (req, reply) => {
     return reply.status(400).send({ error: "accountIndex must be 1..9" });
   }
   const r = await faucet(accountIndex!);
-  notifyTelegram(`🚰 Faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
+  notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
   return r;
 });
 

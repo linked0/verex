@@ -1,4 +1,6 @@
-// Home-page visit notifications — Telegram, same fire-and-forget shape as the API's
+// Home-page visit notifications — Telegram. Messages are prefixed 🔮 (this prediction
+// market); the rabbit portfolio site uses 🐰, so the two are distinguishable at a glance.
+// Same fire-and-forget shape as the API's
 // trade/faucet/resolve notifications (packages/api/src/telegram-notify.ts). A Telegram
 // hiccup must never affect a page render, so errors are logged and swallowed.
 //
@@ -32,7 +34,7 @@ export function notifyHomeVisit(ip: string): void {
   fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: `👀 Verex home page visit (${ip})` }),
+    body: JSON.stringify({ chat_id: chatId, text: `🔮 👀 Verex — home page visit (${ip})` }),
   })
     .then(async (res) => {
       if (!res.ok) console.error("visitor-notify failed:", res.status, await res.text());
