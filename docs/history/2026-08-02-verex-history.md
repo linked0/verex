@@ -28,3 +28,19 @@ Deployed web-only (`gcloud run deploy --source packages/web`) rather than the fu
 `deploy-prod.sh` would re-run the non-idempotent seed against an already-seeded backbone.
 Verified after deploy: the service really has all three env entries (`API_URL` preserved), the
 live home page returns 200, and no `visitor-notify` errors appear in Cloud Run logs.
+
+### feat(notify): project emoji prefix on Telegram messages
+
+jay couldn't tell rabbit and verex notifications apart in Telegram — both used 👀 for a page
+visit. Every message now leads with a project marker and the project name: 🔮 for verex (the
+prediction market), 🐰 for the rabbit portfolio site, with the event emoji kept second
+(👀 visit · 💱 trade · 🚰 faucet · 🏁 resolve). The project name is spelled out in text too,
+since emoji render small in a phone's notification preview.
+
+Previewed all six formats by sending them straight to Telegram before deploying, so jay could
+judge the look first rather than shipping and iterating.
+
+Deployed all three services and verified each with a real trigger, not just a config check:
+verex-web-prod (-00006-2mf, live home visit), verex-api-prod (-00005-ln4, real faucet call on
+prod — 3,882.73 USDC minted), and rabbit (-00036-lsd, live home visit). API deploy stayed scoped
+(image + secret/env update) to avoid the non-idempotent seed step.
