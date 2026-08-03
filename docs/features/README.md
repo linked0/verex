@@ -4,7 +4,11 @@ Per-feature design docs for the Verex prediction market, in the **Category → F
 structure. The full **design document & roadmap** is appended below (folded in from the former
 `plan/` folder); this top section is the per-feature index.
 
-Status is keyed to the 10-step roadmap (**§1.4 in the design document below**): **S1 ✅ · S2 (current) · S3–S10 planned**.
+Status is keyed to the 10-step roadmap (**§1.4 in the design document below**):
+**S1 ✅ · S2 ✅ · S3 ✅* · S4 ✅ · S9 partial* · S5–S8, S10 planned** — the detailed per-step
+audit (2026-08-03, with evidence and known gaps) lives in
+[`docs/tasks/current-plan.md` → Roadmap status](../tasks/current-plan.md); that table is
+authoritative for step-level status, and the unchecked §1.4 checkboxes below predate it.
 
 ## Categories
 | Category | Roadmap | Doc |
