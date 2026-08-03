@@ -66,9 +66,13 @@ gets the worst part of the curve.
    after measuring real slippage.
 
 **Dev items:**
-- [ ] **Slippage simulation** — script that, for each candidate curve (`x·y=k`, flattened,
+- [x] **Slippage simulation** — script that, for each candidate curve (`x·y=k`, flattened,
   LMSR), plots execution price vs order size at spot $0.50 / $0.90 / $0.95 / $0.99 —
   quantify the tail penalty before committing
+  → done 2026-08-03: [`packages/api/scripts/sim-amm-slippage.ts`](../../packages/api/scripts/sim-amm-slippage.ts),
+  results + recommendation in [`docs/analysis/2026-08-03-amm-curve-slippage-sim.md`](../analysis/2026-08-03-amm-curve-slippage-sim.md)
+  (CPMM quotes >$1.00 at the tails; StableSwap resists repricing and still crosses $1 at depth;
+  **LMSR recommended**, tail guard kept regardless)
 - [ ] **(you) Curve decision** — pick 1/2/3 above based on the simulation (this supersedes
   the bare "x·y=k vs LMSR" open question below)
 - [ ] **Tail guard** — regardless of curve: max price-impact check in smart routing +
