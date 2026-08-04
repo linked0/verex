@@ -65,3 +65,41 @@ conditionId derivation, the settlement queue's idempotency). Old `/how-to` becam
 `/how-to` → 308 to `/docs/how-to`. Cookie-driven locale confirmed server-side: the same URL
 renders "Liquidity: Hybrid AMM + CLOB" in English and "유동성: Hybrid AMM + CLOB" with
 `<html lang="ko">` under `verex-locale=ko`.
+
+---
+
+### LMSR pricing module — wave 1 Phase A, math landed and verified (not yet wired)
+
+**Cause:** jay said to go ahead with [current-plan.md](../tasks/current-plan.md). Re-checked the
+§0 gates first: **G5 still fails** — the operator holds **0.0496 ETH**, unchanged from
+2026-08-03, so wave 2's three contract deploys cannot start. G3 (WIF) is also still jay's. That
+leaves **wave 1 (LMSR Phase A)** as the only unblocked piece, since it is off-chain and needs
+no gas.
+
+**Reasoning:** Two design points worth recording. First, seeding — raw LMSR with `q = 0` quotes
+a uniform `1/n`, but markets open at a chosen probability (0.63, not 0.50). Rather than storing
+a synthetic starting inventory, the opening probability is folded into the formula using the
+softmax's shift-invariance: `price_i = p_i⁰·e^(q_i/b) / Σⱼ p_j⁰·e^(qⱼ/b)`, which returns exactly
+`p⁰` before any trading and reduces to plain LMSR when every `p⁰` is `1/n`. Second, the softmax
+is computed in log space shifted by the max logit — `exp()` of a few hundred overflows to
+`Infinity` and NaNs the whole price vector, and the shift is exact because softmax is
+shift-invariant. Clamping to [0.02, 0.98] breaks sum-to-1 at the tails, so a residual pass
+redistributes the difference across outcomes that still have headroom.
+
+**Change:** new `packages/api/src/lmsr.ts` (pure functions: `lmsrPrices`, `lmsrMaxLoss`) plus
+`packages/api/scripts/sim-lmsr.ts`, a property harness in the same spirit as
+`sim-amm-slippage.ts`. Nothing calls the module yet — `mm.ts` is untouched, so this commit
+carries **zero behavioural risk**.
+
+**Result:** all 8 property groups pass. The decisive one: over a 100k one-sided run the maximum
+Yes quote is **0.98** — the CPMM failure mode that ruled out constant product (quoting above
+$1.00 at the tails) is structurally impossible here. Also confirmed: no-trade returns `p⁰`
+exactly, sums stay at 1.000000 for binary and for n = 3/5/12 groups, price is monotone in
+quantity sold, larger `b` flattens the curve, `±1e6` inputs stay finite, and binary max loss is
+exactly `b·ln2` (173.29 USDC at b = 250).
+
+**Still open — needs jay before wiring into `mm.ts`:** the wiring requires a Prisma migration
+(`Market.openingCenter` + `Market.lmsrB`, backfilled from `quoteCenter`) and changes how group
+prices move — sibling candidates would be repriced by n-way softmax instead of today's
+proportional rescaling in `requoteAfterFill`. That is a visible behaviour change on a live
+staging book, so it is left for a focused pass rather than tacked onto this one.
