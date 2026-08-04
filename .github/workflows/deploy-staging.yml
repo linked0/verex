@@ -1,0 +1,183 @@
+# Continuous deployment to the verex staging environment on Cloud Run.
+#
+# SCOPE — this workflow deploys, it does NOT provision. Creating the Cloud SQL
+# instance, generating the DB password and creating the Secret Manager entries
+# is scripts/deploy.sh's job, run once by hand (see docs/runbooks/deploy.md).
+# Re-running provisioning on every push is how you end up rotating a password
+# mid-deploy. Everything here is safe to repeat.
+#
+# IT ALSO NEVER SEEDS. prisma/seed.ts deletes Trade / PricePoint / Outcome /
+# Market rows and re-runs on-chain prepareCondition calls that revert against an
+# already-prepared backbone. Running it from CI would destroy live staging data.
+# Only `prisma migrate deploy` runs here — schema changes, never data.
+#
+# Auth is keyless via Workload Identity Federation (see scripts/setup-wif.sh);
+# no service-account JSON key exists anywhere.
+#
+# Trigger is manual for now. Once a few runs have proven green, add:
+#   push:
+#     branches: [main]
+
+name: Deploy staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: "Skip prisma migrate deploy (deploy code only)"
+        type: boolean
+        default: false
+
+# One deploy at a time. Two overlapping runs would race on `gcloud run deploy`
+# and could leave the API and web services on different commits. Not cancelling
+# in-progress: killing a run midway through a migration is worse than queueing.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # REQUIRED — without it GitHub mints no OIDC token and WIF cannot work
+
+env:
+  PROJECT_ID: verex-499205
+  REGION: asia-northeast3
+  SERVICE_API: verex-api
+  SERVICE_WEB: verex-web
+  DB_INSTANCE: verex-db
+  DB_NAME: verex
+  AR_REPO: verex
+  VEREX_CHAIN_ID: "11155111"
+  TELEGRAM_CHAT_ID: "977346900"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Resolve the values deploy.sh derives at runtime. The DATABASE_URL secret
+      # contains the DB password, so it is masked before it can reach a log —
+      # ::add-mask:: must come before the value is used anywhere else.
+      - name: Resolve deploy targets
+        id: cfg
+        run: |
+          set -euo pipefail
+          CONN_NAME=$(gcloud sql instances describe "$DB_INSTANCE" \
+            --project "$PROJECT_ID" --format='value(connectionName)')
+          echo "conn_name=$CONN_NAME" >> "$GITHUB_OUTPUT"
+          echo "image=${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/api:${DB_NAME}" >> "$GITHUB_OUTPUT"
+
+          DB_URL=$(gcloud secrets versions access latest \
+            --secret="verex-database-url-${DB_NAME}" --project "$PROJECT_ID")
+          echo "::add-mask::$DB_URL"
+          # The stored URL uses the Cloud Run unix socket; the proxy gives us TCP.
+          LOCAL_URL=$(printf '%s' "$DB_URL" | sed -E 's#@localhost/([^?]+)\?host=.*#@localhost:5433/\1#')
+          echo "::add-mask::$LOCAL_URL"
+          echo "DATABASE_URL=$LOCAL_URL" >> "$GITHUB_ENV"
+
+      - name: Run migrations
+        if: ${{ !inputs.skip_migrations }}
+        run: |
+          set -euo pipefail
+          curl -sL -o cloud-sql-proxy \
+            "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.13.0/cloud-sql-proxy.linux.amd64"
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy --port 5433 "${{ steps.cfg.outputs.conn_name }}" &
+          PROXY_PID=$!
+          trap 'kill "$PROXY_PID" 2>/dev/null || true' EXIT
+          # Poll rather than sleeping a guess — the proxy is usually up in ~1s.
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/127.0.0.1/5433) >/dev/null 2>&1 && break
+            sleep 1
+          done
+          # migrate deploy only. NEVER seed.ts — see the header comment.
+          pnpm --filter @verex/api exec prisma migrate deploy
+
+      - name: Build API image
+        run: |
+          set -euo pipefail
+          gcloud artifacts repositories describe "$AR_REPO" \
+            --location="$REGION" --project "$PROJECT_ID" >/dev/null 2>&1 \
+            || gcloud artifacts repositories create "$AR_REPO" \
+                 --location="$REGION" --project "$PROJECT_ID" --repository-format=docker
+          # Generated ABIs must exist in the build context before it is uploaded.
+          pnpm --filter @verex/sdk sync-abis
+          gcloud builds submit --config cloudbuild-api.yaml \
+            --project "$PROJECT_ID" \
+            --substitutions "_IMAGE=${{ steps.cfg.outputs.image }}" .
+
+      - name: Deploy API
+        id: api
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE_API" \
+            --image "${{ steps.cfg.outputs.image }}" \
+            --region "$REGION" --project "$PROJECT_ID" \
+            --add-cloudsql-instances "${{ steps.cfg.outputs.conn_name }}" \
+            --set-secrets "DATABASE_URL=verex-database-url-${DB_NAME}:latest,VEREX_RPC_URL=verex-rpc-url-${DB_NAME}:latest,VEREX_OPERATOR_KEY=verex-operator-key-${DB_NAME}:latest,VEREX_DEMO_MNEMONIC=verex-demo-mnemonic-${DB_NAME}:latest,TELEGRAM_BOT_TOKEN=verex-telegram-bot-token-${DB_NAME}:latest" \
+            --set-env-vars "VEREX_CHAIN_ID=${VEREX_CHAIN_ID},TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}" \
+            --allow-unauthenticated
+          API_URL=$(gcloud run services describe "$SERVICE_API" \
+            --region "$REGION" --project "$PROJECT_ID" --format='value(status.url)')
+          echo "url=$API_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web
+        id: web
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE_WEB" --source packages/web \
+            --region "$REGION" --project "$PROJECT_ID" \
+            --set-env-vars "API_URL=${{ steps.api.outputs.url }},TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}" \
+            --set-secrets "TELEGRAM_BOT_TOKEN=verex-telegram-bot-token-${DB_NAME}:latest" \
+            --allow-unauthenticated
+          WEB_URL=$(gcloud run services describe "$SERVICE_WEB" \
+            --region "$REGION" --project "$PROJECT_ID" --format='value(status.url)')
+          echo "url=$WEB_URL" >> "$GITHUB_OUTPUT"
+
+      # A green `gcloud run deploy` only means the revision was accepted, not
+      # that the app works — fail the run here rather than let a broken revision
+      # sit in staging looking deployed.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          echo "API health:"
+          curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
+            "${{ steps.api.outputs.url }}/health"
+          echo
+          echo "Web home:"
+          curl -fsS --retry 5 --retry-delay 3 --retry-all-errors \
+            -o /dev/null -w 'HTTP %{http_code}\n' "${{ steps.web.outputs.url }}/"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Staging deployed"
+            echo ""
+            echo "| Service | URL |"
+            echo "|---|---|"
+            echo "| API | ${{ steps.api.outputs.url }} |"
+            echo "| Web | ${{ steps.web.outputs.url }} |"
+            echo ""
+            echo "Commit \`${GITHUB_SHA::7}\` · migrations: ${{ inputs.skip_migrations && 'skipped' || 'applied' }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -337,8 +337,9 @@ transaction — numbers in the [2026-08-04 history](../history/2026-08-04-verex-
 
 **Revised remaining plan (~3–4 days, down from 6–9):**
 
-1. **Wave 0** — CI/CD. WIF is live; the deploy workflow itself is **still unwritten** and is the
-   next thing to build.
+1. **Wave 0** — ✅ **done.** WIF live + `.github/workflows/deploy-staging.yml` written
+   (deploy-only, never seeds). **Cannot be triggered until it lands on `main`** —
+   `workflow_dispatch` only appears for workflows on the default branch.
 2. **Wave 2** — UMA adapter only. Now unblocked on gas.
 3. **Wave 3** — fresh seed on staging + integration check.
 
