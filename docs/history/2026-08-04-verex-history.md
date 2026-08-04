@@ -126,3 +126,55 @@ from `deploy.sh`. Supports `DRY_RUN=1`. Prints the two values to add as GitHub A
 
 **Result:** `bash -n` clean; `DRY_RUN=1` resolves the real project number (496608424746) and
 prints the full plan. **Not executed** — running it is jay's call, per gate ownership.
+
+---
+
+### LMSR wired into the market maker — G3 closed, wave 1 Phase A complete
+
+**Cause:** jay closed G3 with "full LMSR, group included", which is the decision the previous
+entry was waiting on.
+
+**Reasoning:** The important choice was **how to obtain `q`** (net quantity the operator has
+sold). A running counter column would have been cheaper to read but drifts the moment anything
+goes wrong — a crashed re-quote, a manual DB fix, a replayed settlement job. Instead `q` is
+*derived* from settled book fills, so it is reconstructible and cannot silently diverge. Only
+fills whose **maker was the operator** (`Order.makerIndex = 0`) count: a trade between two demo
+wallets moves no operator inventory and must not move the operator's quote. `REDEEM` rows are
+excluded explicitly — they are redemptions, not trades, and would otherwise be signed as sells.
+
+The migration backfill needed care. `openingCenter` is LMSR's `p⁰` and must be the market's
+*original* opening probability, **not** its current `quoteCenter`: since `q` sums the entire
+trade history, seeding `p⁰` from an already-traded centre would count the same trading twice and
+skew every live market. The backfill therefore reads each market's **earliest `PricePoint`**,
+falling back to `quoteCenter` for markets that never charted one.
+
+Group repricing changed shape rather than gaining a step: sibling centres now come from **one
+n-way softmax**, so they sum to 1 *by construction* instead of being proportionally rescaled
+afterwards. `requoteAfterFill`'s `lastPrice` argument is now deliberately unused — under LMSR
+the centre tracks the operator's exposure, not the last print.
+
+**Change:** `Market.openingCenter` + `Market.lmsrB` (migration `20260804043305_lmsr_quote_params`
+with the PricePoint backfill); `mm.ts` gained `operatorNetSold()`, `binaryCenter()`,
+`groupCenters()` and lost the proportional-rescale block; new read-only
+`scripts/check-lmsr-centers.ts`.
+
+**Result:** migration applied to the local DB; backfill verified distinct from `quoteCenter`
+(e.g. `eth-above-10k-2026` → stored 0.440, opening 0.2226). `tsc --noEmit` clean. All three
+group previews total exactly **1.000**. End-to-end behaviour proven with synthetic trades inside
+a rolled-back transaction on `eth-above-10k-2026` (p⁰ = 0.2226):
+
+| step | q(yes) | centre |
+|---|---|---|
+| baseline | 0 | 0.2226 (= p⁰) |
+| user BUY 400 | 400 | 0.5865 (rises) |
+| user SELL 150 | 250 | 0.4377 (falls back) |
+| **user-to-user BUY 900** | **250** | **0.4377 (unchanged)** |
+
+The last row is the new behaviour worth remembering: a fill that never touched the operator's
+ladder leaves the quote alone, where the old last-price rule would have moved it.
+
+**Caveat:** the local DB has **0 trades**, so the group previews above are all at `q = 0` — they
+prove the softmax and the sum, not the inventory path. The inventory path is proven only by the
+synthetic-trade table. Staging has real fills and should be re-checked with
+`check-lmsr-centers.ts` after deploy; expect a **one-time price jump** on already-traded markets
+as centres re-derive from inventory instead of last print.

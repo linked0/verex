@@ -1,12 +1,18 @@
 // Operator market making: the automated liquidity behind every book.
 //
 // The operator (#0) posts a ladder of bids and asks around each outcome's
-// quote center. After any user fill the center follows the last traded
-// price — the book itself is the price-impact model — and inside a group
-// the centers are then RENORMALIZED so Σ(yes centers) = 1: buying "Brazil"
-// deterministically drips probability out of every other candidate. This
-// is the coherence rule that replaces nostra's ±5% arbitrage-bot band
-// (see docs/tasks/jul-28-verex-design.md, rev 2).
+// quote center. Centers come from LMSR (see ./lmsr.ts): the price is a
+// softmax over how much of each outcome the operator has NET SOLD, seeded
+// with the market's opening probability. Inside a group the members' Yes
+// centers are one n-way softmax, so Σ(yes centers) = 1 by construction —
+// buying "Brazil" drips probability out of every other candidate without a
+// separate renormalization pass.
+//
+// This replaced "the center follows the last traded price" (plan wave 1,
+// Phase A). The practical difference: the quote now tracks the operator's
+// own EXPOSURE rather than the last print, so a fill that never touched the
+// operator's ladder — two users crossing against each other — correctly
+// leaves the quote where it was.
 //
 // Third-party resting orders are never touched; coherence is enforced
 // purely through the MM's own quotes.
@@ -15,6 +21,7 @@ import { formatUnits } from "viem";
 import { prisma } from "./db";
 import { loadChain } from "./chain";
 import { placeOrder, setAfterFillHook } from "./book";
+import { DEFAULT_LMSR_B, lmsrPrices, type LmsrOutcome } from "./lmsr";
 
 const LADDER_LEVELS = 5;
 const LADDER_STEP = 0.01; // 1¢ between levels
@@ -89,38 +96,42 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
   }
 }
 
-/// After a user fill on `marketId` at `lastPrice` (on `outcomeLabel`):
-/// move that market's center to the traded price, renormalize its group's
-/// centers to sum to 1, mirror everything into Outcome prices +
-/// PricePoints, and re-post the affected ladders.
-export async function requoteAfterFill(marketId: string, outcomeLabel: string, lastPrice: number): Promise<void> {
+/// Net quantity of each outcome the OPERATOR has sold, over the market's whole
+/// history — LMSR's `q`. Derived from settled book fills rather than kept as a
+/// running column so it cannot drift: a crashed re-quote, a manual DB fix or a
+/// replayed job all still produce the same number.
+///
+/// Only fills whose MAKER was the operator count. A trade between two demo
+/// wallets moves no operator inventory and must not move the operator's quote.
+/// A user BUY means the operator sold; a user SELL means it bought back.
+async function operatorNetSold(marketIds: string[]): Promise<Map<string, number>> {
+  if (marketIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<{ outcomeId: string; netSold: number }[]>`
+    SELECT t."outcomeId" AS "outcomeId",
+           SUM(CASE WHEN t."side" = 'BUY' THEN t."tokenAmount" ELSE -t."tokenAmount" END)::float8 AS "netSold"
+    FROM "Trade" t
+    JOIN "Order" o ON o."id" = t."makerOrderId"
+    WHERE o."makerIndex" = 0
+      AND t."side" IN ('BUY', 'SELL')
+      AND t."marketId" = ANY(${marketIds}::text[])
+    GROUP BY t."outcomeId"
+  `;
+  return new Map(rows.map((r) => [r.outcomeId, Number(r.netSold) || 0]));
+}
+
+/// Re-quote after a user fill. `lastPrice` is intentionally unused: under LMSR
+/// the center is a function of the operator's inventory, not of the last print.
+/// Recomputes the affected centers, mirrors them into Outcome prices +
+/// PricePoints, and re-posts the ladders.
+export async function requoteAfterFill(marketId: string, _outcomeLabel: string, _lastPrice: number): Promise<void> {
   const market = await prisma.market.findUniqueOrThrow({
     where: { id: marketId },
     select: { id: true, groupId: true },
   });
 
-  const newYesCenter = clampCenter(outcomeLabel === "Yes" ? lastPrice : 1 - lastPrice);
-
-  if (!market.groupId) {
-    await applyCenter(marketId, newYesCenter, false);
-    await postLadders(marketId, newYesCenter);
-    return;
-  }
-
-  // Group: renormalize every member's center so Σ = 1, proportionally
-  // scaling the others around the traded member's new center.
-  const members = await prisma.market.findMany({
-    where: { groupId: market.groupId, status: "OPEN" },
-    select: { id: true, quoteCenter: true },
-  });
-  const others = members.filter((m) => m.id !== marketId);
-  const othersSum = others.reduce((a, m) => a + Number(m.quoteCenter), 0);
-  const scale = othersSum > 0 ? (1 - newYesCenter) / othersSum : 0;
-
-  const centers = new Map<string, number>([[marketId, newYesCenter]]);
-  for (const m of others) {
-    centers.set(m.id, clampCenter(Number(m.quoteCenter) * scale));
-  }
+  const centers = market.groupId
+    ? await groupCenters(market.groupId)
+    : await binaryCenter(marketId);
 
   for (const [id, center] of centers) {
     await applyCenter(id, center, id !== marketId);
@@ -128,6 +139,71 @@ export async function requoteAfterFill(marketId: string, outcomeLabel: string, l
   for (const [id, center] of centers) {
     await postLadders(id, center);
   }
+}
+
+/// Standalone binary market: one LMSR over its own Yes and No outcomes.
+async function binaryCenter(marketId: string): Promise<Map<string, number>> {
+  const market = await prisma.market.findUniqueOrThrow({
+    where: { id: marketId },
+    select: {
+      id: true,
+      openingCenter: true,
+      lmsrB: true,
+      outcomes: { select: { id: true, label: true } },
+    },
+  });
+
+  const netSold = await operatorNetSold([marketId]);
+  const opening = Number(market.openingCenter);
+  const outcomes: LmsrOutcome[] = market.outcomes.map((o) => ({
+    key: o.label,
+    openingPrice: o.label === "Yes" ? opening : 1 - opening,
+    netSold: netSold.get(o.id) ?? 0,
+  }));
+
+  const prices = lmsrPrices(outcomes, positiveB(market.lmsrB));
+  return new Map([[marketId, clampCenter(prices.get("Yes") ?? opening)]]);
+}
+
+/// Group: ONE softmax across every member's Yes side. This is what replaces the
+/// old proportional rescaling of siblings — the members' centers sum to 1
+/// because they are a single softmax, not because they were scaled afterwards.
+async function groupCenters(groupId: string): Promise<Map<string, number>> {
+  const members = await prisma.market.findMany({
+    where: { groupId, status: "OPEN" },
+    select: {
+      id: true,
+      openingCenter: true,
+      lmsrB: true,
+      outcomes: { select: { id: true, label: true } },
+    },
+    orderBy: { id: "asc" }, // deterministic b selection below
+  });
+  if (members.length === 0) return new Map();
+
+  const netSold = await operatorNetSold(members.map((m) => m.id));
+
+  // Members of a group are created together and share b; take the first
+  // deterministically rather than averaging, so the value is traceable.
+  const b = positiveB(members[0]!.lmsrB);
+
+  const outcomes: LmsrOutcome[] = members.map((m) => {
+    const yes = m.outcomes.find((o) => o.label === "Yes");
+    return {
+      key: m.id,
+      openingPrice: Number(m.openingCenter),
+      netSold: yes ? (netSold.get(yes.id) ?? 0) : 0,
+    };
+  });
+
+  const prices = lmsrPrices(outcomes, b);
+  return new Map(members.map((m) => [m.id, clampCenter(prices.get(m.id) ?? Number(m.openingCenter))]));
+}
+
+/// Guard the one input that can make the softmax undefined.
+function positiveB(raw: unknown): number {
+  const b = Number(raw);
+  return Number.isFinite(b) && b > 0 ? b : DEFAULT_LMSR_B;
 }
 
 /// Persist a member's center into Market.quoteCenter + Outcome prices.
