@@ -54,6 +54,23 @@ run() {
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
+# IAM is eventually consistent: a service account can be created successfully and
+# still be invisible to the policy API for several seconds, which fails the role
+# bindings below with "Service account ... does not exist". Retry rather than
+# sleeping a fixed guess.
+retry() {
+  local attempts="$1"; shift
+  local i
+  for ((i = 1; i <= attempts; i++)); do
+    if "$@"; then return 0; fi
+    if ((i < attempts)); then
+      echo "    retry $i/$attempts (IAM still propagating)…" >&2
+      sleep 5
+    fi
+  done
+  return 1
+}
+
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 say "Project $PROJECT_ID (number $PROJECT_NUMBER), repo $GITHUB_REPO"
 
@@ -101,23 +118,36 @@ if gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" >/de
 else
   run gcloud iam service-accounts create "$SA_NAME" --project "$PROJECT_ID" \
     --display-name="GitHub Actions deployer"
+  if [[ "${DRY_RUN:-0}" != "1" ]]; then
+    echo "  waiting for IAM to see it…"
+    retry 12 gcloud iam service-accounts describe "$SA_EMAIL" --project "$PROJECT_ID" >/dev/null 2>&1 \
+      || { echo "service account never became visible" >&2; exit 1; }
+  fi
 fi
 
 say "5/6 · Granting deploy roles"
 for role in "${ROLES[@]}"; do
   echo "  + $role"
-  run gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member="serviceAccount:${SA_EMAIL}" --role="$role" \
-    --condition=None --quiet >/dev/null
+  if [[ "${DRY_RUN:-0}" == "1" ]]; then
+    printf '  [dry-run] add-iam-policy-binding %s\n' "$role"
+  else
+    retry 6 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+      --member="serviceAccount:${SA_EMAIL}" --role="$role" \
+      --condition=None --quiet >/dev/null
+  fi
 done
 
 say "6/6 · Letting $GITHUB_REPO impersonate the service account"
 POOL_RESOURCE="projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL_ID}"
-run gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
-  --project "$PROJECT_ID" \
-  --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/${POOL_RESOURCE}/attribute.repository/${GITHUB_REPO}" \
-  --quiet >/dev/null
+if [[ "${DRY_RUN:-0}" == "1" ]]; then
+  printf '  [dry-run] add-iam-policy-binding workloadIdentityUser\n'
+else
+  retry 6 gcloud iam service-accounts add-iam-policy-binding "$SA_EMAIL" \
+    --project "$PROJECT_ID" \
+    --role=roles/iam.workloadIdentityUser \
+    --member="principalSet://iam.googleapis.com/${POOL_RESOURCE}/attribute.repository/${GITHUB_REPO}" \
+    --quiet >/dev/null
+fi
 
 cat <<EOF
 
