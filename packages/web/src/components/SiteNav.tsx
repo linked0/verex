@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle, CircleHelp } from "lucide-react";
+import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle, BookText } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { LocaleToggle } from "@/components/LocaleToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
 import { postFaucet } from "@/lib/api";
 
@@ -13,6 +16,7 @@ export function SiteNav() {
   const router = useRouter();
   const params = useSearchParams();
   const { accountIndex, setAccountIndex, summary, refresh, isAdmin } = useWallet();
+  const { t, intl } = useLocale();
   const [minting, setMinting] = React.useState(false);
 
   const onSearch = (e: React.FormEvent<HTMLFormElement>) => {
@@ -46,7 +50,7 @@ export function SiteNav() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             name="q"
-            placeholder="Search markets"
+            placeholder={t("nav.search")}
             defaultValue={params.get("q") ?? ""}
             className="pl-8"
           />
@@ -54,58 +58,62 @@ export function SiteNav() {
 
         <div className="ml-auto flex items-center gap-2">
           <Link
-            href="/how-to"
+            href="/docs"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <CircleHelp className="h-4 w-4" />
-            Guide
+            <BookText className="h-4 w-4" />
+            {t("nav.docs")}
           </Link>
           <Link
             href="/create"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <PlusCircle className="h-4 w-4" />
-            Create
+            {t("nav.create")}
           </Link>
           <Link
             href="/portfolio"
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <BriefcaseBusiness className="h-4 w-4" />
-            Portfolio
+            {t("nav.portfolio")}
           </Link>
           <Button
             variant="outline"
             size="sm"
             onClick={onFaucet}
             disabled={minting || isAdmin}
-            title="Mint 1,000 test USDC to the active demo wallet"
+            title={t("nav.faucetTitle")}
           >
             <Droplets className="h-3.5 w-3.5" />
-            {minting ? "Minting…" : "Faucet"}
+            {minting ? t("nav.faucetMinting") : t("nav.faucet")}
           </Button>
           <div className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
             <Wallet className="h-4 w-4 text-primary" />
             <select
-              aria-label="Demo wallet"
+              aria-label={t("nav.walletLabel")}
               className="bg-transparent text-sm font-medium outline-none"
               value={accountIndex}
               onChange={(e) => setAccountIndex(Number(e.target.value))}
             >
               {[1, 2, 3, 4, 5].map((i) => (
                 <option key={i} value={i}>
-                  Demo Wallet {i}
+                  {t("nav.demoWallet", { n: i })}
                 </option>
               ))}
-              <option value={0}>Operator Wallet</option>
+              <option value={0}>{t("nav.operatorWallet")}</option>
             </select>
             <span className="tabular-nums text-muted-foreground">
               {isAdmin
-                ? "admin"
+                ? t("nav.admin")
                 : summary
-                  ? `$${summary.usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+                  ? `$${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })}`
                   : "…"}
             </span>
+          </div>
+          <div className="flex items-center">
+            <LocaleToggle />
+            <ThemeToggle />
           </div>
         </div>
       </div>

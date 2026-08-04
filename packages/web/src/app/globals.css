@@ -30,11 +30,50 @@
     --radius: 0.625rem;
   }
 
+  /* Dark theme — same hues, inverted lightness. Yes/No keep their hue but gain
+     lightness so they stay legible on a dark card (emerald/magenta at 39%/49%
+     lightness read as muddy against a near-black background). Applied by the
+     `dark` class on <html> (tailwind darkMode: ["class"]), set pre-paint by the
+     inline script in layout.tsx so there is no light flash on load. */
+  .dark {
+    --background: 240 10% 6%;
+    --foreground: 240 6% 94%;
+    --card: 240 8% 10%;
+    --card-foreground: 240 6% 94%;
+    --primary: 243 75% 66%; /* indigo lifted for contrast on dark */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 16%;
+    --secondary-foreground: 240 6% 90%;
+    --muted: 240 6% 16%;
+    --muted-foreground: 240 5% 64%;
+    --accent: 243 40% 20%;
+    --accent-foreground: 243 75% 84%;
+    --destructive: 0 72% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 20%;
+    --input: 240 6% 24%;
+    --ring: 243 75% 66%;
+    --yes: 160 70% 48%;
+    --yes-foreground: 160 90% 8%;
+    --no: 293 65% 62%;
+    --no-foreground: 293 90% 10%;
+  }
+
   * {
     @apply border-border;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+  }
+
+  /* Native widgets (the nav's <select>, scrollbars, focus rings) follow the
+     UA's own palette, not our CSS variables — color-scheme is what flips them. */
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
   }
 }

@@ -6,10 +6,12 @@
 import * as React from "react";
 import { Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/components/LocaleProvider";
 
 const SEEN_KEY = "verex-welcome-seen";
 
 export function WelcomeOverlay() {
+  const { t } = useLocale();
   const [show, setShow] = React.useState(false);
 
   // localStorage is browser-only — decide visibility after mount.
@@ -31,22 +33,23 @@ export function WelcomeOverlay() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Welcome to Verex"
+        aria-label={t("welcome.title")}
         className="w-full max-w-md rounded-lg border bg-background p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
           <Info className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-bold">Welcome to Verex</h2>
+          <h2 className="text-lg font-bold">{t("welcome.title")}</h2>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          This is a live demo — <span className="font-medium text-foreground">trade freely
-          with the Demo Wallets</span> and <span className="font-medium text-foreground">resolve
-          markets with the Operator Wallet</span> (wallet selector, top right). Test USDC
-          comes from the faucet; no real funds are involved.
+          {t("welcome.bodyPre")}
+          <span className="font-medium text-foreground">{t("welcome.bodyTrade")}</span>
+          {t("welcome.bodyAnd")}
+          <span className="font-medium text-foreground">{t("welcome.bodyResolve")}</span>
+          {t("welcome.bodyPost")}
         </p>
         <Button className="mt-5 w-full" onClick={dismiss}>
-          Got it — start trading
+          {t("welcome.cta")}
         </Button>
       </div>
     </div>
