@@ -19,11 +19,13 @@ import { GroupCard } from "@/components/GroupCard";
 import { MarketCard } from "@/components/MarketCard";
 import { ProbChart } from "@/components/ProbChart";
 import { notifyHomeVisit } from "@/lib/visitor-notify";
+import { getLocale, getT } from "@/lib/i18n-server";
+import { intlLocale, type Translate } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 // Featured market — the highest-volume one, with its probability chart.
-async function Featured({ market }: { market: Market }) {
+async function Featured({ market, t, intl }: { market: Market; t: Translate; intl: string }) {
   const points = await getHistory(market.slug);
   const yes = market.outcomes.find((o) => o.label === "Yes");
   const no = market.outcomes.find((o) => o.label === "No");
@@ -42,7 +44,7 @@ async function Featured({ market }: { market: Market }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Badge>{market.category}</Badge>
-              <Badge variant="secondary">Featured</Badge>
+              <Badge variant="secondary">{t("home.featured")}</Badge>
             </div>
             <Link href={`/market/${market.slug}`}>
               <CardTitle className="text-xl hover:text-primary md:text-2xl">
@@ -57,7 +59,7 @@ async function Featured({ market }: { market: Market }) {
           <ProbChart points={points} />
           <div className="flex flex-col justify-center gap-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-muted-foreground">Yes chance</span>
+              <span className="text-sm text-muted-foreground">{t("home.yesChance")}</span>
               <span className="text-3xl font-bold tabular-nums text-primary">
                 {yes ? pct(yes.price) : "—"}%
               </span>
@@ -77,9 +79,9 @@ async function Featured({ market }: { market: Market }) {
               </Link>
             </div>
             <div className="text-xs text-muted-foreground">
-              {usd(market.volume)} Vol
+              {usd(market.volume)} {t("home.volume")}
               {market.closesAt &&
-                ` · Closes ${new Date(market.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                ` · ${t("home.closes", { date: new Date(market.closesAt).toLocaleDateString(intl, { month: "short", day: "numeric", year: "numeric" }) })}`}
             </div>
           </div>
         </div>
@@ -89,11 +91,11 @@ async function Featured({ market }: { market: Market }) {
 }
 
 // "Hot markets" sidebar — by volume.
-function HotList({ markets }: { markets: Market[] }) {
+function HotList({ markets, t }: { markets: Market[]; t: Translate }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Hot markets</CardTitle>
+        <CardTitle className="text-base">{t("home.hotMarkets")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {markets.map((m) => {
@@ -120,6 +122,8 @@ export default async function Home({
   searchParams: { category?: string; q?: string };
 }) {
   notifyHomeVisit(headers().get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown");
+  const t = getT();
+  const intl = intlLocale(getLocale());
   const active = searchParams.category ?? "All";
   const q = searchParams.q;
   const [markets, groups, categories] = await Promise.all([
@@ -145,20 +149,20 @@ export default async function Home({
 
       {q && (
         <p className="text-sm text-muted-foreground">
-          {total} result{total === 1 ? "" : "s"} for “{q}”
+          {t(total === 1 ? "home.resultFor" : "home.resultsFor", { count: total, q })}
         </p>
       )}
 
       {total === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            No markets found.
+            {t("home.noMarkets")}
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="space-y-6">
-            {featured && <Featured market={featured} />}
+            {featured && <Featured market={featured} t={t} intl={intl} />}
             <div className="grid gap-4 sm:grid-cols-2">
               {gridItems.map((item) =>
                 item.kind === "group" ? (
@@ -170,7 +174,7 @@ export default async function Home({
             </div>
           </div>
           <aside className="hidden lg:block">
-            <HotList markets={hot} />
+            <HotList markets={hot} t={t} />
           </aside>
         </div>
       )}
