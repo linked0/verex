@@ -307,3 +307,45 @@ telegram-bot-token}-verex`).
 **Not yet run, and it cannot be yet:** `workflow_dispatch` only appears once the workflow exists
 on the **default branch**. It has to reach `main` before jay can trigger it — the first real run
 is also the first true test of the WIF setup.
+
+---
+
+### UMA CTF adapter — wave 2, contract + tests (not deployed)
+
+**Cause:** jay: "you can go to next wave." With G1 and G5 resolved, wave 2 is the UMA adapter.
+
+**Reasoning — three decisions worth recording.**
+
+*Why the oracle is a contract, not a setting.* `conditionId = keccak256(oracle, questionId, 2)`
+means "who may report the result" is part of the market's identity. The adapter registers
+**itself** as the oracle at prepare time, so it must exist before any market that uses it and a
+live market can never be migrated to a different oracle. The test asserts this directly rather
+than trusting the comment.
+
+*Why `resolve` is permissionless.* It has no discretion — it copies whatever UMA settled. If it
+required the operator, an absent operator could strand every payout, which is precisely the
+failure mode UMA is here to remove. Making it admin-only would have reintroduced the trust
+assumption the whole wave exists to delete.
+
+*Why unsupported prices revert.* UMA returns an `int256` and only three values are defined
+(1e18 / 0 / 0.5e18). Coercing anything else — rounding toward YES, say — would resolve a real
+market on a number nobody voted for. A 256-run fuzz asserts every other value reverts.
+Unresolvable maps to `[1,1]`: both sides redeem half, returning collateral rather than handing
+the pot to one side of a question that was never answered.
+
+**Change:** `src/UmaCtfAdapter.sol`, `src/interfaces/IOptimisticOracleV2.sol` (hand-written
+5-function surface rather than importing UMA's protocol package and its older-solc dependency
+tree), `test/UmaCtfAdapter.t.sol` with a `MockOptimisticOracleV2` reproducing the two behaviours
+the adapter depends on — cannot settle before liveness, returns the proposed price once settled.
+
+**Result:** **48/48 tests pass** across the whole suite (14 new, 34 pre-existing unaffected).
+The new ones cover: adapter is the oracle in the conditionId; admin-only init; empty-ancillary
+and double-init rejection; YES/NO/unresolvable payout vectors; revert before liveness expires;
+permissionless resolve; double-resolve rejection; unsupported-price revert plus the fuzz; and a
+full lifecycle where collateral is split, resolved through the mock OO, and redeemed — 100 USDC
+in, 100 USDC out to the winning side.
+
+**Not done in this slice:** no deploy script, and no API integration — `Market` still has no
+`oracleType` and market creation cannot yet choose UMA over operator resolution. The contract is
+also untested against the *real* Sepolia OO; the mock encodes my understanding of it, which is
+exactly the thing a testnet run would falsify.
