@@ -294,11 +294,30 @@ itself.
 
 | # | Gate | Status | Why it blocks | Owner |
 |---|------|--------|---------------|-------|
-| G1 | **Confirm LMSR** as the curve (sim recommends it; CPMM quotes >$1.00 at the tails) | ⏳ open | Wave 1's entire Phase A is the LMSR quoting rewrite | jay |
+| G1 | **Confirm LMSR** as the curve (sim recommends it; CPMM quotes >$1.00 at the tails) | ✅ **closed** 2026-08-04 — jay's "go ahead with the current plan" | Wave 1's entire Phase A is the LMSR quoting rewrite | jay |
 | G2 | **Confirm Phase B is in scope now** (vs. Phase A being enough for the demo stage) | ⏳ open | Removing it drops wave 2 to just Task 4 and the batch to ~5–7 days | jay |
 | G3 | **WIF pool + service account** in `verex-499205` | ⏳ open | Wave 0's CD workflow can't authenticate without it | jay (one-time) |
 | G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ **passed** | Risk 3 retired — see below | claude |
-| G5 | **Operator gas headroom** for 3 deploys + a fresh seed | ❌ **failed** — 0.0496 ETH | Wave 2 stalls mid-sitting | jay (fund) |
+| G5 | **Operator gas headroom** for 3 deploys + a fresh seed | ❌ **still failing** — re-checked 2026-08-04, **0.0496 ETH** (unchanged) | Wave 2 stalls mid-sitting | jay (fund ~0.5 ETH) |
+
+### Status 2026-08-04 — what moved and what is next
+
+G1 is closed, so **wave 1 started**. The LMSR math is landed and property-verified but
+**deliberately not wired in**: `packages/api/src/lmsr.ts` + `scripts/sim-lmsr.ts`, with `mm.ts`
+untouched, so the commit carries zero behavioural risk. Full detail in
+[2026-08-04 history](../history/2026-08-04-verex-history.md).
+
+**Next step, and it needs a decision first.** Wiring LMSR into `mm.ts` requires a Prisma
+migration (`Market.openingCenter` + `Market.lmsrB`, backfilled from `quoteCenter`) and changes
+how a *group* reprices: sibling candidates would move by n-way softmax instead of the current
+proportional rescaling in `requoteAfterFill`. That is a visible change to a live staging book,
+so it wants jay's nod before it lands.
+
+Wave 0's CI/CD half and all of wave 2 remain blocked on G3 and G5 respectively — both are
+jay-side actions, neither has moved.
+
+Unrelated to the batch, the same day's UI work (Docs section + language/theme toggles) is
+recorded in the history file; it touches only `packages/web` and does not interact with any gate.
 
 ### G4 result — UMA is available on Sepolia; Stage 3 stays in the batch (verified 2026-08-03)
 
