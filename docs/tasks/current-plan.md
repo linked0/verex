@@ -303,9 +303,10 @@ itself.
 | G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ passed | — | wave 2 |
 | G5 | **Operator gas** | ✅ **passes under the reduced scope** — 0.1788 ETH vs a revised ~0.1 target | jay | wave 2 |
 
-**All five gates are now closed.** The only outstanding manual step is adding two *variables*
-(not secrets) to the GitHub repo — `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT`; values are in the
-[2026-08-04 history](../history/2026-08-04-verex-history.md).
+**All five gates are now closed, and the WIF chain is complete end to end** — pool, provider,
+service account, roles, impersonation binding, and the `WIF_PROVIDER` / `WIF_SERVICE_ACCOUNT`
+repo variables (cross-checked against the live GCP resources). Nothing consumes it yet: the CD
+workflow itself is the next deliverable.
 
 ### G1 result — Phase B dropped (jay, 2026-08-04)
 
