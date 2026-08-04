@@ -290,34 +290,39 @@ itself.
    centers exist; wave 3's re-seed assumes wave 2's contracts are recorded. → The per-wave gates
    are the mechanism; a wave does not open until the prior wave's gate is green.
 
-## §0 — Gates that must close before wave 0 starts
+## §0 — Gates
 
-| # | Gate | Status | Why it blocks | Owner |
-|---|------|--------|---------------|-------|
-| G1 | **Confirm LMSR** as the curve (sim recommends it; CPMM quotes >$1.00 at the tails) | ✅ **closed** 2026-08-04 — jay's "go ahead with the current plan" | Wave 1's entire Phase A is the LMSR quoting rewrite | jay |
-| G2 | **Confirm Phase B is in scope now** (vs. Phase A being enough for the demo stage) | ⏳ open | Removing it drops wave 2 to just Task 4 and the batch to ~5–7 days | jay |
-| G3 | **WIF pool + service account** in `verex-499205` | ⏳ open | Wave 0's CD workflow can't authenticate without it | jay (one-time) |
-| G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ **passed** | Risk 3 retired — see below | claude |
-| G5 | **Operator gas headroom** for 3 deploys + a fresh seed | ❌ **still failing** — re-checked 2026-08-04, **0.0496 ETH** (unchanged) | Wave 2 stalls mid-sitting | jay (fund ~0.5 ETH) |
+> **Renumbered 2026-08-04 to jay's ordering** — the number is the order a gate must be
+> *decided*, not the order the waves run. G1 gates the last wave but comes first because it
+> decides whether that wave exists at all.
 
-### Status 2026-08-04 — what moved and what is next
+| # | Gate | Status | Owner | Blocks |
+|---|------|--------|-------|--------|
+| G1 | **Phase B in scope now?** (dropping it: 6–9d → 5–7d) | ⏳ **open — the only decision left** | jay | whether wave 2 has an on-chain pool at all |
+| G2 | **WIF pool + service account** (`verex-499205`) | 🟡 **script ready, not run** — `scripts/setup-wif.sh` | jay (run it) | wave 0's CD |
+| G3 | **Confirm LMSR** as the curve | ✅ **closed 2026-08-04** — jay: "full LMSR, group included" | jay | wave 1 |
+| G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ passed | — | wave 2 |
+| G5 | **Operator gas ~0.5 ETH** | ⏳ **funding in progress** (was 0.0496) | jay | wave 2 |
 
-G1 is closed, so **wave 1 started**. The LMSR math is landed and property-verified but
-**deliberately not wired in**: `packages/api/src/lmsr.ts` + `scripts/sim-lmsr.ts`, with `mm.ts`
-untouched, so the commit carries zero behavioural risk. Full detail in
+### Status 2026-08-04
+
+**Wave 1 Phase A is done.** G3 closed, so LMSR is wired into `mm.ts`: quote centres are now
+derived from the operator's net sold inventory instead of following the last traded price, and a
+group's sibling centres come from one n-way softmax so they sum to 1 by construction. Migration
+`20260804043305_lmsr_quote_params` adds `Market.openingCenter` + `Market.lmsrB`. Verified
+end-to-end with synthetic trades in a rolled-back transaction — full numbers in the
 [2026-08-04 history](../history/2026-08-04-verex-history.md).
 
-**Next step, and it needs a decision first.** Wiring LMSR into `mm.ts` requires a Prisma
-migration (`Market.openingCenter` + `Market.lmsrB`, backfilled from `quoteCenter`) and changes
-how a *group* reprices: sibling candidates would move by n-way softmax instead of the current
-proportional rescaling in `requoteAfterFill`. That is a visible change to a live staging book,
-so it wants jay's nod before it lands.
+**Two things to expect at deploy.** The local DB has no trades, so only the softmax is proven
+against real rows, not the inventory path — re-run `scripts/check-lmsr-centers.ts` on staging
+after deploying. And already-traded markets will show a **one-time price jump** as centres
+re-derive from inventory rather than last print. That is the intended switch, not a bug.
 
-Wave 0's CI/CD half and all of wave 2 remain blocked on G3 and G5 respectively — both are
-jay-side actions, neither has moved.
+**G2 is prepared but not run** — `scripts/setup-wif.sh` is idempotent and supports `DRY_RUN=1`;
+executing it is jay's call. Wave 0's CD workflow is still unwritten and comes next once the pool
+exists.
 
-Unrelated to the batch, the same day's UI work (Docs section + language/theme toggles) is
-recorded in the history file; it touches only `packages/web` and does not interact with any gate.
+**Wave 2 waits on G1 and G5.** G1 is now the only open decision.
 
 ### G4 result — UMA is available on Sepolia; Stage 3 stays in the batch (verified 2026-08-03)
 
