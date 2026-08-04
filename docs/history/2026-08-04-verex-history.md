@@ -240,3 +240,29 @@ WIF_SERVICE_ACCOUNT = github-deployer@verex-499205.iam.gserviceaccount.com
 ```
 
 **Next:** the CD workflow itself is still unwritten — the pool exists but nothing uses it yet.
+
+---
+
+### GitHub repo variables registered — WIF wiring complete end to end
+
+**Cause:** jay authorised setting the two GitHub values via `gh` rather than pasting the long
+provider path by hand.
+
+**Reasoning:** Registered as **repository** variables, not environment variables. GitHub's
+"Environment" is a specific feature (deployment targets with protection rules, required
+reviewers, branch restrictions), and none are defined for this repo — the empty
+"Environment variables" box jay saw belongs to a feature that does not exist yet. The WIF values
+are identical for every deploy because there is one GCP project, so repository scope is correct.
+They are *variables*, not *secrets*: both are public identifiers, and neither grants access
+without a GitHub OIDC token whose `repository` claim matches.
+
+**Change:** `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT` set on `linked0/verex`.
+
+**Result:** cross-checked against the live GCP resources rather than trusting the paste — both
+values compared **byte-for-byte equal** to `gcloud ... providers describe --format=value(name)`
+and `service-accounts describe --format=value(email)`. A typo here would not fail now; it would
+fail much later as an opaque auth error inside a workflow run.
+
+**Next:** the CD workflow is still unwritten. Every piece of the auth chain now exists — pool,
+provider, service account, roles, impersonation binding, repo variables — and nothing consumes
+it yet.
