@@ -178,3 +178,28 @@ prove the softmax and the sum, not the inventory path. The inventory path is pro
 synthetic-trade table. Staging has real fills and should be re-checked with
 `check-lmsr-centers.ts` after deploy; expect a **one-time price jump** on already-traded markets
 as centres re-derive from inventory instead of last print.
+
+---
+
+### G1 closed — Phase B dropped, and G5 stopped being a blocker
+
+**Cause:** jay decided "Phase A is enough" after asking what Phase B is actually for.
+
+**Reasoning:** The framing that settled it — every benefit an on-chain pool provides (surviving
+operator downtime, censorship resistance, letting anyone verify the quote) is a benefit of *not
+having to trust the operator*. On Sepolia with test USDC there is no adversary to resist and
+nobody who can lose money, so those guarantees buy nothing yet. Phase B is not wrong, it solves
+a problem this deployment does not have.
+
+**Change:** `current-plan.md` §0 rewritten — G1 closed as NO, G5 re-evaluated. Public docs
+corrected so they do not claim something untrue: `liquidity.ts` now says Phase B is deferred and
+why, and three claims it invalidated were fixed — the lead no longer says Verex "is moving" to
+LMSR (it has), the ladder no longer "requotes around the last traded price" (it reprices from
+inventory), and Verex is described as sitting *between* a pure CLOB and a full hybrid rather
+than being the full hybrid already.
+
+**Result:** the decision **unblocked G5 as a side effect**, which is the practically important
+part. The ~0.5 ETH target existed because wave 2 was three deploys plus a fresh seed; without
+Phase B it is one deploy plus the seed, so ~0.1 ETH is comfortable. The operator now holds
+**0.1788 ETH** (up from 0.0496) — G5 passes and jay can stop faucet-farming. Remaining plan is
+~3–4 days, down from 6–9, and **every gate is closed except G2**, which is one command.

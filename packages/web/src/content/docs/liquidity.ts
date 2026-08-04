@@ -8,7 +8,7 @@ export const liquidity: Doc = {
     en: {
       title: "Liquidity: Hybrid AMM + CLOB",
       summary: "Why an empty order book is the hard problem, why LMSR beats a constant-product curve here, and how the two venues merge.",
-      lead: "A market with no resting orders cannot be traded. This document explains the cold-start problem, the market-structure vocabulary around it, and why Verex is moving its automated liquidity from a constant-product curve to LMSR.",
+      lead: "A market with no resting orders cannot be traded. This document explains the cold-start problem, the market-structure vocabulary around it, and why Verex prices its automated liquidity with LMSR rather than a constant-product curve.",
       sections: [
         {
           id: "cold-start",
@@ -18,7 +18,7 @@ export const liquidity: Doc = {
               p: "A pure order book only works when somebody is already quoting. A brand-new market has nobody: the first trader sees an empty book, the spread is effectively infinite, and there is no price at all. This is the **cold-start** problem, and it is the reason almost no prediction market is a pure order book.",
             },
             {
-              p: "The standard answer is an automated market maker — a formula that will always quote a price, funded once, requiring no counterparty. Verex today approximates this with an operator-run **ladder**: five price levels either side of the current estimate, weighted `[5,4,3,2,1]` so depth thins as you move away from the middle, requoted around the last traded price after each fill.",
+              p: "The standard answer is an automated market maker — a formula that will always quote a price, funded once, requiring no counterparty. Verex today approximates this with an operator-run **ladder**: five price levels either side of the current estimate, weighted `[5,4,3,2,1]` so depth thins as you move away from the middle, repriced after each fill from the operator's own inventory.",
             },
           ],
         },
@@ -40,7 +40,7 @@ export const liquidity: Doc = {
               },
             },
             {
-              p: "Verex's current design is the third. The formula behaves like a tireless dealer that never withdraws its quote, while real users can still post better prices and be matched first.",
+              p: "The third is the target design. Today Verex sits between the second and third: a real order book whose operator quotes are priced by the formula, but with the curve still off-chain (Phase A). The formula behaves like a tireless dealer that never withdraws its quote, while real users can still post better prices and be matched first.",
             },
           ],
         },
@@ -93,7 +93,7 @@ export const liquidity: Doc = {
               p: "Concretely, the change is to the ladder's centre. Today the centre is a stored probability that gets nudged to the last traded price. Under LMSR the centre is computed from the outcome quantities the operator has sold, so it moves *because inventory moved* — the quote responds to actual exposure rather than to the last print.",
             },
             {
-              p: "This is delivered in two phases. **Phase A** is off-chain: LMSR computes the quote centres inside the market maker, and everything else stays as it is. **Phase B** puts an actual pool on-chain so traders can transact directly against the curve even if the off-chain matcher is unavailable.",
+              p: "This was planned in two phases. **Phase A** — LMSR computing the quote centres inside the market maker, with everything else unchanged — is what Verex runs today. **Phase B** would put an actual pool on-chain so traders could transact directly against the curve even if the off-chain matcher were unavailable.",
             },
           ],
         },
@@ -101,6 +101,9 @@ export const liquidity: Doc = {
           id: "routing",
           heading: "How the two venues merge",
           blocks: [
+            {
+              note: "**Phase B is deliberately deferred, so this section describes the design rather than the running system.** Every benefit an on-chain pool provides — surviving operator downtime, resisting censorship, letting anyone verify the quote — is a benefit of *not having to trust the operator*. On a testnet with test USDC there is no adversary to resist and nobody who can lose money, so those guarantees buy nothing yet. They start mattering on mainnet, and that is when this gets built.",
+            },
             {
               p: "Once a curve exists on-chain alongside the book, an incoming order is matched against **combined depth**. The curve is read as a set of virtual resting orders — one at each price tick — and merged into the real book. A large order is then split across whichever side is cheaper at each level.",
             },
@@ -117,7 +120,7 @@ export const liquidity: Doc = {
     ko: {
       title: "유동성: Hybrid AMM + CLOB",
       summary: "빈 호가창이 왜 진짜 어려운 문제인지, 여기서 왜 LMSR이 상수곱 곡선보다 나은지, 두 장(場)이 어떻게 합쳐지는지.",
-      lead: "걸려 있는 주문이 없는 마켓은 거래할 수 없습니다. 이 문서는 콜드 스타트 문제, 그 주변의 시장 구조 용어, 그리고 Verex가 자동 유동성을 상수곱 곡선에서 LMSR로 옮기는 이유를 설명합니다.",
+      lead: "걸려 있는 주문이 없는 마켓은 거래할 수 없습니다. 이 문서는 콜드 스타트 문제, 그 주변의 시장 구조 용어, 그리고 Verex가 자동 유동성의 가격을 상수곱 곡선이 아니라 LMSR로 매기는 이유를 설명합니다.",
       sections: [
         {
           id: "cold-start",
@@ -127,7 +130,7 @@ export const liquidity: Doc = {
               p: "순수 호가창은 누군가 이미 호가를 대고 있을 때만 작동합니다. 갓 만들어진 마켓에는 아무도 없습니다. 첫 트레이더는 빈 호가창을 보고, 스프레드는 사실상 무한대이며, 가격이라는 것이 아예 존재하지 않습니다. 이것이 **콜드 스타트** 문제이고, 순수 호가창 방식의 예측 시장이 거의 없는 이유입니다.",
             },
             {
-              p: "표준 해법은 자동 마켓메이커입니다 — 한 번 자금을 넣으면 상대방 없이도 항상 가격을 제시하는 수식이죠. Verex는 현재 이를 운영자가 운용하는 **사다리(ladder)**로 근사합니다. 현재 추정치 양쪽으로 다섯 개 가격대를 두고 `[5,4,3,2,1]` 가중치로 중앙에서 멀어질수록 잔량을 얇게 하며, 체결이 일어날 때마다 마지막 체결가 근처로 호가를 다시 겁니다.",
+              p: "표준 해법은 자동 마켓메이커입니다 — 한 번 자금을 넣으면 상대방 없이도 항상 가격을 제시하는 수식이죠. Verex는 현재 이를 운영자가 운용하는 **사다리(ladder)**로 근사합니다. 현재 추정치 양쪽으로 다섯 개 가격대를 두고 `[5,4,3,2,1]` 가중치로 중앙에서 멀어질수록 잔량을 얇게 하며, 체결이 일어날 때마다 운영자 자신의 재고를 기준으로 호가를 다시 겁니다.",
             },
           ],
         },
@@ -149,7 +152,7 @@ export const liquidity: Doc = {
               },
             },
             {
-              p: "Verex의 현재 설계는 세 번째입니다. 수식이 호가를 절대 거두지 않는 지치지 않는 딜러처럼 작동하는 동시에, 실제 사용자는 더 좋은 가격을 걸고 먼저 체결될 수 있습니다.",
+              p: "세 번째가 목표 설계입니다. 현재 Verex는 두 번째와 세 번째 사이에 있습니다 — 실제 호가창을 두고 운영자 호가를 수식으로 매기되, 곡선은 아직 오프체인입니다(A단계). 수식이 호가를 절대 거두지 않는 지치지 않는 딜러처럼 작동하는 동시에, 실제 사용자는 더 좋은 가격을 걸고 먼저 체결될 수 있습니다.",
             },
           ],
         },
@@ -202,7 +205,7 @@ export const liquidity: Doc = {
               p: "구체적으로 바뀌는 것은 사다리의 중심입니다. 지금은 중심이 저장된 확률값이고 마지막 체결가 쪽으로 조금씩 밀립니다. LMSR에서는 중심이 운영자가 판매한 결과 수량으로부터 계산되므로, *재고가 움직였기 때문에* 중심이 움직입니다 — 마지막 체결가가 아니라 실제 익스포저에 호가가 반응하는 것입니다.",
             },
             {
-              p: "이는 두 단계로 전달됩니다. **A단계**는 오프체인입니다. LMSR이 마켓메이커 안에서 호가 중심을 계산하고 나머지는 그대로 둡니다. **B단계**는 실제 풀을 온체인에 올려, 오프체인 매처가 죽어 있어도 트레이더가 곡선과 직접 거래할 수 있게 합니다.",
+              p: "원래 두 단계로 계획되었습니다. **A단계** — LMSR이 마켓메이커 안에서 호가 중심을 계산하고 나머지는 그대로 두는 방식 — 가 현재 Verex가 돌리고 있는 것입니다. **B단계**는 실제 풀을 온체인에 올려, 오프체인 매처가 죽어 있어도 트레이더가 곡선과 직접 거래할 수 있게 하는 단계입니다.",
             },
           ],
         },
@@ -210,6 +213,9 @@ export const liquidity: Doc = {
           id: "routing",
           heading: "두 장(場)이 합쳐지는 방식",
           blocks: [
+            {
+              note: "**B단계는 의도적으로 미뤄 두었으므로, 이 절은 현재 돌아가는 시스템이 아니라 설계를 설명합니다.** 온체인 풀이 주는 이점 — 운영자 다운타임을 견디고, 검열에 저항하고, 누구나 호가를 검증할 수 있게 하는 것 — 은 모두 *운영자를 신뢰하지 않아도 되게 하는* 이점입니다. 테스트 USDC로 도는 테스트넷에는 저항할 적대자도, 돈을 잃을 사람도 없으므로 아직 그 보장이 사주는 것이 없습니다. 메인넷에서 의미가 생기고, 그때 만들게 됩니다.",
+            },
             {
               p: "호가창 옆에 온체인 곡선이 생기면, 들어온 주문은 **합산된 잔량**에 대해 체결됩니다. 곡선은 가격 눈금마다 하나씩 걸린 가상의 지정가 주문 집합으로 읽혀 실제 호가창에 병합됩니다. 큰 주문은 각 가격대에서 더 싼 쪽으로 쪼개져 나갑니다.",
             },

@@ -293,36 +293,56 @@ itself.
 ## §0 — Gates
 
 > **Renumbered 2026-08-04 to jay's ordering** — the number is the order a gate must be
-> *decided*, not the order the waves run. G1 gates the last wave but comes first because it
-> decides whether that wave exists at all.
+> *decided*, not the order the waves run.
 
 | # | Gate | Status | Owner | Blocks |
 |---|------|--------|-------|--------|
-| G1 | **Phase B in scope now?** (dropping it: 6–9d → 5–7d) | ⏳ **open — the only decision left** | jay | whether wave 2 has an on-chain pool at all |
+| G1 | **Phase B in scope now?** | ✅ **closed 2026-08-04 — NO.** jay: "Phase A is enough" | jay | — |
 | G2 | **WIF pool + service account** (`verex-499205`) | 🟡 **script ready, not run** — `scripts/setup-wif.sh` | jay (run it) | wave 0's CD |
-| G3 | **Confirm LMSR** as the curve | ✅ **closed 2026-08-04** — jay: "full LMSR, group included" | jay | wave 1 |
+| G3 | **Confirm LMSR** as the curve | ✅ **closed 2026-08-04** — "full LMSR, groups included" | jay | wave 1 |
 | G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ passed | — | wave 2 |
-| G5 | **Operator gas ~0.5 ETH** | ⏳ **funding in progress** (was 0.0496) | jay | wave 2 |
+| G5 | **Operator gas** | ✅ **passes under the reduced scope** — 0.1788 ETH vs a revised ~0.1 target | jay | wave 2 |
+
+**All gates are closed except G2, and G2 is one command jay runs.**
+
+### G1 result — Phase B dropped (jay, 2026-08-04)
+
+Phase A ships; the on-chain pool does not. The reasoning that decided it: every benefit Phase B
+provides — surviving operator downtime, censorship resistance, letting anyone verify the quote —
+is a benefit of *not having to trust the operator*. On Sepolia with test USDC there is no
+adversary to resist and nobody who can lose money, so those guarantees buy nothing yet. They
+become real on mainnet, and that is when to build it.
+
+**Knock-on effect, and it is the useful part: G5 stopped being a blocker.** The ~0.5 ETH target
+existed because wave 2 was three contract deploys plus a fresh seed. Without Phase B, wave 2 is
+**the UMA adapter deploy plus the seed** — one deploy, not three. Against the runbook's ~0.05
+for a re-seed alone, ~0.1 ETH is a comfortable target, and the operator now holds **0.1788 ETH**
+(up from 0.0496). **jay can stop faucet-farming.**
+
+The public docs were updated to match: `packages/web/src/content/docs/liquidity.ts` now states
+that Phase B is deferred and why, and the stale claims it invalidated were corrected — the
+ladder no longer "requotes around the last traded price", and Verex is described honestly as
+sitting between a pure CLOB and a full hybrid rather than being the full hybrid already.
 
 ### Status 2026-08-04
 
-**Wave 1 Phase A is done.** G3 closed, so LMSR is wired into `mm.ts`: quote centres are now
-derived from the operator's net sold inventory instead of following the last traded price, and a
-group's sibling centres come from one n-way softmax so they sum to 1 by construction. Migration
-`20260804043305_lmsr_quote_params` adds `Market.openingCenter` + `Market.lmsrB`. Verified
-end-to-end with synthetic trades in a rolled-back transaction — full numbers in the
-[2026-08-04 history](../history/2026-08-04-verex-history.md).
+**Wave 1 Phase A is done and is now the whole of Task 1.** LMSR is wired into `mm.ts`: quote
+centres derive from the operator's net sold inventory, and a group's sibling centres come from
+one n-way softmax so they sum to 1 by construction. Migration
+`20260804043305_lmsr_quote_params`. Verified end-to-end with synthetic trades in a rolled-back
+transaction — numbers in the [2026-08-04 history](../history/2026-08-04-verex-history.md).
+
+**Revised remaining plan (~3–4 days, down from 6–9):**
+
+1. **Wave 0** — CI/CD. Blocked only on jay running `scripts/setup-wif.sh`; the workflow itself is
+   still unwritten.
+2. **Wave 2** — UMA adapter only. Now unblocked on gas.
+3. **Wave 3** — fresh seed on staging + integration check.
 
 **Two things to expect at deploy.** The local DB has no trades, so only the softmax is proven
-against real rows, not the inventory path — re-run `scripts/check-lmsr-centers.ts` on staging
-after deploying. And already-traded markets will show a **one-time price jump** as centres
-re-derive from inventory rather than last print. That is the intended switch, not a bug.
-
-**G2 is prepared but not run** — `scripts/setup-wif.sh` is idempotent and supports `DRY_RUN=1`;
-executing it is jay's call. Wave 0's CD workflow is still unwritten and comes next once the pool
-exists.
-
-**Wave 2 waits on G1 and G5.** G1 is now the only open decision.
+against real rows, not the inventory path — re-run `scripts/check-lmsr-centers.ts` on staging.
+And already-traded markets will show a **one-time price jump** as centres re-derive from
+inventory rather than last print. Intended, not a bug.
 
 ### G4 result — UMA is available on Sepolia; Stage 3 stays in the batch (verified 2026-08-03)
 
