@@ -103,3 +103,26 @@ exactly `b·ln2` (173.29 USDC at b = 250).
 prices move — sibling candidates would be repriced by n-way softmax instead of today's
 proportional rescaling in `requoteAfterFill`. That is a visible behaviour change on a live
 staging book, so it is left for a focused pass rather than tacked onto this one.
+
+---
+
+### WIF setup script — gate G2 prepared (authoring only, not run)
+
+**Cause:** jay asked for a script rather than a command list for the Workload Identity
+Federation setup. Checked the project first: **no WIF pool, no deployer service account, and no
+`.github/workflows/` directory at all** in `verex-499205` — G2 is genuinely greenfield.
+
+**Reasoning:** WIF exists so no service-account JSON key is ever created or stored in repo
+secrets — a leaked key is permanent, a leaked OIDC token expires in minutes. The security hinge
+is the **attribute condition** (`assertion.repository == 'linked0/verex'`): without it *any*
+GitHub repository could present a valid GitHub OIDC token and impersonate the service account,
+which is exactly the misconfiguration that makes WIF setups dangerous rather than safe. Roles
+are deliberately narrow — no owner/editor anywhere. Written idempotent so a partial run can
+simply be re-run.
+
+**Change:** `scripts/setup-wif.sh`, sourcing `scripts/deploy.env` so project/region cannot drift
+from `deploy.sh`. Supports `DRY_RUN=1`. Prints the two values to add as GitHub Actions
+*variables* (identifiers, not secrets) at the end.
+
+**Result:** `bash -n` clean; `DRY_RUN=1` resolves the real project number (496608424746) and
+prints the full plan. **Not executed** — running it is jay's call, per gate ownership.
