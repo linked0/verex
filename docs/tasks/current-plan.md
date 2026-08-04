@@ -298,12 +298,14 @@ itself.
 | # | Gate | Status | Owner | Blocks |
 |---|------|--------|-------|--------|
 | G1 | **Phase B in scope now?** | ✅ **closed 2026-08-04 — NO.** jay: "Phase A is enough" | jay | — |
-| G2 | **WIF pool + service account** (`verex-499205`) | 🟡 **script ready, not run** — `scripts/setup-wif.sh` | jay (run it) | wave 0's CD |
+| G2 | **WIF pool + service account** (`verex-499205`) | ✅ **closed 2026-08-04** — applied & verified | claude (jay authorised) | wave 0's CD |
 | G3 | **Confirm LMSR** as the curve | ✅ **closed 2026-08-04** — "full LMSR, groups included" | jay | wave 1 |
 | G4 | **UMA `OptimisticOracleV2` on Sepolia** | ✅ passed | — | wave 2 |
 | G5 | **Operator gas** | ✅ **passes under the reduced scope** — 0.1788 ETH vs a revised ~0.1 target | jay | wave 2 |
 
-**All gates are closed except G2, and G2 is one command jay runs.**
+**All five gates are now closed.** The only outstanding manual step is adding two *variables*
+(not secrets) to the GitHub repo — `WIF_PROVIDER` and `WIF_SERVICE_ACCOUNT`; values are in the
+[2026-08-04 history](../history/2026-08-04-verex-history.md).
 
 ### G1 result — Phase B dropped (jay, 2026-08-04)
 
@@ -334,8 +336,8 @@ transaction — numbers in the [2026-08-04 history](../history/2026-08-04-verex-
 
 **Revised remaining plan (~3–4 days, down from 6–9):**
 
-1. **Wave 0** — CI/CD. Blocked only on jay running `scripts/setup-wif.sh`; the workflow itself is
-   still unwritten.
+1. **Wave 0** — CI/CD. WIF is live; the deploy workflow itself is **still unwritten** and is the
+   next thing to build.
 2. **Wave 2** — UMA adapter only. Now unblocked on gas.
 3. **Wave 3** — fresh seed on staging + integration check.
 

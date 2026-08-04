@@ -203,3 +203,40 @@ part. The ~0.5 ETH target existed because wave 2 was three deploys plus a fresh 
 Phase B it is one deploy plus the seed, so ~0.1 ETH is comfortable. The operator now holds
 **0.1788 ETH** (up from 0.0496) — G5 passes and jay can stop faucet-farming. Remaining plan is
 ~3–4 days, down from 6–9, and **every gate is closed except G2**, which is one command.
+
+---
+
+### G2 closed — WIF applied to verex-499205
+
+**Cause:** jay authorised running `scripts/setup-wif.sh` directly.
+
+**Reasoning / what went wrong first:** the first run failed halfway through step 5 with
+`Service account github-deployer@... does not exist` — immediately after step 4 had created it
+successfully. **IAM is eventually consistent:** a service account can be created and still be
+invisible to the policy API for several seconds. Fixed with a `retry` helper rather than a fixed
+`sleep`, since the propagation delay is not a knowable constant: the script now polls
+`describe` until the account is visible (12 × 5s) and retries each binding (6 ×). The partial
+first run cost nothing because the script is idempotent — the re-run skipped the pool, provider
+and account it had already created and resumed at the bindings.
+
+**Change:** `scripts/setup-wif.sh` gained `retry()` and DRY_RUN branches for the two binding
+steps. Applied to `verex-499205`.
+
+**Result:** verified independently of the script's own output —
+
+- provider `github-oidc` **ACTIVE**, issuer `https://token.actions.githubusercontent.com`,
+  attribute condition `assertion.repository == 'linked0/verex'`
+- 7 roles on `github-deployer`: run.admin, iam.serviceAccountUser, artifactregistry.writer,
+  cloudbuild.builds.editor, storage.admin, cloudsql.client, secretmanager.secretAccessor —
+  **no owner/editor anywhere**
+- impersonation restricted to
+  `principalSet://…/workloadIdentityPools/github/attribute.repository/linked0/verex`
+
+**Values jay must add as GitHub Actions *variables*** (identifiers, not secrets):
+
+```
+WIF_PROVIDER        = projects/496608424746/locations/global/workloadIdentityPools/github/providers/github-oidc
+WIF_SERVICE_ACCOUNT = github-deployer@verex-499205.iam.gserviceaccount.com
+```
+
+**Next:** the CD workflow itself is still unwritten — the pool exists but nothing uses it yet.
