@@ -266,3 +266,44 @@ fail much later as an opaque auth error inside a workflow run.
 **Next:** the CD workflow is still unwritten. Every piece of the auth chain now exists — pool,
 provider, service account, roles, impersonation binding, repo variables — and nothing consumes
 it yet.
+
+---
+
+### CD workflow — wave 0 deliverable, the first thing that consumes the WIF chain
+
+**Cause:** every piece of the auth chain existed and nothing used it. This is wave 0's actual
+deliverable.
+
+**Reasoning:** The important decision was **what NOT to put in it.** `scripts/deploy.sh` mixes
+two jobs — provisioning (create the Cloud SQL instance, generate the DB password, create Secret
+Manager entries) and deploying. Only the second is safe to repeat. Re-running provisioning on
+every push is how a password gets rotated mid-deploy, so the workflow deploys and never
+provisions; `deploy.sh` stays the one-time hand-run tool.
+
+**It also never seeds, and that is the single most important property.** `prisma/seed.ts`
+deletes `Trade` / `PricePoint` / `Outcome` / `Market` rows and re-runs on-chain
+`prepareCondition` calls that revert against an already-prepared backbone — the exact trap
+`docs/runbooks/deploy.md` §5/§7/§10 documents as requiring `SKIP_SEED=1`. A CI pipeline that ran
+it would silently destroy live staging data on every deploy. Only `prisma migrate deploy` runs
+here: schema changes, never data.
+
+Smaller choices: `id-token: write` is mandatory (without it GitHub mints no OIDC token and WIF
+cannot work at all — the most common WIF failure); `concurrency` without `cancel-in-progress`,
+because killing a run mid-migration is worse than queueing; the `DATABASE_URL` read from Secret
+Manager is `::add-mask::`-ed before use, since it contains the DB password and would otherwise
+be one `set -x` away from the log; the proxy is polled rather than `sleep`-ed; and a smoke test
+fails the run because a green `gcloud run deploy` only means the revision was *accepted*, not
+that the app works.
+
+**Change:** `.github/workflows/deploy-staging.yml` — checkout → WIF auth → pnpm/node → resolve
+targets → migrate → Cloud Build the API image → deploy API → deploy web → smoke test → summary.
+`workflow_dispatch` only, with a `skip_migrations` input.
+
+**Result:** YAML parses; 13 steps resolve; structural checks confirm `id-token: write`,
+`migrate deploy`, and **no reference to `seed.ts` in any run step**. All five referenced secrets
+verified present in `verex-499205` (`verex-{database-url,rpc-url,operator-key,demo-mnemonic,
+telegram-bot-token}-verex`).
+
+**Not yet run, and it cannot be yet:** `workflow_dispatch` only appears once the workflow exists
+on the **default branch**. It has to reach `main` before jay can trigger it — the first real run
+is also the first true test of the WIF setup.
