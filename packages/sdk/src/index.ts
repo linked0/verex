@@ -39,4 +39,19 @@ export {
   CTFExchangeAbi,
   IConditionalTokensAbi,
   MockUSDCAbi,
+  UmaCtfAdapterAbi,
 } from "./abis";
+
+// UMA oracle adapter — optional per-market resolver (see src/uma.ts).
+export {
+  createUmaAdapterClient,
+  buildAncillaryData,
+  umaQuestionId,
+  umaConditionId,
+  UMA_YES,
+  UMA_NO,
+  UMA_UNRESOLVABLE,
+  UMA_SEPOLIA,
+  type UmaAdapterClient,
+  type UmaQuestion,
+} from "./uma";

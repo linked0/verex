@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
 import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
-import { resolveMarket, resolveGroup, redeemPosition, pendingRedeems } from "./resolve";
+import { resolveMarket, resolveMarketFromUma, resolveGroup, redeemPosition, pendingRedeems } from "./resolve";
 import { startWorker } from "./worker";
 import {
   placeOrder,
@@ -14,6 +14,7 @@ import {
 } from "./book";
 import "./mm"; // wires the after-fill re-quote hook into the book
 import { createMarketGroup, type CreateGroupRequest } from "./group-create";
+import { loadChain } from "./chain";
 import { notifyTelegram } from "./telegram-notify";
 
 const app = Fastify({ logger: true });
@@ -22,6 +23,25 @@ const app = Fastify({ logger: true });
 app.register(cors, { origin: true });
 
 app.get("/health", async () => ({ status: "ok" }));
+
+// What this environment can do. The create page asks before offering the UMA
+// oracle: the adapter is deployed per environment (runbook §2b), so on anvil
+// or on any environment that hasn't run it, the option must not appear at all
+// rather than be offered and then rejected.
+app.get("/config", async () => {
+  try {
+    const chain = await loadChain();
+    return {
+      chainId: chain.chainId,
+      tradingEnabled: chain.chainId !== 0,
+      umaAvailable: Boolean(chain.umaAdapterAddr),
+      umaAdapter: chain.umaAdapterAddr,
+    };
+  } catch {
+    // No ChainConfig row yet (un-seeded DB) — browse-only, nothing on offer.
+    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null };
+  }
+});
 
 // Distinct categories — used by the web nav tabs.
 app.get("/categories", async () => {
@@ -384,6 +404,27 @@ app.post("/markets/:slug/resolve", async (req, reply) => {
     req.log.error(e);
     return reply.status(status).send({
       error: e?.shortMessage ?? e?.message ?? "resolve failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+// Copy UMA's settled answer onto a UMA market. Permissionless on purpose —
+// the adapter's resolve() has no discretion, so requiring the operator here
+// would let an absent operator strand payouts, which is the failure mode UMA
+// exists to remove. 409 means UMA hasn't settled yet, not that anything broke.
+app.post("/markets/:slug/uma-resolve", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const r = await resolveMarketFromUma(slug);
+    const verdict = r.resolvedOutcome ?? "unresolvable (both sides redeem half)";
+    notifyTelegram(`🔮 🏁 Verex — UMA resolved: ${slug} → ${verdict}`);
+    return r;
+  } catch (e: any) {
+    const status = e?.statusCode ?? 500;
+    req.log.error(e);
+    return reply.status(status).send({
+      error: e?.shortMessage ?? e?.message ?? "uma resolve failed",
       detail: revertDetail(e),
     });
   }

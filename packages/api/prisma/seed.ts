@@ -309,6 +309,9 @@ interface Backbone {
   usdc: Address;
   ctf: Address;
   exchange: Address;
+  /// Optional per environment — only set once runbook §2b has been run.
+  /// Absent means markets here can only be operator-resolved.
+  umaAdapter?: Address;
 }
 
 const DEPLOYMENTS_PATH = pathResolve(CONTRACTS_DIR, "deployments.json");
@@ -337,7 +340,12 @@ function manifestBackbone(target: string): Backbone {
       `deployments.json '${target}' is for chain ${entry.chainId}, but VEREX_CHAIN_ID=${CHAIN_ID}`,
     );
   }
-  return { usdc: entry.usdc, ctf: entry.ctf, exchange: entry.exchange };
+  return {
+    usdc: entry.usdc,
+    ctf: entry.ctf,
+    exchange: entry.exchange,
+    umaAdapter: entry.umaAdapter,
+  };
 }
 
 function parseDeployOutput(out: string): Backbone {
@@ -511,6 +519,7 @@ async function main() {
     // a wrong-RPC or stale-manifest mixup fails here in seconds instead of
     // partway through ~32 real transactions.
     for (const [name, addr] of Object.entries(backbone)) {
+      if (!addr) continue; // umaAdapter is optional — absent is a valid state
       const code = await pc.getCode({ address: addr as Address });
       if (!code || code === "0x") {
         throw new Error(
@@ -596,6 +605,9 @@ async function main() {
       ctfAddr: backbone.ctf,
       exchangeAddr: backbone.exchange,
       operator,
+      // Null unless the manifest carries one — the API offers the UMA oracle
+      // at creation only when this is set.
+      umaAdapterAddr: backbone.umaAdapter ?? null,
     },
   });
 

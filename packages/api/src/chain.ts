@@ -30,10 +30,12 @@ import {
   createCTClient,
   createExchangeClient,
   createUsdcClient,
+  createUmaAdapterClient,
   type AccountConfig,
   type Address,
   type CTClient,
   type ExchangeClient,
+  type UmaAdapterClient,
   type UsdcClient,
 } from "@verex/sdk";
 import { prisma } from "./db";
@@ -96,11 +98,19 @@ export interface ChainCtx {
   ctfAddr: Address;
   exchangeAddr: Address;
   operator: Address;
+  /// Null when no UmaCtfAdapter is deployed here — the UMA option is then not
+  /// offered at market creation. True on anvil and on any environment that
+  /// hasn't run runbook §2b.
+  umaAdapterAddr: Address | null;
   publicClient: PublicClient;
   /// Clients bound to a wallet — pass the account index (0 = operator).
   ctAs: (index: number) => CTClient;
   exchangeAs: (index: number) => ExchangeClient;
   usdcAs: (index: number) => UsdcClient;
+  /// Bound to a specific adapter address. Defaults to the environment's, but
+  /// takes an override because a market must resolve through the adapter it
+  /// was CREATED against, which may not be the current one.
+  umaAs: (index: number, adapter?: Address) => UmaAdapterClient;
 }
 
 let cached: ChainCtx | null = null;
@@ -120,7 +130,8 @@ export async function loadChain(): Promise<ChainCtx> {
     cached &&
     cached.usdcAddr === cfg.usdcAddr &&
     cached.ctfAddr === cfg.ctfAddr &&
-    cached.exchangeAddr === cfg.exchangeAddr
+    cached.exchangeAddr === cfg.exchangeAddr &&
+    cached.umaAdapterAddr === (cfg.umaAdapterAddr as Address | null)
   ) {
     return cached;
   }
@@ -145,6 +156,7 @@ export async function loadChain(): Promise<ChainCtx> {
     ctfAddr: cfg.ctfAddr as Address,
     exchangeAddr: cfg.exchangeAddr as Address,
     operator: cfg.operator as Address,
+    umaAdapterAddr: (cfg.umaAdapterAddr as Address | null) ?? null,
     publicClient,
     ctAs: (index) =>
       createCTClient({
@@ -164,6 +176,20 @@ export async function loadChain(): Promise<ChainCtx> {
         publicClient,
         walletClient: makeWalletClient(index),
       }),
+    umaAs: (index, adapter) => {
+      const address = adapter ?? (cfg.umaAdapterAddr as Address | null);
+      if (!address) {
+        throw new Error(
+          "no UmaCtfAdapter is deployed in this environment — see " +
+            "docs/runbooks/deploy.md §2b",
+        );
+      }
+      return createUmaAdapterClient({
+        address,
+        publicClient,
+        walletClient: makeWalletClient(index),
+      });
+    },
   };
   cached = ctx;
   return ctx;

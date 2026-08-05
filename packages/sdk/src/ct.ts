@@ -132,6 +132,24 @@ export async function getPayoutDenominator(
   });
 }
 
+/// One outcome slot's payout numerator. For a binary condition index 0 is Yes
+/// and 1 is No. Reading these back is how a caller learns an answer it did not
+/// choose itself — the UMA path resolves from the oracle's verdict, so the
+/// result has to be read off the chain rather than assumed.
+export async function getPayoutNumerator(
+  publicClient: PublicClient,
+  ct: Address,
+  conditionId: Hex,
+  index: bigint,
+): Promise<bigint> {
+  return publicClient.readContract({
+    address: ct,
+    abi: IConditionalTokensAbi,
+    functionName: "payoutNumerators",
+    args: [conditionId, index],
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // Write helpers
 // ─────────────────────────────────────────────────────────────────────

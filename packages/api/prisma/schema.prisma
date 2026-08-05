@@ -29,6 +29,18 @@ enum GroupStatus {
   CANCELLED
 }
 
+/// Who is entitled to report a market's result on-chain.
+///
+/// This is NOT a setting that can be changed later: a CTF condition's id is
+/// keccak256(oracle, questionId, 2), so the resolver's address is part of the
+/// market's identity. Repointing a live market at a different oracle computes
+/// a different conditionId — a different market, holding none of the original
+/// positions. The choice is made once, at creation, and is permanent.
+enum OracleType {
+  OPERATOR // account #0 calls reportPayouts directly (the default)
+  UMA // UmaCtfAdapter copies whatever UMA's Optimistic Oracle settled
+}
+
 /// A multi-outcome market ("Who wins the World Cup?") — N mutually exclusive
 /// member Markets, each its own binary CTF condition (the CTFExchange registry
 /// is structurally binary, so N-ary trades as N grouped binaries; see
@@ -63,6 +75,12 @@ model ChainConfig {
   ctfAddr      String
   exchangeAddr String
   operator     String // account 0 — oracle, exchange operator, MM inventory
+
+  /// UmaCtfAdapter for this environment, from deployments.json. Null means no
+  /// adapter is deployed here, and the UMA option is not offered at creation —
+  /// which is the correct behaviour on anvil and on any environment that
+  /// hasn't run runbook §2b.
+  umaAdapterAddr String?
 }
 
 /// A binary prediction market backed by an on-chain CTF condition.
@@ -109,6 +127,26 @@ model Market {
   /// LMSR liquidity parameter `b`, in outcome tokens. Larger = tighter, deeper
   /// quotes, bought with a larger worst-case subsidy (bounded at `b·ln n`).
   lmsrB Decimal @default(250) @db.Decimal(20, 6)
+
+  // ── Resolution source. Fixed at creation; see the OracleType comment.
+  oracleType OracleType @default(OPERATOR)
+
+  /// The adapter that owns this market's condition. Recorded per market rather
+  /// than read from config because the deployed adapter can be replaced, and a
+  /// market must keep resolving through the one it was created against.
+  umaAdapter String?
+
+  /// The exact question text sent to UMA. Stored because it is what a voter
+  /// reads and therefore what an operator needs to see when checking a
+  /// proposal — questionId is keccak256 of these bytes, so it is also the
+  /// only way to reconstruct the on-chain identity from the DB.
+  umaAncillaryData String?
+
+  /// Human-readable resolution rules, shown in the UI. For UMA markets this is
+  /// embedded in the ancillary data and is required at creation: without it a
+  /// voter has no basis to decide and the likely settlement is "unresolvable",
+  /// which pays both sides half.
+  resolutionCriteria String?
 
   outcomes    Outcome[]
   trades      Trade[]
