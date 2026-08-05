@@ -65,3 +65,48 @@ is byte-identical to HEAD, and the historical `run-*.json` files have no consume
 their addresses are in the manifest. What was lost is forge's local record of past deploy
 tx hashes, which the chain still holds. Going forward, point fork tests at a throwaway
 `--broadcast` path rather than cleaning up after them.
+
+### UMA becomes a creation-time choice, not a deployment-wide setting
+
+**Cause:** jay — "I want the UMA should be an option in creating a market", on the current
+branch rather than a new one. The adapter could be deployed but nothing could use it: the
+create path hardcoded `prepareCondition(operator, …)`, the schema had no field for another
+resolver, and `resolve` always signed as account #0.
+**Reasoning:** creation is the *only* place the choice can live, and that's forced by the
+data model, not by preference — `conditionId = keccak256(oracle, questionId, 2)` makes the
+resolver part of the market's identity, so there is no later setting to flip, only a
+different market. Validation therefore sits in `createMarketGroup` (before anything is
+spent) rather than in the job. Three constraints are enforced rather than documented:
+UMA rejected when no adapter is deployed here, rejected for multi-outcome groups (N
+independent UMA questions with nothing enforcing one winner), and resolution criteria
+required — that text is the entire basis a voter decides on, and its absence produces
+"unresolvable", which pays both sides half.
+**Change:** `OracleType` enum + four `Market` columns + `ChainConfig.umaAdapterAddr`
+(migration `20260805012808_uma_oracle_option`, additive, no backfill — `OPERATOR` is
+already true of every existing row); `packages/sdk/src/uma.ts` (client, ancillary-data
+builder, id derivation); `market-create.ts` split into `prepareViaOperator` /
+`prepareViaUma`; `resolveMarketFromUma` + `POST /markets/:slug/uma-resolve`; `GET /config`
+so the UI can ask before offering; create-page oracle selector with a conditional criteria
+field.
+**Result:** verified end-to-end against the real Sepolia OptimisticOracleV2 on a fork —
+21 checks including a live `proposePrice`, a real liveness window, and the verdict landing
+in the DB. 53/53 contract tests.
+
+### The `isSettled` pre-check could never have returned true
+
+**Cause:** the fork run failed at the last step: `isSettleable`'s predecessor `isSettled`
+returned false after liveness had passed, so `resolve` was unreachable through the API.
+**Reasoning:** it read `Request.settled`, which means "someone already called
+`settleAndGetPrice`" — false for the entire window in which resolving is *possible*, and
+true only as a side effect of resolving. The right question is the request's **state**:
+`Expired` (liveness passed undisputed) or `Resolved` (a dispute was voted on). Confirmed
+directly against Sepolia's OO: `getState` returned 3 (`Expired`) while `settled` was still
+false.
+**Change:** added `getState` + the `State` enum to `IOptimisticOracleV2`, replaced
+`isSettled` with `isSettleable`, taught the test mock to model the Expired-but-not-settled
+window, and added five `isSettleable` tests covering exactly that gap.
+**Result:** the bug passed 14 green tests because the mock encoded the same
+misunderstanding as the contract — a mock can only confirm its author's beliefs. It took
+one run against the real oracle to expose it, which is the argument for keeping
+`packages/api/scripts/uma-e2e-fork.ts` around rather than treating the unit tests as
+sufficient.

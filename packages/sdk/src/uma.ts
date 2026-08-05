@@ -93,10 +93,13 @@ export interface UmaAdapterClient {
 
   /// Copy UMA's settled answer onto the condition. Permissionless — anyone
   /// may call it, because it has no discretion. Reverts until liveness has
-  /// expired; check `isSettled` first.
+  /// expired; check `isSettleable` first.
   resolve: (questionId: Hex) => Promise<Hex>;
 
-  isSettled: (questionId: Hex) => Promise<boolean>;
+  /// Whether `resolve` would succeed right now. Deliberately NOT "has UMA
+  /// settled": the request's `settled` flag is false for the entire window in
+  /// which resolving is possible, so it is useless as a pre-check.
+  isSettleable: (questionId: Hex) => Promise<boolean>;
   getQuestion: (questionId: Hex) => Promise<UmaQuestion>;
   ctf: () => Promise<Address>;
   oo: () => Promise<Address>;
@@ -158,7 +161,7 @@ export function createUmaAdapterClient(args: {
       return txHash;
     },
 
-    isSettled: (questionId) => read<boolean>("isSettled", [questionId]),
+    isSettleable: (questionId) => read<boolean>("isSettleable", [questionId]),
     getQuestion: (questionId) => read<UmaQuestion>("getQuestion", [questionId]),
     ctf: () => read<Address>("ctf"),
     oo: () => read<Address>("oo"),

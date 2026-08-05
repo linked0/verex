@@ -27,6 +27,8 @@ export type Market = {
   groupLabel?: string | null;
   quoteCenter?: string;
   group?: { slug: string; title: string } | null;
+  oracleType?: OracleType;
+  resolutionCriteria?: string | null;
 };
 
 /// A multi-outcome market: N mutually exclusive member Markets under one
@@ -407,6 +409,8 @@ export async function getBookSnapshot(slug: string, outcome: string): Promise<Bo
   }
 }
 
+export type OracleType = "OPERATOR" | "UMA";
+
 export type CreateGroupBody = {
   title: string;
   category: string;
@@ -416,6 +420,11 @@ export type CreateGroupBody = {
   liquidityPerOutcome: number;
   closesAt: string;
   creatorIndex: number;
+  /// Permanent once created — the resolver's address is part of the market's
+  /// on-chain identity, so there is no later setting to change.
+  oracleType?: OracleType;
+  /// Required when oracleType is "UMA".
+  resolutionCriteria?: string;
 };
 
 export async function postCreateGroup(
@@ -429,6 +438,27 @@ export async function postCreateGroup(
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error ?? "creation failed");
   return data;
+}
+
+/// What this environment supports. The create page asks before offering the
+/// UMA oracle — the adapter is deployed per environment (runbook 2b), so on
+/// anvil the option must not appear at all rather than be offered and refused.
+export type ApiConfig = {
+  chainId: number;
+  tradingEnabled: boolean;
+  umaAvailable: boolean;
+  umaAdapter: string | null;
+};
+
+export async function getConfig(): Promise<ApiConfig> {
+  try {
+    const res = await fetch(`${BROWSER_API}/config`, { cache: "no-store" });
+    if (!res.ok) throw new Error("config unavailable");
+    return await res.json();
+  } catch {
+    // An unreachable API is not a reason to offer an oracle we can't verify.
+    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null };
+  }
 }
 
 export type JobInfo = {

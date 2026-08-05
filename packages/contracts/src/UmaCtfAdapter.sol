@@ -155,11 +155,22 @@ contract UmaCtfAdapter {
         return questions[questionId];
     }
 
-    /// @notice Whether UMA has settled this question yet.
-    function isSettled(bytes32 questionId) external view returns (bool) {
+    /// @notice Whether `resolve` would succeed right now.
+    ///
+    /// @dev Reads the request's STATE, not its `settled` flag. That distinction
+    ///      is not cosmetic: `settled` means "someone already called
+    ///      settleAndGetPrice", so it is false for the entire window in which
+    ///      resolving is possible and only flips as a side effect of resolving.
+    ///      Gating on it would make `resolve` permanently unreachable.
+    ///
+    ///      Expired = liveness passed undisputed. Resolved = a dispute went to
+    ///      UMA's DVM and was voted on. Both carry an answer; nothing else does.
+    function isSettleable(bytes32 questionId) external view returns (bool) {
         Question storage q = questions[questionId];
-        if (q.requestTimestamp == 0) return false;
-        return oo.getRequest(address(this), YES_OR_NO_QUERY, q.requestTimestamp, q.ancillaryData).settled;
+        if (q.requestTimestamp == 0 || q.resolved) return false;
+        IOptimisticOracleV2.State state =
+            oo.getState(address(this), YES_OR_NO_QUERY, q.requestTimestamp, q.ancillaryData);
+        return state == IOptimisticOracleV2.State.Expired || state == IOptimisticOracleV2.State.Resolved;
     }
 
     /// @dev CTF payout vector for a binary condition, index 0 = YES, 1 = NO.
