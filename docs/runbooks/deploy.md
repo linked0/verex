@@ -157,8 +157,15 @@ review the diff and commit it.
 
 ### Per-market lifecycle
 
-Deploying the adapter creates no market. Each question is a separate `initialize` call,
-and it is admin-only because it spends the reward budget:
+Deploying the adapter creates no market. In the app, markets choose their resolver on the
+create page (**Resolution source → UMA oracle**), which is the only place the choice can
+be made — see the note above about it being permanent. The option only appears when this
+environment has an adapter recorded, and it is restricted to binary Yes/No markets: each
+member of a multi-outcome group would be an independent UMA question with nothing
+enforcing a single winner across them.
+
+Under the hood each question is a separate `initialize` call, admin-only because it
+spends the reward budget:
 
 1. **Write the ancillary data.** This is the entire text a UMA voter reads, so it must
    carry its own resolution criteria — a bare question with no rules is how a market
@@ -181,8 +188,17 @@ and it is admin-only because it spends the reward budget:
    only copies what UMA settled. If it required the operator, an absent operator could
    strand every payout, which is the failure mode UMA is here to remove. It reverts
    until liveness expires; that revert comes from `settleAndGetPrice`, not the adapter.
-   Check readiness first with `isSettled(questionId)`.
+   Check readiness first with **`isSettleable(questionId)`** — not the request's
+   `settled` flag, which stays false for the whole window in which resolving is
+   possible and only flips as a side effect of resolving.
 7. Winners redeem through the CTF as usual — nothing about redemption changes.
+
+In the app this is `POST /markets/:slug/uma-resolve`, which does steps 6–7's bookkeeping:
+it refuses with **409** while UMA hasn't settled, and on success reads the payout vector
+back off the CTF rather than assuming it. The operator-only `POST /markets/:slug/resolve`
+refuses UMA markets outright — an operator `reportPayouts` on an adapter-owned condition
+does not revert, it silently reports on a *different* condition, which would leave the
+real one unresolved forever.
 
 `resolve` reverts with `UnsupportedPrice` on anything other than those three values.
 That is deliberate: coercing an unexpected number would resolve a market on a value

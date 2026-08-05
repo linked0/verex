@@ -10,10 +10,18 @@ import {UmaCtfAdapter} from "../src/UmaCtfAdapter.sol";
 import {IOptimisticOracleV2} from "../src/interfaces/IOptimisticOracleV2.sol";
 
 /// @notice Stand-in for UMA's OptimisticOracleV2.
-/// @dev Reproduces the two behaviours the adapter actually depends on: a request
-///      cannot be settled before liveness expires, and a settled request returns
-///      the proposed price. Everything else (bonds moving, disputes escalating to
-///      the DVM) is UMA's business, not the adapter's.
+/// @dev Reproduces the behaviours the adapter actually depends on: a request
+///      cannot be settled before liveness expires, a settled request returns the
+///      proposed price, and `getState` reports Expired during the window in
+///      which settling is possible while `settled` is still false. That last
+///      one is modelled deliberately — an earlier version of this mock let
+///      `settled` stand in for "ready", which made isSettled() look usable as a
+///      pre-check when against the real oracle it can never be true before
+///      resolving. Verified against Sepolia's OO (state 3 = Expired, settled
+///      false) in packages/api/scripts/uma-e2e-fork.ts.
+///
+///      Everything else (bonds moving, disputes escalating to the DVM) is
+///      UMA's business, not the adapter's.
 contract MockOptimisticOracleV2 {
     uint256 public constant DEFAULT_LIVENESS = 7200;
 
@@ -113,6 +121,19 @@ contract MockOptimisticOracleV2 {
         out.bond = r.bond;
         out.currency = r.currency;
         out.reward = r.reward;
+    }
+
+    function getState(address requester, bytes32 identifier, uint256 timestamp, bytes memory ancillaryData)
+        external
+        view
+        returns (IOptimisticOracleV2.State)
+    {
+        Req storage r = reqs[_key(requester, identifier, timestamp, ancillaryData)];
+        if (!r.requested) return IOptimisticOracleV2.State.Invalid;
+        if (r.settled) return IOptimisticOracleV2.State.Settled;
+        if (r.expirationTime == type(uint256).max) return IOptimisticOracleV2.State.Requested;
+        if (block.timestamp < r.expirationTime) return IOptimisticOracleV2.State.Proposed;
+        return IOptimisticOracleV2.State.Expired;
     }
 }
 
@@ -247,6 +268,49 @@ contract UmaCtfAdapterTest is Test {
 
         vm.expectRevert(UmaCtfAdapter.AlreadyResolved.selector);
         adapter.resolve(questionId);
+    }
+
+    // ── isSettleable ────────────────────────────────────────────────────
+    //
+    // These exist because the first version of this check read the request's
+    // `settled` flag instead of its state. Against the real oracle that flag is
+    // false for the entire window in which resolving is possible and only flips
+    // as a side effect of resolving — so gating on it made resolve unreachable.
+    // The bug survived a green mock and was caught only against Sepolia's live
+    // OO. The assertions below are the ones that would have caught it here.
+
+    function test_IsSettleableFalseBeforeAProposal() public {
+        vm.prank(admin);
+        (bytes32 questionId,) = adapter.initialize(ancillary, address(weth), 0, 1 ether, 60);
+        assertFalse(adapter.isSettleable(questionId), "nothing proposed yet");
+    }
+
+    function test_IsSettleableFalseDuringLiveness() public {
+        bytes32 questionId = _initAndPropose(YES, 60);
+        vm.warp(block.timestamp + 30);
+        assertFalse(adapter.isSettleable(questionId), "challenge window still open");
+    }
+
+    /// The regression: true AFTER liveness but BEFORE anyone resolves. This is
+    /// exactly the window `settled` reports as false.
+    function test_IsSettleableTrueAfterLivenessBeforeResolve() public {
+        bytes32 questionId = _initAndPropose(YES, 60);
+        vm.warp(block.timestamp + 61);
+
+        assertTrue(adapter.isSettleable(questionId), "expired and undisputed = ready");
+        // And it must agree with reality: resolve succeeds from this state.
+        adapter.resolve(questionId);
+    }
+
+    function test_IsSettleableFalseOnceResolved() public {
+        bytes32 questionId = _initAndPropose(YES, 60);
+        vm.warp(block.timestamp + 61);
+        adapter.resolve(questionId);
+        assertFalse(adapter.isSettleable(questionId), "already copied on-chain");
+    }
+
+    function test_IsSettleableFalseForUnknownQuestion() public view {
+        assertFalse(adapter.isSettleable(keccak256("never initialized")), "unknown question");
     }
 
     function test_ResolveUninitializedReverts() public {

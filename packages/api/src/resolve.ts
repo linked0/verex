@@ -157,7 +157,7 @@ export async function resolveMarketFromUma(slug: string): Promise<UmaResolveResu
   let txHash: string | null = null;
   const alreadyReported = (await ct.getPayoutDenominator(market.conditionId as Hex)) > 0n;
   if (!alreadyReported) {
-    if (!(await adapter.isSettled(questionId))) {
+    if (!(await adapter.isSettleable(questionId))) {
       throw httpError(
         "UMA hasn't settled this question yet — an answer must be proposed and " +
           "its challenge window must expire before the result can be copied on-chain",

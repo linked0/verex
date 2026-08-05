@@ -170,15 +170,18 @@ CTF_ADDR=$(node -p "require('./deployments.json').staging.ctf") \
 pnpm --filter @verex/api save-uma-adapter staging   # checks, then records it
 ```
 
-Two things worth knowing before you run it:
+Once it's recorded, the create page offers **Resolution source → UMA oracle** alongside
+the default operator. Three things worth knowing:
 
 - **The choice is per market and permanent.** A CTF condition's id hashes the resolver's
   address, so a live market can never be moved to a different oracle — pointing at one
-  computes a different market entirely. Deploy the adapter *before* creating any market
-  that should use it.
-- **Deploying the adapter creates no market.** Each question is its own admin-only
-  `initialize` call, with its own reward, bond, and liveness — and if the reward is
-  non-zero the *adapter* must hold the reward token, not you.
+  computes a different market entirely. That's why it's a creation-time choice with no
+  edit screen, and why the adapter must exist *before* any market that uses it.
+- **Binary markets only.** Each member of a multi-outcome group would be an independent
+  UMA question, with nothing enforcing that exactly one settles Yes.
+- **Resolution criteria are required.** With UMA the question text *is* the market's
+  on-chain identity and the entire basis a voter decides on. A question with no explicit
+  rules is likely to settle *unresolvable*, which pays both sides half.
 
 Full procedure, including the propose → wait → resolve lifecycle and the reward-token
 whitelist gotcha: [docs/runbooks/deploy.md §2b](docs/runbooks/deploy.md).
