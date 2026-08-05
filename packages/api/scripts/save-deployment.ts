@@ -69,14 +69,40 @@ function addr(name: string): string {
   return v;
 }
 
-const entry = { chainId, usdc: addr("usdc"), ctf: addr("ctf"), exchange: addr("exchange") };
+const entry: Record<string, unknown> = {
+  chainId,
+  usdc: addr("usdc"),
+  ctf: addr("ctf"),
+  exchange: addr("exchange"),
+};
 
-let manifest: Record<string, unknown> = {};
+let manifest: Record<string, Record<string, unknown>> = {};
 try {
   manifest = JSON.parse(readFileSync(DEPLOYMENTS_PATH, "utf8"));
 } catch {
   // first entry ever — start a fresh manifest
 }
+
+// The UMA adapter is written by a different script (save-uma-adapter.ts) into
+// this same entry, so a plain overwrite here would silently erase it. Whether
+// it survives depends on the CTF: the adapter's constructor binds it to one
+// ConditionalTokens, so it only remains valid if this deploy landed on the same
+// one. A new CTF makes the recorded adapter meaningless — drop it loudly rather
+// than carry an address that now points into a different backbone.
+const prior = manifest[target];
+if (prior?.umaAdapter) {
+  if (prior.ctf === entry.ctf) {
+    entry.umaAdapter = prior.umaAdapter;
+    entry.umaOracle = prior.umaOracle;
+  } else {
+    console.warn(
+      `! dropping umaAdapter ${prior.umaAdapter} — it is bound to the previous ` +
+        `ConditionalTokens (${prior.ctf}), not the one just deployed (${entry.ctf}).\n` +
+        `  Redeploy it: forge script script/DeployUmaAdapter.s.sol … then save-uma-adapter ${target}.`,
+    );
+  }
+}
+
 manifest[target] = entry;
 writeFileSync(DEPLOYMENTS_PATH, `${JSON.stringify(manifest, null, 2)}\n`);
 

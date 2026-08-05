@@ -104,6 +104,90 @@ from the broadcast artifact (no copy-paste). **Review the diff and commit it** �
 committed manifest, not any `.env` file, is what the seed uses (addresses are public
 on-chain data; git history doubles as the audit trail).
 
+## 2b. Optional: the UMA oracle adapter
+
+Skip this entirely if the environment resolves markets from the operator key. It is
+only needed for markets whose result should come from UMA's Optimistic Oracle instead
+of from you.
+
+**Deploy it before creating any market that uses it, and understand that the choice is
+permanent per market.** A CTF condition's id is `keccak256(oracle, questionId, 2)`, so
+the resolver's address is part of the market's identity. A market cannot be repointed
+at a different oracle later — doing so computes a different `conditionId`, i.e. a
+different market holding none of the original positions.
+
+```bash
+cd packages/contracts
+# CTF_ADDR is this target's `ctf` from deployments.json (§2)
+CTF_ADDR=$(node -p "require('./deployments.json').<target>.ctf") \
+  forge script script/DeployUmaAdapter.s.sol --rpc-url $VEREX_RPC_URL --broadcast
+```
+
+The script refuses to deploy against a bad configuration rather than wasting the gas:
+it requires code at `CTF_ADDR`, requires the oracle to answer `defaultLiveness()` (so a
+wrong address can't pass as an oracle), and requires `UMA_OO_ADDR` to be set explicitly
+on any chain other than Sepolia, whose address it defaults to. Deploy costs ~0.003 ETH
+at 2 gwei.
+
+| Env var | | |
+|---|---|---|
+| `VEREX_OPERATOR_KEY` | required | deployer, and the adapter's default admin |
+| `CTF_ADDR` | required | this target's ConditionalTokens |
+| `UMA_OO_ADDR` | optional | defaults to Sepolia's `0x9f1263B8f0355673619168b5B8c0248f1d03e88C` |
+| `UMA_ADAPTER_ADMIN` | optional | defaults to the deployer |
+
+Then — **immediately, same sitting**, for the same reason as §2 — record it:
+
+```bash
+pnpm --filter @verex/api save-uma-adapter <target>
+```
+
+That one command both checks and writes (there is no separate `check-uma-adapter`): it
+verifies the broadcast's deployer is `$VEREX_OPERATOR_KEY`, that the address isn't
+already recorded under the *other* target, that `adapter.ctf()` matches this target's
+recorded CTF, and that the operator is `admin()` — only admin can initialize questions,
+so an adapter admin'd by a key you don't hold is unusable. It refuses to replace an
+existing `umaAdapter` without `--force`, because the new address cannot inherit the old
+one's markets. On success it adds `umaAdapter` and `umaOracle` to the target's entry;
+review the diff and commit it.
+
+> Redeploying the backbone (§2) invalidates the adapter — it is bound to one CTF by its
+> constructor. `save-deployment` detects this: it keeps `umaAdapter` when the CTF is
+> unchanged and drops it with a warning when it isn't. If it drops, redeploy the adapter.
+
+### Per-market lifecycle
+
+Deploying the adapter creates no market. Each question is a separate `initialize` call,
+and it is admin-only because it spends the reward budget:
+
+1. **Write the ancillary data.** This is the entire text a UMA voter reads, so it must
+   carry its own resolution criteria — a bare question with no rules is how a market
+   ends up settled "unresolvable" (`0.5e18`), which pays both sides half.
+2. **Choose the reward token.** It must be on UMA's `AddressWhitelist`
+   (`0xE8DE4bcE27f6214dcE18D8a7629f233C66A97B84`). **Verex's MockUSDC is not.** Sepolia
+   WETH (`0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9`) is, and is self-service via
+   `deposit()`.
+3. **Fund the adapter, not yourself, if `reward > 0`** — `requestPrice` pulls the reward
+   from the caller, and the caller is the adapter. Skipping this is the most likely way
+   for `initialize` to revert. `reward = 0` is fine on a testnet, but then nobody is
+   paid to propose an answer, so you must propose it yourself.
+4. **Call `initialize(ancillaryData, rewardToken, reward, bond, liveness)`.** `bond` is
+   the security parameter — it must exceed what a liar could earn from the market.
+   `liveness = 0` keeps UMA's 7200s default; shorten it only for demos.
+5. **Propose the answer** on the OO (`proposePrice`), posting `finalFee + bond` in the
+   reward token. `1e18` = YES, `0` = NO, `0.5e18` = unresolvable.
+6. **Wait out liveness**, then call `resolve(questionId)` on the adapter. This is
+   **permissionless** by design — anyone can call it, because it has no discretion, it
+   only copies what UMA settled. If it required the operator, an absent operator could
+   strand every payout, which is the failure mode UMA is here to remove. It reverts
+   until liveness expires; that revert comes from `settleAndGetPrice`, not the adapter.
+   Check readiness first with `isSettled(questionId)`.
+7. Winners redeem through the CTF as usual — nothing about redemption changes.
+
+`resolve` reverts with `UnsupportedPrice` on anything other than those three values.
+That is deliberate: coercing an unexpected number would resolve a market on a value
+nobody voted for.
+
 ## 3. Demo mnemonic: generate, store, fund
 
 Each environment gets a **fresh** mnemonic (shared mnemonic = shared demo wallets =
