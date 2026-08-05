@@ -81,6 +81,18 @@ export async function resolveMarket(req: ResolveRequest): Promise<ResolveResult>
   if (market.groupId) {
     throw httpError("this market belongs to a group — resolve the group with its winner instead", 400);
   }
+  // A UMA market's condition is owned by the adapter, not the operator. A
+  // reportPayouts from the operator here would NOT fail loudly — the CTF
+  // derives the condition from msg.sender, so it would silently report on a
+  // different condition that holds none of this market's positions, leaving
+  // the real one unresolved forever. Refuse instead.
+  if (market.oracleType === "UMA") {
+    throw httpError(
+      "this market resolves through UMA — its result can't be chosen. Use " +
+        "POST /markets/:slug/uma-resolve once UMA has settled the question",
+      400,
+    );
+  }
 
   await prisma.$transaction(async (tx) => {
     await resolveMarketRows(tx, market, req.outcome);
@@ -97,6 +109,98 @@ export async function resolveMarket(req: ResolveRequest): Promise<ResolveResult>
   };
   const jobId = await enqueueJob("RESOLVE", payload);
   return { jobId, slug: market.slug, resolvedOutcome: req.outcome, settlement: "PENDING" };
+}
+
+export interface UmaResolveResult {
+  slug: string;
+  /// null when UMA settled "unresolvable" — both sides redeem half, so there
+  /// is no winning outcome to record.
+  resolvedOutcome: "Yes" | "No" | null;
+  payouts: [number, number];
+  txHash: string | null; // null when the condition was already reported
+}
+
+/// Resolve a UMA market by copying whatever UMA settled.
+///
+/// The control flow is deliberately the OPPOSITE of the operator path. There,
+/// the DB flips first and the chain follows behind a job, because the operator
+/// already knows the answer it is about to report. Here nobody knows it until
+/// UMA settles — so the chain leads, and the DB copies the result back. Doing
+/// it the other way round would mean guessing a verdict and correcting the UI
+/// afterwards if the guess was wrong.
+///
+/// Unlike operator resolution this is NOT restricted to account 0: the adapter
+/// makes `resolve` permissionless on purpose, since it has no discretion. An
+/// absent operator must not be able to strand payouts — that is the failure
+/// mode UMA is here to remove.
+export async function resolveMarketFromUma(slug: string): Promise<UmaResolveResult> {
+  const chain = await loadChain();
+  if (chain.chainId === 0) throw httpError("resolution is disabled in this environment", 400);
+
+  const market = await prisma.market.findUnique({
+    where: { slug },
+    include: { outcomes: true },
+  });
+  if (!market) throw httpError("market not found", 404);
+  if (market.oracleType !== "UMA") {
+    throw httpError("this market is operator-resolved — use POST /markets/:slug/resolve", 400);
+  }
+  if (market.status !== "OPEN") throw httpError("market is already resolved", 400);
+  if (!market.umaAdapter) throw httpError("market has no adapter recorded", 500);
+
+  // Bound to the adapter the market was CREATED against, not the environment's
+  // current one — a replaced adapter still owns its old markets' conditions.
+  const adapter = chain.umaAs(0, market.umaAdapter as Address);
+  const ct = chain.ctAs(0);
+  const questionId = market.questionId as Hex;
+
+  let txHash: string | null = null;
+  const alreadyReported = (await ct.getPayoutDenominator(market.conditionId as Hex)) > 0n;
+  if (!alreadyReported) {
+    if (!(await adapter.isSettled(questionId))) {
+      throw httpError(
+        "UMA hasn't settled this question yet — an answer must be proposed and " +
+          "its challenge window must expire before the result can be copied on-chain",
+        409,
+      );
+    }
+    txHash = await adapter.resolve(questionId);
+  }
+
+  // Read the verdict off the chain rather than trusting what we expected it to
+  // be. This is the whole point of the UMA path.
+  const [yesNum, noNum] = await Promise.all([
+    ct.getPayoutNumerator(market.conditionId as Hex, 0n),
+    ct.getPayoutNumerator(market.conditionId as Hex, 1n),
+  ]);
+  const payouts: [number, number] = [Number(yesNum), Number(noNum)];
+
+  // [1,1] is UMA's "unresolvable" — both sides redeem half. There is no
+  // winner, so prices settle at 0.5 rather than 1/0 and no resolvedOutcomeId
+  // is written.
+  const isSplit = payouts[0] === payouts[1];
+  const winnerLabel: "Yes" | "No" | null = isSplit ? null : payouts[0] > payouts[1] ? "Yes" : "No";
+
+  await prisma.$transaction(async (tx) => {
+    if (winnerLabel) {
+      await resolveMarketRows(tx, market, winnerLabel);
+    } else {
+      await tx.market.update({
+        where: { id: market.id },
+        data: { status: "RESOLVED", resolvedOutcomeId: null, quoteCenter: 0.5 },
+      });
+      for (const o of market.outcomes) {
+        await tx.outcome.update({ where: { id: o.id }, data: { price: 0.5 } });
+      }
+      await tx.order.updateMany({
+        where: { marketId: market.id, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
+        data: { status: "CANCELLED" },
+      });
+      await tx.pricePoint.create({ data: { marketId: market.id, price: 0.5 } });
+    }
+  });
+
+  return { slug: market.slug, resolvedOutcome: winnerLabel, payouts, txHash };
 }
 
 export interface ResolveGroupRequest {
