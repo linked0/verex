@@ -13,6 +13,7 @@
     "seed": "tsx prisma/seed.ts",
     "check-deployment": "tsx scripts/check-deployment.ts",
     "save-deployment": "tsx scripts/save-deployment.ts",
+    "save-uma-adapter": "tsx scripts/save-uma-adapter.ts",
     "db:reset": "prisma migrate reset --force --skip-seed && tsx prisma/seed.ts"
   },
   "prisma": {

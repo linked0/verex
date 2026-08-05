@@ -155,6 +155,34 @@ To go live on a real testnet, see
 [docs/runbooks/deploy.md](docs/runbooks/deploy.md) — one parameterized runbook for
 both the staging and production environments.
 
+### UMA oracle adapter (optional)
+
+By default the operator key reports each market's result. `UmaCtfAdapter` moves that
+decision to UMA's Optimistic Oracle instead, so payouts don't depend on the operator
+being present or honest. It is deployed separately from the backbone, per environment:
+
+```bash
+cd packages/contracts
+set -a; source .env; set +a                      # or .env.prod
+CTF_ADDR=$(node -p "require('./deployments.json').staging.ctf") \
+  forge script script/DeployUmaAdapter.s.sol --rpc-url $VEREX_RPC_URL --broadcast
+
+pnpm --filter @verex/api save-uma-adapter staging   # checks, then records it
+```
+
+Two things worth knowing before you run it:
+
+- **The choice is per market and permanent.** A CTF condition's id hashes the resolver's
+  address, so a live market can never be moved to a different oracle — pointing at one
+  computes a different market entirely. Deploy the adapter *before* creating any market
+  that should use it.
+- **Deploying the adapter creates no market.** Each question is its own admin-only
+  `initialize` call, with its own reward, bond, and liveness — and if the reward is
+  non-zero the *adapter* must hold the reward token, not you.
+
+Full procedure, including the propose → wait → resolve lifecycle and the reward-token
+whitelist gotcha: [docs/runbooks/deploy.md §2b](docs/runbooks/deploy.md).
+
 ### CLI demo (end-to-end on anvil)
 
 `packages/cli` ships a one-shot demo that deploys the CTF backbone and runs a full
