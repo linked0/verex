@@ -26,8 +26,11 @@ import {
   createCTClient,
   createExchangeClient,
   createUsdcClient,
+  createUmaAdapterClient,
+  UMA_SEPOLIA,
   type Address,
   type Hex,
+  type UmaAdapterClient,
 } from "@verex/sdk";
 import {
   accountAddress,
@@ -74,6 +77,39 @@ const INVENTORY_PER_MEMBER = parseUnits("2000", 6); // 2,000 USDC
 const OPERATOR_USDC_BUFFER = parseUnits("100000", 6); // 100,000 USDC
 /// Starting balance for demo wallets #1-5 (matches AUTO_FAUCET_USDC in src/trade.ts).
 const DEMO_WALLET_USDC = parseUnits("1000", 6); // 1,000 USDC
+
+// ── The one UMA-resolved seed market (see §4b).
+//
+// Seeded only where deployments.json carries a `umaAdapter`. It exists so a
+// fresh environment has something to exercise the propose → wait → resolve
+// path against without anyone hand-crafting a market first — that lifecycle is
+// the "≥1 market per adapter" milestone in docs/tasks/current-plan.md.
+/// Matches src/group-create.ts's UMA_BOND. Nominal for a testnet: enough that a
+/// careless proposal costs something, nowhere near a real security parameter.
+const UMA_SEED_BOND = parseUnits("0.01", 18); // WETH, 18dp
+/// 1 hour instead of UMA's 7200s default, so the demo's challenge window is
+/// something a person will actually sit through.
+const UMA_SEED_LIVENESS = 3600n;
+const UMA_SEED = {
+  slug: "uma-eth-above-6k-2026",
+  title: "Will ETH close above $6,000 in 2026? (UMA-resolved)",
+  description:
+    "Settled by UMA's Optimistic Oracle rather than the Verex operator — anyone can finalise it once the challenge window closes.",
+  category: "Crypto",
+  imageUrl:
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSd4Wb7L9skxMOIaWTrmMY2jjMsBjnnXCzc1yJO92bBzUetn3WbS_XL278r&s=10",
+  yesPrice: 0.62,
+  displayVolume: 880_000,
+  closesAt: "2026-12-31T23:59:59Z",
+  // Deliberately over-specified. This text is the entire basis a UMA voter
+  // decides on; a vaguer question is how a market settles "unresolvable",
+  // which pays both sides half.
+  resolutionCriteria:
+    "Resolves YES if the daily close of ETH/USD on Coinbase (ETH-USD spot, 00:00 UTC daily close) " +
+    "is strictly greater than 6000.00 USD on any calendar day in 2026 (UTC). Resolves NO if no such " +
+    "day occurs before 2027-01-01T00:00:00Z. If Coinbase ETH-USD is unavailable for a given day, use " +
+    "the Kraken ETH/USD daily close for that day instead.",
+};
 
 type SeedMarket = {
   slug: string;
@@ -551,6 +587,16 @@ async function main() {
   const ct = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: operatorWallet });
   const exchange = createExchangeClient({ address: backbone.exchange, publicClient: pc, walletClient: operatorWallet });
   const usdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: operatorWallet });
+  // Null unless this environment has an adapter — every UMA branch below keys
+  // off this rather than off the address, so "no adapter" degrades to a normal
+  // operator-only seed instead of an error.
+  const umaAdapterClient: UmaAdapterClient | null = backbone.umaAdapter
+    ? createUmaAdapterClient({
+        address: backbone.umaAdapter,
+        publicClient: pc,
+        walletClient: operatorWallet,
+      })
+    : null;
 
   // 2. One-time exchange setup for the operator
   console.log("[2] operator setup (allowlist + approvals + USDC buffer)...");
@@ -627,7 +673,11 @@ async function main() {
     groupId?: string;
     groupLabel?: string;
     sortOrder?: number;
+    /// Resolve this one through UMA instead of the operator. Only honoured
+    /// when the manifest carries an adapter — see UMA_SEED below.
+    uma?: { resolutionCriteria: string };
   }) => {
+    const useUma = Boolean(args.uma && umaAdapterClient);
     const onchain = await createBinaryMarketOnChain({
       ct,
       exchange,
@@ -635,6 +685,21 @@ async function main() {
       operator,
       questionKey: `verex:${args.slug}`,
       inventoryE6: args.inventoryE6,
+      uma: useUma
+        ? {
+            adapter: umaAdapterClient!,
+            title: args.title,
+            resolutionCriteria: args.uma!.resolutionCriteria,
+            closesAt: new Date(args.closesAt),
+            rewardToken: UMA_SEPOLIA.weth,
+            // reward 0: a non-zero reward would have to be held by the ADAPTER
+            // before initialize, so a seeded market can't pay one without a
+            // funding step the seed has no business performing.
+            reward: 0n,
+            bond: UMA_SEED_BOND,
+            liveness: UMA_SEED_LIVENESS,
+          }
+        : undefined,
     });
     const market = await prisma.market.create({
       data: {
@@ -653,6 +718,10 @@ async function main() {
         groupLabel: args.groupLabel,
         sortOrder: args.sortOrder ?? 0,
         quoteCenter: args.yesPrice,
+        oracleType: useUma ? "UMA" : "OPERATOR",
+        umaAdapter: useUma ? backbone.umaAdapter : null,
+        umaAncillaryData: onchain.ancillaryData ?? null,
+        resolutionCriteria: args.uma?.resolutionCriteria ?? null,
         outcomes: {
           create: [
             { label: "Yes", price: args.yesPrice, tokenId: onchain.yesTokenId, sortOrder: 0 },
@@ -675,6 +744,21 @@ async function main() {
   for (const m of MARKETS) {
     console.log(`[4] ${m.slug}`);
     await seedOneMarket({ ...m, inventoryE6: INVENTORY_PER_MARKET });
+  }
+
+  // 4b. One UMA-resolved market, but only where an adapter exists. Skipped
+  // silently on anvil and on any environment that hasn't run the UMA runbook —
+  // the alternative (failing the whole seed) would make the adapter a hard
+  // dependency of seeding, which it isn't.
+  if (umaAdapterClient) {
+    console.log(`[4b] ${UMA_SEED.slug} (UMA-resolved)`);
+    await seedOneMarket({
+      ...UMA_SEED,
+      inventoryE6: INVENTORY_PER_MARKET,
+      uma: { resolutionCriteria: UMA_SEED.resolutionCriteria },
+    });
+  } else {
+    console.log("[4b] no UMA adapter in the manifest — skipping the UMA-resolved market");
   }
 
   // 5. Multi-outcome groups: one binary CTF market per outcome + the DB
