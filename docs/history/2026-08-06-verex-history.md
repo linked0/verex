@@ -222,3 +222,22 @@ extracted from `SiteNav` into a shared `VerexMark` and rendered via a new opt-in
 **Result:** build clean. The mark's meaning is written down for the first time — a ring
 quartered into two opposing pairs, Yes and No inside one circle, the ring being the
 constraint that a question's outcome prices always sum to $1.
+
+### Scroll-spy froze near the end of a document
+
+**Cause:** jay, with a screenshot — the sidebar highlighted "5 · 포트폴리오와 상환" while
+reading further down the page.
+**Reasoning:** the IntersectionObserver watched a band across the **top 30%** of the
+viewport (`rootMargin: "-72px 0px -70% 0px"`). The last sections of a document can never
+scroll into a band that high — the page runs out of room first — so nothing new ever
+intersects and the highlight stays on whichever section last occupied the band. The
+`if (first)` guard made it worse by never clearing. It looked correct in testing because
+the failure only shows in the final screenful, which is exactly where you stop scrolling
+and stop watching the sidebar.
+**Change:** replaced with a deterministic rule — the current section is the **last** one
+whose top has crossed a line 96px down (sticky header + margin), recomputed on scroll
+through `requestAnimationFrame`, plus an explicit bottom clamp: once the page cannot scroll
+further, the last section is by definition the one being read.
+**Result:** build clean. The general lesson worth keeping: a viewport-band scroll-spy has a
+dead zone at the end of every document, and the fix is not a wider band but a rule that does
+not depend on the content reaching a position it cannot reach.

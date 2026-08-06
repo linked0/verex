@@ -41,25 +41,54 @@ export function RtdNav({
   const [query, setQuery] = React.useState("");
   const [currentId, setCurrentId] = React.useState<string>();
 
-  // Scroll-spy. `rootMargin` pins the trigger line near the top of the viewport
-  // so a heading counts as "current" once it reaches the header, not when it
-  // first peeks in at the bottom.
+  // Scroll-spy: the current section is the LAST one whose top has crossed a line
+  // just under the sticky header.
+  //
+  // This replaced an IntersectionObserver watching a band across the top of the
+  // viewport. That approach has a bug you only see at the end of a document: the
+  // final sections can never scroll into a band that high, because the page runs
+  // out of room first, so the highlight freezes on whichever section last
+  // occupied the band while the reader carries on past it. Hence the explicit
+  // bottom clamp below — once the page cannot scroll further, the last section
+  // is by definition the one being read.
   React.useEffect(() => {
     if (!sections?.length) return;
-    const seen = new Map<string, boolean>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) seen.set(e.target.id, e.isIntersecting);
-        const first = sections.find((s) => seen.get(s.id));
-        if (first) setCurrentId(first.id);
-      },
-      { rootMargin: "-72px 0px -70% 0px", threshold: 0 },
-    );
-    for (const s of sections) {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
+
+    let frame = 0;
+    const pick = () => {
+      frame = 0;
+      const els = sections
+        .map((s) => document.getElementById(s.id))
+        .filter((el): el is HTMLElement => el !== null);
+      if (!els.length) return;
+
+      const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 2;
+      if (atBottom) {
+        setCurrentId(els[els.length - 1]!.id);
+        return;
+      }
+
+      const line = 96; // sticky header (56px) plus a little breathing room
+      let current = els[0]!.id;
+      for (const el of els) {
+        if (el.getBoundingClientRect().top > line) break;
+        current = el.id;
+      }
+      setCurrentId(current);
+    };
+
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(pick);
+    };
+
+    pick();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [sections]);
 
   const q = query.trim().toLowerCase();
