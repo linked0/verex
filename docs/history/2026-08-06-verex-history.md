@@ -157,3 +157,23 @@ stopping mid-page on a short document.
 **Result:** build clean; `/docs` is now 142 B (a redirect), `/docs/[slug]` unchanged at
 6.7 kB. The `max-h` → `h` fix was a real bug, not a preference — visible in jay's screenshot
 as the rail ending partway down the page.
+
+### Docs rail moved fully onto the app's own tokens
+
+**Cause:** jay — "Can you not borrow the palette from RTD but use our palette?" The previous
+pass had only *translated* RTD's palette into this app's hue family; the rail was still a
+hard-coded dark that ignored the theme.
+**Reasoning:** the tell was that it stayed dark in light mode. That is RTD's decision, not
+ours, and a fixed hex is a second palette to maintain — right in one theme, wrong in the
+other, and invisible to any future change to the design tokens. Borrowing RTD's *structure*
+(contents on the left, the current page's headings nested inside its own entry) costs
+nothing and is what jay actually asked for originally; borrowing its colours was the part
+that read as foreign.
+**Change:** every colour in `RtdSidebar`/`RtdNav` replaced with semantic tokens — rail
+`bg-muted/40` behind a `border-r`, header and section rules on `border`, links
+`text-muted-foreground` → `hover:bg-accent/50`, active item `bg-accent` with a
+`border-l-primary` marker, nested anchors on `bg-background/60` with the current one in
+`text-primary`. No hex, no `hsl(...)`, no `text-white`.
+**Result:** build clean, and the rail now follows the theme toggle like every other surface.
+Grep for hard-coded colour under `components/docs/` returns nothing, which is the property
+worth keeping.
