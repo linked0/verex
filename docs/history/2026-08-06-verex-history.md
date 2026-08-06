@@ -81,3 +81,26 @@ paperwork: the manifest edit is still **uncommitted** (it is the seed's and CD's
 truth, so it only travels once committed), and `ChainConfig.umaAdapterAddr` is written
 *only* by `seed.ts`, so staging's API keeps reporting `umaAvailable: false` and the create
 page keeps hiding the UMA option until the staging seed runs.
+
+### Docs restyled to the Read-the-Docs layout
+
+**Cause:** jay — "I want the Docs should readthedocs style." The docs shipped with a
+right-hand card panel, which reads as a sidebar bolted onto an app rather than as
+documentation.
+**Reasoning:** the RTD look is three structural choices, not a colour scheme: the table of
+contents moves to a dark rail on the **left** and stays put; the current page's own
+headings nest *inside* its entry rather than living in a second box; and reading order gets
+a prev/next footer, because a sidebar serves jumping while a pager serves reading straight
+through. Kept the dark palette fixed (`#343131` / `#2980b9`) instead of theme-driven — a
+light-mode sidebar reads as "some sidebar", not as docs — while the content column still
+follows the theme toggle, which works because the two sit side by side rather than
+overlapping. The filter box is a real client-side filter rather than a decorative input;
+only `{slug, title, group}` crosses to the client, so no locale's prose ships in the
+bundle.
+**Change:** new `RtdSidebar` (server shell) + `RtdNav` (client: filter, and an
+IntersectionObserver scroll-spy that walks the highlight down the current doc's anchors) +
+`DocsPager`; both docs pages restructured to a `[300px_1fr]` flex with a breadcrumb rail;
+`DocsSidebar.tsx` renamed to `DocIcon.tsx` since only the icon resolver survived; four new
+i18n keys in both locales.
+**Result:** typecheck and build clean; `/docs/[slug]` 6.69 kB, 112 kB first load. Not yet
+looked at in a browser — jay is mid-reset and will click through.

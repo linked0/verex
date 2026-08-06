@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { DocBody } from "@/components/docs/DocBody";
-import { DocIcon, DocsSidebar } from "@/components/docs/DocsSidebar";
+import { DocIcon } from "@/components/docs/DocIcon";
+import { DocsPager } from "@/components/docs/DocsPager";
+import { RtdSidebar } from "@/components/docs/RtdSidebar";
 import { getDoc } from "@/lib/docs";
 import { getLocale, getT } from "@/lib/i18n-server";
 
@@ -25,29 +27,36 @@ export default function DocPage({ params }: { params: { slug: string } }) {
   const c = doc.content[locale];
 
   return (
-    <main className="container py-8">
-      <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
-        <article className="min-w-0 max-w-3xl space-y-8">
-          <div>
-            <Link
-              href="/docs"
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              {t("docs.backToDocs")}
+    <div className="flex">
+      <RtdSidebar locale={locale} activeSlug={doc.slug} sections={c.sections} />
+
+      <main className="min-w-0 flex-1">
+        {/* Breadcrumb rail — RTD puts the trail above a hairline, separate from
+            the article, so the H1 still reads as the page's first element. */}
+        <div className="border-b px-6 py-3 lg:px-10">
+          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Link href="/docs" className="hover:text-foreground">
+              {t("docs.title")}
             </Link>
-            <h1 className="mt-3 flex items-start gap-2.5 text-3xl font-bold">
-              <DocIcon name={doc.icon} className="mt-1.5 h-6 w-6 shrink-0 text-primary" />
-              {c.title}
-            </h1>
-            <p className="mt-3 leading-relaxed text-muted-foreground">{c.lead}</p>
+            <ChevronRight className="h-3 w-3" />
+            <span className="text-foreground">{c.title}</span>
+          </nav>
+        </div>
+
+        <article className="max-w-3xl px-6 py-8 lg:px-10">
+          <h1 className="flex items-start gap-2.5 text-3xl font-bold">
+            <DocIcon name={doc.icon} className="mt-1.5 h-6 w-6 shrink-0 text-primary" />
+            {c.title}
+          </h1>
+          <p className="mt-3 leading-relaxed text-muted-foreground">{c.lead}</p>
+
+          <div className="mt-8">
+            <DocBody sections={c.sections} />
           </div>
 
-          <DocBody sections={c.sections} />
+          <DocsPager locale={locale} slug={doc.slug} />
         </article>
-
-        <DocsSidebar locale={locale} activeSlug={doc.slug} sections={c.sections} />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
