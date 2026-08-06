@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Section } from "@/lib/docs-types";
 import type { Locale } from "@/lib/i18n";
 import { translator } from "@/lib/i18n";
-import { DOCS } from "@/lib/docs";
+import { DOCS, DOC_GROUPS } from "@/lib/docs";
 import { RtdNav, type NavItem } from "@/components/docs/RtdNav";
 
 /**
@@ -51,9 +51,11 @@ export function RtdSidebar({
           items={items}
           activeSlug={activeSlug}
           sections={sections}
+          groups={DOC_GROUPS}
           groupLabels={{
             guide: t("docs.group.guide"),
             technical: t("docs.group.technical"),
+            about: t("docs.group.about"),
           }}
           searchPlaceholder={t("docs.searchPlaceholder")}
           noResults={t("docs.noResults")}

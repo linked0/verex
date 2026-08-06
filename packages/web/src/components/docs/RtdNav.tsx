@@ -3,13 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
-import type { Section } from "@/lib/docs-types";
+import type { DocGroup, Section } from "@/lib/docs-types";
 import { cn } from "@/lib/utils";
 
 export type NavItem = {
   slug: string;
   title: string;
-  group: "guide" | "technical";
+  group: DocGroup;
 };
 
 /**
@@ -25,6 +25,7 @@ export function RtdNav({
   items,
   activeSlug,
   sections,
+  groups: allGroups,
   groupLabels,
   searchPlaceholder,
   noResults,
@@ -32,7 +33,8 @@ export function RtdNav({
   items: NavItem[];
   activeSlug?: string;
   sections?: Section[];
-  groupLabels: Record<"guide" | "technical", string>;
+  groups: DocGroup[];
+  groupLabels: Record<DocGroup, string>;
   searchPlaceholder: string;
   noResults: string;
 }) {
@@ -62,9 +64,9 @@ export function RtdNav({
 
   const q = query.trim().toLowerCase();
   const matches = q ? items.filter((i) => i.title.toLowerCase().includes(q)) : items;
-  const groups = (["guide", "technical"] as const).filter((g) =>
-    matches.some((i) => i.group === g),
-  );
+  // Groups come from the caller in display order; a group with nothing left
+  // after filtering disappears rather than showing an empty caption.
+  const groups = allGroups.filter((g) => matches.some((i) => i.group === g));
 
   return (
     <>

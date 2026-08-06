@@ -201,3 +201,24 @@ entries `0.8125rem`, nested anchors `text-xs`; new `name` section at the end of
 `content/docs/overview.ts` in both locales.
 **Result:** build clean. The etymology now lives in the doc a reader actually opens first
 from the Technical Background group, not only in the README's one-line tagline.
+
+### The name gets its own page, under a new "About" group
+
+**Cause:** jay — "Think should be in one separate page with logo." The etymology had been
+appended as a closing section of *Verex in one page*.
+**Reasoning:** it was the wrong home. That doc is a technical map whose sections all answer
+"how does this work"; an etymology at the end reads as a footnote to the architecture rather
+than as the thing the architecture is trying to earn. On its own page it can make the actual
+argument — that most systems appoint someone to say what happened, while a market makes
+being right pay and lets the answer settle in the trading — and can state plainly that the
+name is currently **half earned**, since the operator still has the last word until
+resolution moves to UMA. Gave it a third group rather than filing it under Guide or
+Technical, because it is neither.
+**Change:** new `content/docs/name.ts` (both locales: method · why the price is the claim ·
+half-earned · the mark) and the section removed from `overview.ts`; `DocGroup` gains
+`"about"`, `RtdNav` takes its groups as a prop instead of hard-coding the pair; the logo
+extracted from `SiteNav` into a shared `VerexMark` and rendered via a new opt-in
+`Doc.hero = "mark"` rather than a slug special-case.
+**Result:** build clean. The mark's meaning is written down for the first time — a ring
+quartered into two opposing pairs, Yes and No inside one circle, the ring being the
+constraint that a question's outcome prices always sum to $1.

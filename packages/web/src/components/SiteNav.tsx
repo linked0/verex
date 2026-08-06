@@ -10,6 +10,7 @@ import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
+import { VerexMark } from "@/components/VerexMark";
 import { postFaucet } from "@/lib/api";
 
 export function SiteNav() {
@@ -36,13 +37,7 @@ export function SiteNav() {
     <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
       <div className="container flex h-14 items-center gap-4">
         <Link href="/" className="flex items-center gap-1.5 text-lg font-bold tracking-tight">
-          <svg viewBox="0 0 40 40" className="h-6 w-6 shrink-0" aria-hidden="true">
-            <circle cx="20" cy="20" r="17" fill="none" stroke="hsl(var(--primary))" strokeWidth="3.5" />
-            <path d="M20 5 A15 15 0 0 1 35 20 L20 20 Z" fill="hsl(var(--yes))" />
-            <path d="M20 35 A15 15 0 0 1 5 20 L20 20 Z" fill="hsl(var(--yes))" />
-            <path d="M5 20 A15 15 0 0 1 20 5 L20 20 Z" fill="hsl(var(--no))" />
-            <path d="M35 20 A15 15 0 0 1 20 35 L20 20 Z" fill="hsl(var(--no))" />
-          </svg>
+          <VerexMark className="h-6 w-6 shrink-0" />
           Verex
         </Link>
 

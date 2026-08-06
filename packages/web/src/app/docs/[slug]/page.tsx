@@ -5,6 +5,7 @@ import { DocBody } from "@/components/docs/DocBody";
 import { DocIcon } from "@/components/docs/DocIcon";
 import { DocsPager } from "@/components/docs/DocsPager";
 import { RtdSidebar } from "@/components/docs/RtdSidebar";
+import { VerexMark } from "@/components/VerexMark";
 import { getDoc } from "@/lib/docs";
 import { getLocale, getT } from "@/lib/i18n-server";
 
@@ -44,8 +45,18 @@ export default function DocPage({ params }: { params: { slug: string } }) {
         </div>
 
         <article className="max-w-3xl px-6 py-8 lg:px-10">
+          {doc.hero === "mark" ? (
+            // A document *about* the identity leads with the mark itself rather
+            // than a generic section icon.
+            <div className="mb-6">
+              <VerexMark className="h-16 w-16" />
+            </div>
+          ) : null}
+
           <h1 className="flex items-start gap-2.5 text-3xl font-bold">
-            <DocIcon name={doc.icon} className="mt-1.5 h-6 w-6 shrink-0 text-primary" />
+            {doc.hero === "mark" ? null : (
+              <DocIcon name={doc.icon} className="mt-1.5 h-6 w-6 shrink-0 text-primary" />
+            )}
             {c.title}
           </h1>
           <p className="mt-3 leading-relaxed text-muted-foreground">{c.lead}</p>
