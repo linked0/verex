@@ -286,3 +286,28 @@ counts only fills whose maker is account #0, so a user-to-user trade must leave 
 untouched — constructed by resting a bid *inside* the operator's spread and market-selling
 into it. Every other check in the section would also pass under the old "centre follows the
 last print" rule; only this one fails.
+
+### Price history recorded the print for the traded market, the quote for its siblings
+
+**Cause:** jay's screenshot of a group after a 100 USDC buy — the Outcomes panel read 69%
+while the chart's line for that member sat flat at 50%. The chart was drawing what was
+stored; what was stored was wrong.
+**Reasoning:** `book.ts` wrote a PricePoint at the last **fill price** inside the fill
+transaction, and `applyCenter` then deliberately skipped the traded market to avoid a
+duplicate — so the traded member's history kept the print (0.51) while its untouched
+siblings correctly recorded their LMSR centres (0.3134). Two different quantities on one
+axis. Chose to record the **centre** for every affected market rather than add a separate
+trade-price series: the chart is labelled "Yes chance" with a % axis, so it is a probability
+series, and a fill price is one rung on the operator's ladder that a large order walks well
+past. Decisively, a group member's price can change with **no fill of its own** — buy one
+member and the other seven move — so fills cannot be the source of the series at all. A
+trade-price overlay stays possible later; it is additive, and at $100 of volume it would be
+a handful of dots.
+**Change:** removed the `pricePoint.create` from the fill transaction; `applyCenter` lost its
+`withPricePoint` flag and now charts every market whose centre moved. Also refreshed
+`newYesPrice` from the DB after the re-quote hook, so the trade response stops disagreeing
+with the page the moment it refreshes.
+**Result:** verified on a fresh seed — a 60 USDC buy on one member of an 8-way group left
+all eight with `last PricePoint == quoteCenter`, summing to exactly 1.0000, with the traded
+member at 0.8359 versus an average fill of 0.0381. Five members sit pinned at the 0.02 clamp
+and the sum still holds, which is `renormalize()` doing its job.

@@ -134,7 +134,7 @@ export async function requoteAfterFill(marketId: string, _outcomeLabel: string, 
     : await binaryCenter(marketId);
 
   for (const [id, center] of centers) {
-    await applyCenter(id, center, id !== marketId);
+    await applyCenter(id, center);
   }
   for (const [id, center] of centers) {
     await postLadders(id, center);
@@ -206,10 +206,16 @@ function positiveB(raw: unknown): number {
   return Number.isFinite(b) && b > 0 ? b : DEFAULT_LMSR_B;
 }
 
-/// Persist a member's center into Market.quoteCenter + Outcome prices.
-/// `withPricePoint` also charts the move (the traded market already got its
-/// point from the fill itself).
-async function applyCenter(marketId: string, centerYes: number, withPricePoint: boolean): Promise<void> {
+/// Persist a member's center into Market.quoteCenter + Outcome prices, and
+/// chart it.
+///
+/// EVERY market whose center moved gets a PricePoint, including the one that
+/// was traded. It used to be skipped here because the fill had already written
+/// a point — but that point was the FILL PRICE, one rung on the operator's
+/// ladder, which a large order walks well past. The result was a chart whose
+/// traded member sat at the print while its untouched siblings correctly
+/// tracked the quote: two different quantities drawn on the same axis.
+async function applyCenter(marketId: string, centerYes: number): Promise<void> {
   const outcomes = await prisma.outcome.findMany({ where: { marketId }, select: { id: true, label: true } });
   await prisma.$transaction([
     prisma.market.update({ where: { id: marketId }, data: { quoteCenter: centerYes } }),
@@ -219,9 +225,7 @@ async function applyCenter(marketId: string, centerYes: number, withPricePoint: 
         data: { price: o.label === "Yes" ? centerYes : Number((1 - centerYes).toFixed(4)) },
       }),
     ),
-    ...(withPricePoint
-      ? [prisma.pricePoint.create({ data: { marketId, price: centerYes } })]
-      : []),
+    prisma.pricePoint.create({ data: { marketId, price: centerYes } }),
   ]);
 }
 
