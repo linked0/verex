@@ -104,3 +104,35 @@ IntersectionObserver scroll-spy that walks the highlight down the current doc's 
 i18n keys in both locales.
 **Result:** typecheck and build clean; `/docs/[slug]` 6.69 kB, 112 kB first load. Not yet
 looked at in a browser — jay is mid-reset and will click through.
+
+### A local-testing runbook, and where it belongs
+
+**Cause:** jay — "add test docs for how I can test for this new features? I can't decide
+which folder it should belong to."
+**Reasoning:** put it in `docs/runbooks/` rather than a new folder. Runbooks are already the
+"how to actually do a thing, step by step" genre, and `uma-adapter.md` §5 is literally the
+same kind of content — a new `docs/testing/` would split one genre across two directories
+for no gain. Left the UMA section where it is (it needs a Sepolia fork and belongs with its
+feature) and cross-linked instead. Wrote each check as *what to expect*, not what to click:
+a step you cannot fail is not a test.
+**Change:** `docs/runbooks/local-testing.md` — the clean-shell guard (a stale
+`VEREX_RPC_URL` turns `reset.sh` into a real-Sepolia deploy), reset, the RTD docs layout,
+locale and theme, the `/create` oracle probe as a **negative** test, the hybrid-AMM
+behaviours, trading, and an explicit "not testable on plain anvil" table.
+**Result:** the `/create` check is the only one that can catch a costly bug — if the UMA
+option appears with `umaAvailable: false`, a user could create a market bound to a
+non-existent adapter, which is unresolvable forever rather than repairable.
+
+### Hybrid AMM Phase A has no UI surface, deliberately
+
+**Cause:** jay asked where the UI/UX differs for the hybrid AMM feature.
+**Reasoning:** it doesn't, and that is worth recording rather than treating as an oversight.
+Phase A is off-chain quoting only — LMSR decides where the operator's ladder centers
+(`lmsr.ts`, `mm.ts`); no component was added, nothing is labelled "AMM", and
+`packages/contracts/src/` has no pool contract. The feature is visible as *behaviour*:
+a populated book on an untraded market, quotes that track the operator's exposure rather
+than the last print, group prices that sum to 1 by construction, and prices that stay
+inside (0, 1) at the tails where a CPMM would quote a Yes token above $1.00.
+**Change:** documented as §6 of the new runbook, including a "what Phase A is not" note so
+the absent pool/routing UI reads as scope, not as a missing feature.
+**Result:** answers the question without inventing a UI element to justify the feature.
