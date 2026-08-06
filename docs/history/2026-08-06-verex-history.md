@@ -264,3 +264,25 @@ against a non-existent adapter, the market looks normal and trades normally, and
 resolution there is no contract to call and no way to repoint it, because a different
 resolver hashes to a different `conditionId`. That is why validation sits in
 `createMarketGroup` before any transaction, not in the job that executes it.
+
+### §6 rewritten so the hybrid-AMM check has something to fail on
+
+**Cause:** jay asked for the hybrid-AMM section of the local-testing runbook in more detail.
+**Reasoning:** the original said "expect 5 bids and 5 asks" and counted array lengths, which
+is a step that cannot really fail — a ladder of the wrong shape, in the wrong place, built
+from the wrong `q` all still return 5. Detail here means *predicted numbers*: the ladder is
+`center ± 0.01·i` with sizes `total · [5,4,3,2,1]/15`, and the centre is
+`e^(q/b)/(e^(q/b)+1)`, so selling 50 Yes at `b = 250` must land the centre on **0.5498**, not
+merely "higher". A check with an arithmetic answer catches a wrong implementation; a check
+with a length does not.
+**Change:** §6 expanded to six parts — the formula and `b`; the ladder's exact construction
+with a worked table and three edge cases that look like bugs (both outcomes laddered, fewer
+levels near `PRICE_FLOOR`/`CEIL`, no quotes under 1 token of inventory); the predicted centre
+after a known fill; **the distinguishing test**; group sum-to-1 including the one place
+`renormalize()` restores it by hand; why LMSR over CPMM with the `b·ln(n)` = 173-token bound;
+and what Phase A is not.
+**Result:** the distinguishing test is the one that earns its place. `operatorNetSold()`
+counts only fills whose maker is account #0, so a user-to-user trade must leave the quote
+untouched — constructed by resting a bid *inside* the operator's spread and market-selling
+into it. Every other check in the section would also pass under the old "centre follows the
+last print" rule; only this one fails.
