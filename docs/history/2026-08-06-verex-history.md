@@ -136,3 +136,24 @@ inside (0, 1) at the tails where a CPMM would quote a Yes token above $1.00.
 **Change:** documented as §6 of the new runbook, including a "what Phase A is not" note so
 the absent pool/routing UI reads as scope, not as a missing feature.
 **Result:** answers the question without inventing a UI element to justify the feature.
+
+### Docs: drop the card index, and stop borrowing RTD's palette
+
+**Cause:** jay, after clicking through the new layout — "I want the default page to be shown
+and cards is needed anymore. And the color of the left panel is weird."
+**Reasoning:** the card index was a second copy of the sidebar's navigation with an extra
+click in front of it, so `/docs` now redirects to the first doc in reading order — what RTD
+itself does when you open a project. On colour: borrowing RTD's *structure* was right,
+borrowing its *palette* was not. Its warm grey (#343131) and cyan-blue (#2980b9) both fight
+this app, whose greys sit on hue 240 and whose primary is indigo — two different colour
+systems on one screen is exactly what reads as "weird". Kept the rail dark under both themes
+(a light version reads as "some sidebar", not as docs) but moved it into the app's own hue
+family.
+**Change:** `/docs` → `redirect()` to `DOCS[0]`, card grid deleted; rail recoloured to
+`hsl(240 10% 13%)` with the header block on `--primary`, active/nested states on matching
+cool greys with an indigo left border; the sticky container switched from `max-h` to a fixed
+`h-[calc(100vh-3.5rem)]` so the dark block reaches the bottom of the viewport instead of
+stopping mid-page on a short document.
+**Result:** build clean; `/docs` is now 142 B (a redirect), `/docs/[slug]` unchanged at
+6.7 kB. The `max-h` → `h` fix was a real bug, not a preference — visible in jay's screenshot
+as the rail ending partway down the page.
