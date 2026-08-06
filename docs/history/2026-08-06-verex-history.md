@@ -63,3 +63,21 @@ deploy, seed, per-market lifecycle, three local-test modes, troubleshooting tabl
 deploy, `save-uma-adapter`'s seven checks, then the seed picking the adapter up. Local
 testing is documented as a Sepolia **fork** rather than plain anvil, because UMA has no
 anvil deployment and a fork tests the real oracle instead of our understanding of it.
+
+### Staging UMA adapter is live — and the manifest alone could not prove it
+
+**Cause:** jay deployed the adapter to staging himself and asked whether the recorded
+address was all that was needed, or whether it had to be written down somewhere else.
+**Reasoning:** the manifest diff was not sufficient evidence. `CREATE` derives an address
+from (deployer, nonce), and the earlier fork verification branched from the same operator
+nonce — so the fork run and the real run produced the *identical* address
+`0x1B45F820…ab00AC`. Reading `deployments.json` could not distinguish "jay's real deploy"
+from "leftover fork address I failed to revert"; only the chain could.
+**Change:** none to code — verification only, against the real Sepolia RPC.
+**Result:** confirmed live: 8977 bytes of code at the address, `ctf()` matches staging's
+recorded CTF, `oo()` is UMA's Sepolia OptimisticOracleV2, `admin()` is the operator. So the
+answer is yes — nothing to hand-record — with two caveats that are mechanism, not
+paperwork: the manifest edit is still **uncommitted** (it is the seed's and CD's source of
+truth, so it only travels once committed), and `ChainConfig.umaAdapterAddr` is written
+*only* by `seed.ts`, so staging's API keeps reporting `umaAvailable: false` and the create
+page keeps hiding the UMA option until the staging seed runs.
