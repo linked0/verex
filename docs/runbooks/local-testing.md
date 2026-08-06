@@ -106,23 +106,137 @@ running early enough.
 
 ## 5. The oracle option on `/create` — a real test, not a look
 
-Open http://localhost:3000/create.
+This is the one check here that can catch an expensive bug, so it is worth understanding
+what it is actually testing rather than just glancing at the form.
 
-**Expect: no UMA option.** Local anvil has no UMA deployment, so `ChainConfig.umaAdapterAddr`
-is null, `GET /config` returns `umaAvailable: false`, and the create form must offer only
-operator resolution.
+### 5.1 What you should see
+
+Open http://localhost:3000/create and scroll to **Resolution source**. There are two cards:
+
+| Card | Local anvil | Why |
+|---|---|---|
+| **Operator** | selected, enabled | the default; the platform reports the result |
+| **UMA oracle** | **visible but greyed out**, not clickable | no adapter exists on this chain |
+
+The UMA card must read:
+
+> *Not available in this environment — no adapter deployed.*
+
+**Disabled, not hidden — that is deliberate.** A hidden control teaches the reader nothing
+and is indistinguishable from a component that failed to render. A disabled one with its
+reason printed on it says both *this feature exists* and *here is what is missing*.
+
+So the failure to watch for is not "the card is there". It is **the card being clickable**,
+or the reason text being absent or wrong.
+
+### 5.2 Why it is disabled — the chain of state behind that one card
+
+Nothing about the form is hard-coded. The greyed-out state is the end of a chain that starts
+on-chain:
+
+```
+no UmaCtfAdapter deployed on anvil
+  → seed writes ChainConfig.umaAdapterAddr = null      (prisma/seed.ts)
+  → loadChain() exposes umaAdapterAddr = null          (src/chain.ts)
+  → GET /config returns umaAvailable: false            (src/index.ts)
+  → CreateClient fetches it on mount and disables the card
+```
+
+Verify the middle of that chain directly:
 
 ```bash
 curl -s localhost:4000/config | jq
 # { "chainId": 31337, "tradingEnabled": true, "umaAvailable": false, "umaAdapter": null }
 ```
 
-**If the UMA option appears anyway, that is a bug worth stopping for.** A market created
-against an adapter that does not exist is unresolvable forever — the resolver's address is
-hashed into the condition id, so it cannot be repaired, only replaced.
+If `/config` says `false` but the card is enabled, the bug is in the client. If `/config`
+says `true` on plain anvil, the bug is further back — something wrote an adapter address
+into `ChainConfig` that does not exist on this chain (a leftover from a fork session is the
+usual cause).
 
-The positive case (the option present, a market created through it, resolved end to end)
-needs a Sepolia fork: [uma-adapter.md §5](uma-adapter.md).
+### 5.3 The second condition: binary markets only
+
+The same card is disabled for a *different* reason when UMA **is** available. Add a third
+outcome, and even on an environment with an adapter the card greys out with:
+
+> *Binary markets only — set outcomes to exactly Yes and No.*
+
+You can exercise this branch locally by reading the code path
+([`CreateClient.tsx`](../../packages/web/src/app/create/CreateClient.tsx), `disabled={!umaAvailable || !isBinary}`),
+but not visually — locally the first condition already fails, so you cannot tell the two
+apart on anvil. That is a limitation of this check, not something to work around.
+
+### 5.4 The real test: the UI is only a hint
+
+A disabled button is a courtesy, not a defence. Anyone can post to the API directly, so the
+check that matters is that **the server refuses too**:
+
+```bash
+curl -s -X POST localhost:4000/market-groups \
+  -H 'content-type: application/json' \
+  -d '{
+        "title": "Will this request be rejected?",
+        "category": "Crypto",
+        "outcomes": [{"label":"Yes"},{"label":"No"}],
+        "closesAt": "2027-01-01T00:00:00Z",
+        "creatorIndex": 0,
+        "liquidityPerOutcome": 5,
+        "oracleType": "UMA",
+        "resolutionCriteria": "Resolves YES if the request is rejected as it should be."
+      }' | jq
+```
+
+**Expect `400`**, with an error naming the missing adapter:
+
+```
+UMA resolution isn't available in this environment — no UmaCtfAdapter is deployed
+```
+
+A `200` here is the serious failure. It means the UI was the only thing standing between a
+user and an unresolvable market.
+
+Two more server-side rejections worth firing while you are here — change `oracleType` to
+`UMA` and:
+
+| Change | Expected 400 |
+|---|---|
+| three outcomes | `…supports binary (Yes/No) markets only…` |
+| `"resolutionCriteria": "yes if high"` | `resolution criteria are required … at least 20 characters` |
+
+(On anvil the missing-adapter check fires first, so these two only surface once an adapter
+exists — the fork run in [uma-adapter.md §5](uma-adapter.md) covers them, and
+`scripts/uma-e2e-fork.ts` asserts both.)
+
+### 5.5 Why this is the check worth stopping for
+
+Every other item in this runbook fails *visibly and recoverably*. This one does not.
+
+A market's on-chain identity is derived by hashing its resolver into it:
+
+```
+conditionId = keccak256(abi.encodePacked(oracle, questionId, outcomeSlotCount))
+```
+
+The resolver's address is therefore **part of the market's identity**, not a setting on it.
+If a market is created pointing at an adapter that does not exist on that chain:
+
+- nothing reverts at creation time — the CTF happily prepares a condition for any address;
+- the market looks completely normal, and people can trade it;
+- at resolution there is no contract to call, and no way to point it at a real one, because
+  a different resolver computes a **different `conditionId`** — a different market holding
+  none of these tokens;
+- so the position tokens can never be redeemed. Not repairable, only replaceable.
+
+That is the whole reason validation lives in `createMarketGroup` — before any transaction is
+sent — rather than in the job that executes it. By the time a job runs, the mistake has
+already cost money and cannot be undone.
+
+### 5.6 The positive case
+
+Everything above tests the *refusal*. Testing that UMA actually works — the option enabled, a
+market created through it, an answer proposed, liveness elapsed, the market resolved and
+redeemed — needs a real oracle, and therefore a Sepolia fork:
+[uma-adapter.md §5](uma-adapter.md).
 
 ---
 

@@ -241,3 +241,26 @@ further, the last section is by definition the one being read.
 **Result:** build clean. The general lesson worth keeping: a viewport-band scroll-spy has a
 dead zone at the end of every document, and the fix is not a wider band but a rule that does
 not depend on the content reaching a position it cannot reach.
+
+### The /create oracle check was documented wrong — and expanded
+
+**Cause:** jay asked for more detail on §5 of the local-testing runbook. Reading the actual
+component to write it turned up an error in my own doc: it said "expect no UMA option", but
+`CreateClient.tsx` **renders the card and disables it**, with the reason printed on it.
+**Reasoning:** disabled-with-a-reason is the better behaviour and worth stating as such — a
+hidden control teaches the reader nothing and cannot be told apart from a component that
+failed to render. More importantly, the original text pointed the tester at the wrong
+failure. "Is the card there?" always passes; the real signals are whether it is *clickable*
+and whether the reason text is right. And a disabled button is a courtesy, not a defence:
+the check that actually matters is a direct `POST /market-groups` with `oracleType: "UMA"`,
+because the UI is the only thing a curl request skips.
+**Change:** §5 rewritten into six parts — what you should see, the chain of state from
+"no adapter on chain" through `ChainConfig` → `/config` → the disabled card, the second
+(binary-only) condition and why it is not visually testable on anvil, the direct-POST test
+with its expected 400, why this is the one check worth stopping for, and a pointer to the
+fork for the positive case.
+**Result:** the failure mode is now spelled out end to end — creation does not revert
+against a non-existent adapter, the market looks normal and trades normally, and at
+resolution there is no contract to call and no way to repoint it, because a different
+resolver hashes to a different `conditionId`. That is why validation sits in
+`createMarketGroup` before any transaction, not in the job that executes it.
