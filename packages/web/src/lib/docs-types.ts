@@ -32,7 +32,7 @@ export type DocContent = {
   sections: Section[];
 };
 
-export type DocGroup = "guide" | "technical";
+export type DocGroup = "guide" | "technical" | "about";
 
 export type IconName = "book" | "droplets" | "chart" | "tree" | "shield" | "wallet" | "plus" | "coins" | "scale";
 
@@ -40,5 +40,7 @@ export type Doc = {
   slug: string;
   group: DocGroup;
   icon: IconName;
+  /** Opt-in page header. `"mark"` renders the Verex logo above the title. */
+  hero?: "mark";
   content: Record<Locale, DocContent>;
 };
