@@ -177,3 +177,27 @@ that read as foreign.
 **Result:** build clean, and the rail now follows the theme toggle like every other surface.
 Grep for hard-coded colour under `components/docs/` returns nothing, which is the property
 worth keeping.
+
+### Sidebar hierarchy inverted, and the origin of the name recorded
+
+**Cause:** two from jay while reading the rebuilt docs — the group captions read as smaller
+than the documents under them, and the origin of the name "Verex" was nowhere in the repo.
+**Reasoning (typography):** the active document was `text-sm` semibold in the primary colour
+while its own group caption was `0.7rem` muted, so the highlight looked like the top of the
+hierarchy and the caption like a label hanging off it. A caption that contains things has to
+out-weigh even the selected item inside it. Went to a strict descending scale rather than
+just nudging one value — caption 14px / document 13px / section anchor 12px — so the rule is
+visible in the code and survives the next edit.
+**Reasoning (the name):** confirmed with jay rather than inferred. *ver-* (Latin *verus* /
+*veritas*, "true") + *-ex* (exchange) — the same claim the README tagline "truth through
+exchange" has been making all along, but stated nowhere a reader would find it. Wrote it as
+a claim about method: most systems that need to know what happened appoint someone to say
+so, while a market makes being right pay and lets the answer settle in the trading. That
+framing also explains why the oracle work carries more weight than its size suggests — while
+the operator reports every outcome the last word still belongs to an authority, so the name
+is only half earned until resolution moves to UMA.
+**Change:** `RtdNav` caption `text-sm font-bold uppercase text-foreground`, document
+entries `0.8125rem`, nested anchors `text-xs`; new `name` section at the end of
+`content/docs/overview.ts` in both locales.
+**Result:** build clean. The etymology now lives in the doc a reader actually opens first
+from the Technical Background group, not only in the README's one-line tagline.
