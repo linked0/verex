@@ -68,6 +68,10 @@ const en = {
   "docs.readMore": "Read",
   "docs.notFound": "That document does not exist.",
   "docs.backToDocs": "Back to Docs",
+  "docs.searchPlaceholder": "Search docs",
+  "docs.noResults": "No matching document.",
+  "docs.previous": "Previous",
+  "docs.next": "Next",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -120,6 +124,10 @@ const ko: Record<MessageKey, string> = {
   "docs.readMore": "읽기",
   "docs.notFound": "해당 문서가 존재하지 않습니다.",
   "docs.backToDocs": "문서 목록으로",
+  "docs.searchPlaceholder": "문서 검색",
+  "docs.noResults": "일치하는 문서가 없습니다.",
+  "docs.previous": "이전",
+  "docs.next": "다음",
 };
 
 const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, ko };

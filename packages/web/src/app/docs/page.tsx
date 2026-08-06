@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DocIcon, DocsSidebar } from "@/components/docs/DocsSidebar";
+import { DocIcon } from "@/components/docs/DocIcon";
+import { RtdSidebar } from "@/components/docs/RtdSidebar";
 import { DOC_GROUPS, docsInGroup } from "@/lib/docs";
 import { getLocale, getT } from "@/lib/i18n-server";
 
@@ -12,9 +13,17 @@ export default function DocsIndexPage() {
   const t = getT();
 
   return (
-    <main className="container py-8">
-      <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
-        <div className="min-w-0 space-y-8">
+    <div className="flex">
+      <RtdSidebar locale={locale} />
+
+      <main className="min-w-0 flex-1">
+        <div className="border-b px-6 py-3 lg:px-10">
+          <nav className="text-xs text-muted-foreground">
+            <span className="text-foreground">{t("docs.title")}</span>
+          </nav>
+        </div>
+
+        <div className="max-w-4xl space-y-8 px-6 py-8 lg:px-10">
           <div>
             <h1 className="text-3xl font-bold">{t("docs.title")}</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{t("docs.subtitle")}</p>
@@ -33,7 +42,10 @@ export default function DocsIndexPage() {
                       <Card className="h-full transition-colors hover:border-primary/40">
                         <CardHeader className="pb-2">
                           <CardTitle className="flex items-start gap-2 text-base group-hover:text-primary">
-                            <DocIcon name={doc.icon} className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <DocIcon
+                              name={doc.icon}
+                              className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                            />
                             {c.title}
                           </CardTitle>
                         </CardHeader>
@@ -52,9 +64,7 @@ export default function DocsIndexPage() {
             </section>
           ))}
         </div>
-
-        <DocsSidebar locale={locale} />
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
