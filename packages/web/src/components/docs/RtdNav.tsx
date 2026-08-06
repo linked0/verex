@@ -68,24 +68,26 @@ export function RtdNav({
 
   return (
     <>
-      <div className="relative px-4 pb-4">
-        <Search className="pointer-events-none absolute left-6 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/50" />
+      <div className="relative px-4 py-4">
+        <Search className="pointer-events-none absolute left-6 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          className="w-full rounded border border-white/15 bg-white/10 py-1.5 pl-8 pr-2 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:outline-none"
+          className="w-full rounded-md border bg-background py-1.5 pl-8 pr-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
         />
       </div>
 
       <nav className="pb-10">
-        {groups.length === 0 && <p className="px-4 py-2 text-sm text-white/50">{noResults}</p>}
+        {groups.length === 0 && (
+          <p className="px-4 py-2 text-sm text-muted-foreground">{noResults}</p>
+        )}
 
         {groups.map((group) => (
           <div key={group} className="mb-2">
-            <p className="px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-white/45">
+            <p className="px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-muted-foreground">
               {groupLabels[group]}
             </p>
             <ul>
@@ -99,10 +101,10 @@ export function RtdNav({
                         href={`/docs/${item.slug}`}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "block border-l-4 py-1.5 pl-4 pr-3 text-sm leading-snug transition-colors",
+                          "block border-l-2 py-1.5 pl-4 pr-3 text-sm leading-snug transition-colors",
                           active
-                            ? "border-l-primary bg-[hsl(240_9%_21%)] font-semibold text-white"
-                            : "border-l-transparent text-white/70 hover:bg-white/5 hover:text-white",
+                            ? "border-l-primary bg-accent font-semibold text-accent-foreground"
+                            : "border-l-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                         )}
                       >
                         {item.title}
@@ -111,16 +113,16 @@ export function RtdNav({
                       {/* The current document expands in place, the way RTD
                           nests a page's contents under its own entry. */}
                       {active && sections && sections.length > 0 && (
-                        <ul className="bg-[hsl(240_11%_9%)] py-1">
+                        <ul className="border-y bg-background/60 py-1">
                           {sections.map((s) => (
                             <li key={s.id}>
                               <a
                                 href={`#${s.id}`}
                                 className={cn(
-                                  "block border-l-4 py-1 pl-8 pr-3 text-[0.8rem] leading-snug transition-colors",
+                                  "block border-l-2 py-1 pl-8 pr-3 text-[0.8rem] leading-snug transition-colors",
                                   currentId === s.id
-                                    ? "border-l-primary bg-[hsl(240_9%_18%)] text-white"
-                                    : "border-l-transparent text-white/55 hover:text-white",
+                                    ? "border-l-primary font-medium text-primary"
+                                    : "border-l-transparent text-muted-foreground hover:text-foreground",
                                 )}
                               >
                                 {s.heading}

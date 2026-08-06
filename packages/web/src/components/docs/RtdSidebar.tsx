@@ -6,19 +6,16 @@ import { DOCS } from "@/lib/docs";
 import { RtdNav, type NavItem } from "@/components/docs/RtdNav";
 
 /**
- * Read-the-Docs sidebar: a dark, full-height rail on the LEFT, with the project
- * name, a filter box, and the whole table of contents.
+ * Docs sidebar: a full-height rail on the LEFT with the project name, a filter
+ * box, and the whole table of contents.
  *
- * The RTD *structure* is what we borrow — dark left rail, the current page's
- * headings nested inside its own entry. The RTD *palette* is not: its warm grey
- * (#343131) and cyan-blue (#2980b9) both fight this app, whose greys are all on
- * hue 240 and whose primary is indigo. So the rail is a cool dark from the same
- * family and the header block is `--primary`.
- *
- * Kept dark under both themes on purpose. A light-mode version of this rail
- * reads as "some sidebar" rather than as documentation, and it stays legible
- * either way because the content column — which does follow the theme — sits
- * beside it rather than behind it.
+ * What is borrowed from Read the Docs is the *structure* only — the contents
+ * live on the left and stay put, and the current page's headings nest inside its
+ * own entry rather than in a second panel. Every colour here is one of the app's
+ * own tokens (`--card`, `--muted`, `--accent`, `--primary`), so the rail follows
+ * the theme toggle like the rest of the site. No fixed hex values: a hard-coded
+ * dark rail would be legible in one theme and wrong in the other, and it would
+ * quietly become a second palette to maintain.
  */
 export function RtdSidebar({
   locale,
@@ -39,16 +36,14 @@ export function RtdSidebar({
   }));
 
   return (
-    <aside className="hidden shrink-0 lg:block lg:w-[300px]">
+    <aside className="hidden shrink-0 border-r lg:block lg:w-[300px]">
       {/* Fixed height, not max-height: the rail has to reach the bottom of the
-          viewport even on a short document, or the dark block stops mid-page. */}
-      <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto bg-[hsl(240_10%_13%)]">
-        <div className="bg-primary px-4 py-4">
+          viewport even on a short document, or the tinted block stops mid-page. */}
+      <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto bg-muted/40">
+        <div className="border-b px-4 py-4">
           <Link href="/docs" className="block">
-            <span className="block text-lg font-bold leading-none text-primary-foreground">
-              Verex
-            </span>
-            <span className="mt-1 block text-xs text-primary-foreground/75">{t("docs.title")}</span>
+            <span className="block text-lg font-bold leading-none text-foreground">Verex</span>
+            <span className="mt-1 block text-xs text-muted-foreground">{t("docs.title")}</span>
           </Link>
         </div>
 
