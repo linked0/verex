@@ -73,6 +73,7 @@ const en = {
   "docs.noResults": "No matching document.",
   "docs.previous": "Previous",
   "docs.next": "Next",
+  "docs.source": "Source on GitHub",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -130,6 +131,7 @@ const ko: Record<MessageKey, string> = {
   "docs.noResults": "일치하는 문서가 없습니다.",
   "docs.previous": "이전",
   "docs.next": "다음",
+  "docs.source": "GitHub 저장소",
 };
 
 const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, ko };

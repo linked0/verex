@@ -311,3 +311,21 @@ with the page the moment it refreshes.
 all eight with `last PricePoint == quoteCenter`, summing to exactly 1.0000, with the traded
 member at 0.8359 versus an average fill of 0.0381. Five members sit pinned at the 0.02 clamp
 and the sum still holds, which is `renormalize()` doing its job.
+
+### Source link pinned to the bottom of the docs rail
+
+**Cause:** jay — "Add the github repo to the Docs."
+**Reasoning:** put it in the sidebar rather than on a page, so it is reachable from every
+document instead of only the one that happens to mention it. Pinning it to the bottom needed
+a real layout change: the rail was one scrolling block, so a footer inside it would drift to
+wherever the nav list happened to end. Made the rail a flex column — fixed header, scrolling
+nav, fixed footer. The URL is a literal constant, not an env var: a docs link that can be
+misconfigured per environment is worse than a hard-coded one.
+**Change:** `RtdSidebar` restructured to `flex flex-col`, with the nav in a
+`min-h-0 flex-1 overflow-y-auto` wrapper and a bottom-anchored link to
+`https://github.com/linked0/verex`; GitHub glyph inlined because lucide-react dropped its
+brand icons; `docs.source` added in both locales.
+**Result:** build clean. Also worth noting for future builds — `pnpm build` fails with
+`PageNotFoundError` while the dev server is running, because both write to the same `.next`.
+Compilation succeeds; only page-data collection collides. Re-running after the dev server
+settles is enough.
