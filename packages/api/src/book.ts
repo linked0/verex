@@ -486,7 +486,12 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
         await tx.outcome.update({ where: { id: other.id }, data: { price: Number((1 - lastPrice).toFixed(6)) } });
       }
       await tx.market.update({ where: { id: market.id }, data: { volume: { increment: totalUsdc } } });
-      await tx.pricePoint.create({ data: { marketId: market.id, price: yesPrice } });
+      // Deliberately NO PricePoint here. The chart is a probability series, and
+      // a fill price is not this market's probability — it is one rung on the
+      // operator's ladder, which a large order walks well past. The re-quote
+      // below writes the point instead, for this market and for every sibling
+      // the trade moved (a group member's price can change with no fill of its
+      // own, so fills cannot be the source of the series anyway).
       newYesPrice = yesPrice;
     }
 
@@ -499,6 +504,14 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
     const lastPrice = result.fills[result.fills.length - 1]!.price;
     try {
       await afterFillHook(market.id, outcome.label, lastPrice);
+      // The re-quote is what sets the new price, so report that rather than the
+      // fill — otherwise this response disagrees with the page the moment it
+      // refreshes. Falls back to the fill price if the hook failed below.
+      const yes = await prisma.outcome.findFirst({
+        where: { marketId: market.id, label: "Yes" },
+        select: { price: true },
+      });
+      if (yes) result.newYesPrice = Number(yes.price);
     } catch (e) {
       console.error(`after-fill re-quote failed for ${market.slug}:`, e);
     }
