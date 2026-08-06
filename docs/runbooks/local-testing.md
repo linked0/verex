@@ -243,32 +243,124 @@ redeemed — needs a real oracle, and therefore a Sepolia fork:
 ## 6. Hybrid AMM, Phase A (LMSR quotes)
 
 **There is no new UI for this, and that is the design.** Phase A is off-chain quoting
-([`packages/api/src/lmsr.ts`](../../packages/api/src/lmsr.ts),
-[`mm.ts`](../../packages/api/src/mm.ts)) — it changes *where the operator's ladder sits*,
-not what the page looks like. Nothing is labelled "AMM" anywhere, and no component was
-added. So this section is about **observing behaviour**, not finding a control.
+([`lmsr.ts`](../../packages/api/src/lmsr.ts), [`mm.ts`](../../packages/api/src/mm.ts)) — it
+decides *where the operator's ladder sits*, not what the page looks like. Nothing is
+labelled "AMM" anywhere and no component was added. So everything below is about observing
+behaviour, not finding a control.
 
-### 6.1 Always-on liquidity
+Two numbers to have in mind first:
 
-Open any freshly seeded market. **Expect** a populated book on both sides with no trades
-having happened — 5 bid levels and 5 ask levels, 1¢ apart, weighted toward the mid. That is
-the cold-start problem being solved: a pure order book would be empty here.
+| | |
+|---|---|
+| `b` (liquidity parameter) | `Market.lmsrB`, default **250** |
+| price formula | `p_i = p_i⁰ · e^(q_i/b) / Σⱼ p_j⁰ · e^(q_j/b)` |
+
+`q_i` is the quantity of outcome *i* the **operator** has net sold. `p_i⁰` is the market's
+opening probability, folded in so a market can open at 0.63 rather than at a uniform 1/n.
+
+### 6.1 Always-on liquidity — what the ladder actually is
+
+Open any freshly seeded market before trading anything.
 
 ```bash
-curl -s localhost:4000/markets/<slug>/book | jq '{bids: .bids|length, asks: .asks|length}'
+curl -s localhost:4000/markets/<slug>/book | jq '{mid, bids, asks}'
 ```
 
-### 6.2 The quote tracks exposure, not the last print
+**Expect five bids and five asks, 1¢ apart, sizes falling away from the mid.** The ladder is
+built by `postLadders()` from three constants:
 
-Buy some YES. **Expect** the center to move up and the whole ladder to re-post around it.
+```
+LADDER_LEVELS   5          bid_i = center − 0.01·i        (i = 1..5)
+LADDER_STEP     0.01       ask_i = center + 0.01·i
+LADDER_WEIGHTS  5,4,3,2,1  size_i = ladderTotal · wᵢ / 15
+```
 
-Now the part that distinguishes LMSR-on-exposure from the old "center follows last traded
-price": a fill **between two users** that never touched the operator's ladder must leave the
-quote where it was. The operator's exposure did not change, so its quote should not either.
+So with a centre of 0.55 and 1,000 tokens of operator inventory:
 
-### 6.3 Group prices sum to 1 by construction
+| | ask | bid | size |
+|---|---|---|---|
+| i=1 | 0.56 | 0.54 | 333.33 |
+| i=2 | 0.57 | 0.53 | 266.67 |
+| i=3 | 0.58 | 0.52 | 200.00 |
+| i=4 | 0.59 | 0.51 | 133.33 |
+| i=5 | 0.60 | 0.50 | 66.67 |
 
-Open a multi-outcome group and read the outcome prices.
+Nearest-the-mid is the deepest — the operator quotes hardest where it is most confident.
+
+**This is the cold-start problem being solved.** A pure order book on a brand-new market is
+empty: no makers, so no price, so nobody can trade, so no makers. Every level above exists
+before a single user has done anything.
+
+Three edge cases worth knowing, because each looks like a bug and is not:
+
+- **Both sides of a binary market are laddered.** `postLadders` loops over *outcomes*, and
+  the No centre is `1 − centerYes`. Query `?outcome=No` and you will see its own five and
+  five.
+- **Fewer than five levels near the extremes.** Levels are skipped outside
+  `PRICE_FLOOR 0.01 … PRICE_CEIL 0.99`, so a market centred at 0.97 posts fewer asks. Not a
+  truncated ladder — a refusal to quote prices that cannot pay.
+- **No quotes at all when inventory is under 1 token.** `ladderTotal = min(inventory, 2000)`,
+  and below 1 the outcome is skipped. An empty book on a *seeded* market means the operator
+  has no inventory, not that LMSR failed.
+
+### 6.2 The centre is a function of exposure — with a number you can predict
+
+This is the part that replaced "the centre follows the last traded price", and it is
+checkable to two decimal places.
+
+Take a market opening at 0.50 with `b = 250`, and buy **50 Yes tokens** from the operator.
+The operator has now net sold 50 Yes and 0 No, so:
+
+```
+p_yes = e^(50/250) / (e^(50/250) + e^(0/250))
+      = 1.2214 / 2.2214
+      = 0.5498            → the ladder re-posts around 0.55
+                             bids 0.54 … 0.50, asks 0.56 … 0.60
+```
+
+**Expect the quote centre to land on 0.55**, not merely "to go up". If it moved to whatever
+price your fill happened to execute at, the old last-print behaviour is still in there.
+
+Buy 50 more and it moves to `e^0.4/(e^0.4+1) = 0.5987`. The steps shrink as `q/b` grows,
+which is the curve doing its job: each additional token of the same opinion moves the price
+less.
+
+### 6.3 The distinguishing test: a fill the operator was not part of
+
+Everything above would also be true of a naive "price follows trades" rule. **This is the
+test that separates them**, and it is the one worth actually running.
+
+`operatorNetSold()` counts only trades whose **maker was account #0**:
+
+```sql
+JOIN "Order" o ON o."id" = t."makerOrderId"
+WHERE o."makerIndex" = 0
+```
+
+A trade between two demo wallets moves no operator inventory, so it must not move the
+operator's quote. To construct one, place a resting order *inside* the operator's spread so
+it is the best price and gets hit first:
+
+1. Note the current centre — say 0.55, so the operator's best bid is 0.54.
+2. **Wallet 1**: limit **BUY** Yes at **0.55** — inside the spread, now the best bid.
+3. **Wallet 2**: market **SELL** Yes. It matches wallet 1 at 0.55, never touching the
+   operator's ladder.
+4. Re-read the book.
+
+**Expect the centre and every ladder level to be exactly where they were.** A trade happened,
+a price printed, and the quote did not move — because the operator's exposure did not change.
+
+If the ladder shifts here, the LMSR path is being bypassed somewhere and the quote is
+tracking prints again.
+
+Note also that `q` is **derived from settled fills every time**, not stored as a running
+column. A crashed re-quote, a manual DB edit or a replayed job all recompute the same
+number; there is no counter to drift.
+
+### 6.4 A group's prices sum to 1 by construction
+
+For a multi-outcome group the LMSR "book" is the **Yes side of every member**, priced as one
+n-way softmax.
 
 ```bash
 # prices are Prisma Decimals, so they arrive as strings — tonumber before adding
@@ -277,22 +369,36 @@ curl -s localhost:4000/market-groups/<slug> \
 # ≈ 1
 ```
 
-**Expect ≈ 1.0**, before and after trading. Then buy one member and re-read: every *other*
-member's price should have drifted **down**. Prices are one n-way softmax, so probability
-drains out of the losers automatically — there is no separate renormalisation pass that
-could be skipped or double-applied.
+**Expect ≈ 1.0 before and after trading.** Then buy one member and re-read: every *other*
+member should have drifted **down**, without anyone touching them.
 
-**Expect prices to stay inside (0, 1)** even at the extremes. This is why LMSR replaced the
-constant-product curve the feature doc originally proposed: near the tails a CPMM quotes a
-Yes token *above* $1.00, which no rational buyer pays, since $1 is the most it can ever pay
-out. That is a shape problem, not a tuning problem —
-[hybrid-amm-clob.md](../features/hybrid-amm-clob.md) has the full argument.
+That falls out of the softmax denominator — there is no separate renormalisation pass that
+could be skipped, run twice, or race with a concurrent trade. The one exception is at the
+tails: prices are clamped to `[0.02, 0.98]`, which breaks the sum, so `renormalize()`
+redistributes the residual across outcomes that still have headroom. That is the only place
+the invariant is restored by hand rather than by construction.
 
-### 6.4 What Phase A is not
+### 6.5 Why LMSR rather than the `x·y=k` curve in the feature doc
 
-There is **no on-chain AMM pool**, no smart routing, and no split fills between a pool and
-the book. `packages/contracts/src/` has no AMM contract. If you are looking for a UI
-difference because you expected a pool, that is why there isn't one.
+Worth knowing while looking at the numbers, because it explains two of them:
+
+- **Prices stay inside (0, 1).** A constant-product pool near the tails quotes a Yes token
+  **above $1.00** — a price no rational buyer pays, since $1 is the most it can ever pay out.
+  That is a shape problem, not a tuning problem: CPMM is built for two assets whose relative
+  price ranges over (0, ∞), while outcome prices are bounded and must sum to 1.
+- **The subsidy is bounded and known up front.** The operator's worst-case loss across a book
+  of `n` outcomes is `b · ln(n)` — with `b = 250` and a binary market, about **173 tokens**.
+  That is what makes always-on liquidity fundable rather than open-ended.
+
+Full argument: [hybrid-amm-clob.md](../features/hybrid-amm-clob.md).
+
+### 6.6 What Phase A is not
+
+No on-chain AMM pool, no smart routing, no split fills between a pool and the book.
+`packages/contracts/src/` contains no pool contract. If you went looking for a UI difference
+because you expected a pool, that is why there isn't one — the operator's ladder *is* the
+AMM's presence in the book for now, expressed as ordinary limit orders that settle through
+the same CTF exchange as everything else.
 
 ---
 
