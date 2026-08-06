@@ -96,6 +96,21 @@ export const overview: Doc = {
             },
           ],
         },
+        {
+          id: "name",
+          heading: "Where the name comes from",
+          blocks: [
+            {
+              p: "**Verex** is *ver-* — Latin *verus* / *veritas*, “true” — joined to *-ex*, from **exchange**. Truth through exchange.",
+            },
+            {
+              p: "It is a claim about method, not a slogan. Most systems that need to know what happened *appoint* someone to say so. A prediction market instead makes being right pay and being wrong cost, and lets a price emerge from people who are spending their own money on the answer. The truth is not announced at the top; it is settled in the trading.",
+            },
+            {
+              p: "That is also why the oracle work matters more than its size suggests. As long as the operator reports every outcome, the last word still belongs to an authority — and the name is only half earned. Moving resolution to UMA's Optimistic Oracle, where anyone can propose an answer and anyone can dispute it, is what closes the gap between the mechanism and the word it is named after.",
+            },
+          ],
+        },
       ],
     },
     ko: {
@@ -186,6 +201,21 @@ export const overview: Doc = {
             },
             {
               note: "Verex는 **Sepolia** 테스트넷에서 테스트 USDC로 동작합니다. 시스템 어디에도 실제 자금은 걸려 있지 않습니다.",
+            },
+          ],
+        },
+        {
+          id: "name",
+          heading: "이름의 유래",
+          blocks: [
+            {
+              p: "**Verex**는 라틴어 *verus* / *veritas*(“참된”)에서 온 *ver-* 와, **exchange**(교환)에서 온 *-ex* 를 합친 이름입니다. 교환을 통해 도달하는 진실.",
+            },
+            {
+              p: "구호가 아니라 방법에 대한 주장입니다. 무슨 일이 일어났는지 알아야 하는 대부분의 시스템은 그것을 말해줄 누군가를 *임명*합니다. 반면 예측 시장은 맞히면 이득이 되고 틀리면 손실이 되게 만든 뒤, 자기 돈을 걸고 답을 말하는 사람들로부터 가격이 떠오르게 합니다. 진실은 위에서 선포되는 것이 아니라 거래 안에서 정해집니다.",
+            },
+            {
+              p: "오라클 작업이 그 분량에 비해 더 중요한 이유이기도 합니다. 운영자가 모든 결과를 보고하는 한 마지막 말은 여전히 권위자의 것이고, 이름은 절반만 지켜진 셈입니다. 누구나 답을 제안하고 누구나 이의를 제기할 수 있는 UMA Optimistic Oracle로 결과 확정을 옮기는 일이, 메커니즘과 그 이름 사이의 간극을 메웁니다.",
             },
           ],
         },

@@ -87,7 +87,11 @@ export function RtdNav({
 
         {groups.map((group) => (
           <div key={group} className="mb-2">
-            <p className="px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-muted-foreground">
+            {/* Deliberately the largest type in the rail. A group caption sits
+                above the documents it contains, so it has to out-weigh even the
+                active document's entry — otherwise the highlight reads as the
+                top of the hierarchy and the caption as a label under it. */}
+            <p className="px-4 pb-1.5 pt-4 text-sm font-bold uppercase tracking-wide text-foreground">
               {groupLabels[group]}
             </p>
             <ul>
@@ -101,7 +105,7 @@ export function RtdNav({
                         href={`/docs/${item.slug}`}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "block border-l-2 py-1.5 pl-4 pr-3 text-sm leading-snug transition-colors",
+                          "block border-l-2 py-1.5 pl-4 pr-3 text-[0.8125rem] leading-snug transition-colors",
                           active
                             ? "border-l-primary bg-accent font-semibold text-accent-foreground"
                             : "border-l-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground",
@@ -119,7 +123,7 @@ export function RtdNav({
                               <a
                                 href={`#${s.id}`}
                                 className={cn(
-                                  "block border-l-2 py-1 pl-8 pr-3 text-[0.8rem] leading-snug transition-colors",
+                                  "block border-l-2 py-1 pl-8 pr-3 text-xs leading-snug transition-colors",
                                   currentId === s.id
                                     ? "border-l-primary font-medium text-primary"
                                     : "border-l-transparent text-muted-foreground hover:text-foreground",
