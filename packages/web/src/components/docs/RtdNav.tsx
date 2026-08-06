@@ -101,8 +101,8 @@ export function RtdNav({
                         className={cn(
                           "block border-l-4 py-1.5 pl-4 pr-3 text-sm leading-snug transition-colors",
                           active
-                            ? "border-l-[#2980b9] bg-[#4e4a4a] font-semibold text-white"
-                            : "border-l-transparent text-white/75 hover:bg-white/5 hover:text-white",
+                            ? "border-l-primary bg-[hsl(240_9%_21%)] font-semibold text-white"
+                            : "border-l-transparent text-white/70 hover:bg-white/5 hover:text-white",
                         )}
                       >
                         {item.title}
@@ -111,7 +111,7 @@ export function RtdNav({
                       {/* The current document expands in place, the way RTD
                           nests a page's contents under its own entry. */}
                       {active && sections && sections.length > 0 && (
-                        <ul className="bg-[#3f3b3b] py-1">
+                        <ul className="bg-[hsl(240_11%_9%)] py-1">
                           {sections.map((s) => (
                             <li key={s.id}>
                               <a
@@ -119,8 +119,8 @@ export function RtdNav({
                                 className={cn(
                                   "block border-l-4 py-1 pl-8 pr-3 text-[0.8rem] leading-snug transition-colors",
                                   currentId === s.id
-                                    ? "border-l-[#2980b9] bg-[#4e4a4a] text-white"
-                                    : "border-l-transparent text-white/60 hover:text-white",
+                                    ? "border-l-primary bg-[hsl(240_9%_18%)] text-white"
+                                    : "border-l-transparent text-white/55 hover:text-white",
                                 )}
                               >
                                 {s.heading}
