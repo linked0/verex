@@ -4,6 +4,7 @@
 // size bars scaled to the deepest visible level. Polls every 5s.
 
 import * as React from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cents, getBookSnapshot, type BookSnapshot } from "@/lib/api";
 
@@ -69,6 +70,24 @@ export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) 
             <span className="relative tabular-nums text-muted-foreground">{l.size.toLocaleString()}</span>
           </div>
         ))}
+
+        {/* The levels vanishing after a trade is the single most misread thing
+            about this book: it looks like a plain CLOB, where an unfilled order
+            persists until its owner cancels it. The operator's rungs are quotes,
+            not orders — replaced wholesale on every fill. Say so here rather than
+            leaving people to infer it from a book that keeps changing shape. */}
+        <p className="mt-2 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground">
+          Prices here come from{" "}
+          <Link
+            href="/docs/hybrid-amm-clob#does-the-book-change"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            LMSR
+          </Link>
+          : after each trade the operator cancels its entire ladder and re-posts it
+          around a new centre, so its levels move rather than persist. Your own
+          resting orders are never cancelled.
+        </p>
       </CardContent>
     </Card>
   );

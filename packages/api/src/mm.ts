@@ -27,7 +27,9 @@ const LADDER_LEVELS = 5;
 const LADDER_STEP = 0.01; // 1¢ between levels
 /// Level weights, nearest-the-mid first (sum 15) — total posted size per
 /// side is `Σ weights/15 × ladderTotal`, so asks can never exceed the
-/// operator's minted inventory.
+/// operator's minted inventory. That guarantee only holds because
+/// `ladderTotal` nets out unsettled sales (see `unsettledOperatorSold`);
+/// the raw chain balance lags every fill.
 const LADDER_WEIGHTS = [5, 4, 3, 2, 1];
 /// Cap per side per outcome so a 10k-inventory market doesn't post an
 /// absurdly deep book.
@@ -57,11 +59,18 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
     data: { status: "CANCELLED" },
   });
 
+  const unsettled = await unsettledOperatorSold(marketId);
+
   for (const outcome of market.outcomes) {
     const center = outcome.label === "Yes" ? centerYes : Number((1 - centerYes).toFixed(4));
     const inventoryE6 = await chain.ctAs(0).balanceOf(chain.operator, BigInt(outcome.tokenId));
     const inventory = Number(formatUnits(inventoryE6, 6));
-    const ladderTotal = Math.min(inventory, MAX_LADDER_TOKENS);
+    // Only ever REDUCE by what's owed. A negative net (the operator bought and
+    // hasn't received yet) must not inflate the quote — those tokens aren't in
+    // hand either.
+    const owed = Math.max(0, unsettled.get(outcome.id) ?? 0);
+    const available = Math.max(0, inventory - owed);
+    const ladderTotal = Math.min(available, MAX_LADDER_TOKENS);
     if (ladderTotal < 1) continue; // nothing to quote with
 
     const weightSum = LADDER_WEIGHTS.reduce((a, b) => a + b, 0);
@@ -94,6 +103,32 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
       }
     }
   }
+}
+
+/// Tokens the operator has already sold on the book but whose on-chain transfer
+/// has NOT been mined yet, keyed by outcome.
+///
+/// `balanceOf` cannot see these. The after-fill hook that re-posts the ladder
+/// runs before SETTLE_MATCH is even enqueued (book.ts), so a fresh chain read
+/// still reports the PRE-trade balance. Sizing the ladder off that stale number
+/// is what let the operator advertise size it no longer owns: a $400 fill took
+/// 772 of 1,000 tokens and the very next ladder still quoted the full 1,000.
+///
+/// Only PENDING counts. CONFIRMED is already reflected in `balanceOf`, and
+/// FAILED settlements never moved anything — the operator really does still
+/// hold those.
+async function unsettledOperatorSold(marketId: string): Promise<Map<string, number>> {
+  const rows = await prisma.$queryRaw<{ outcomeId: string; netSold: number }[]>`
+    SELECT t."outcomeId" AS "outcomeId",
+           SUM(CASE WHEN t."side" = 'BUY' THEN t."tokenAmount" ELSE -t."tokenAmount" END)::float8 AS "netSold"
+    FROM "Trade" t
+    JOIN "Order" o ON o."id" = t."makerOrderId"
+    WHERE o."makerIndex" = 0
+      AND t."settlement" = 'PENDING'
+      AND t."marketId" = ${marketId}
+    GROUP BY t."outcomeId"
+  `;
+  return new Map(rows.map((r) => [r.outcomeId, Number(r.netSold) || 0]));
 }
 
 /// Net quantity of each outcome the OPERATOR has sold, over the market's whole
