@@ -174,6 +174,188 @@ forever.
 
 ---
 
+## 4b. Worst case: simulating a dispute
+
+The dispute mechanism has two halves, and **only the first half is simulatable**:
+
+| Half | Simulatable? |
+|---|---|
+| propose → dispute → market frozen | yes — commands below |
+| the DVM verdict that unfreezes it | no — needs real staked voters in a ~2-day commit/reveal round; on Sepolia's test DVM a disputed request may simply never settle |
+
+> ⚠️ **Never dispute the seeded `uma-eth-above-6k-2026`** — a disputed market stays
+> frozen until the DVM rules, which on a testnet can be forever. Create a THROWAWAY
+> UMA market on `/create` and dispute that one.
+
+The disputer must be a *different* wallet than the proposer — demo wallet #1 works.
+It was funded 0.01 ETH at setup, which is not enough for the 0.011 WETH bond plus gas,
+so top it up first:
+
+```bash
+set -a; source packages/contracts/.env; set +a
+MNEMONIC=$(gcloud secrets versions access latest --secret=verex-demo-mnemonic-verex)
+W1_KEY=$(cast wallet private-key --mnemonic "$MNEMONIC" --mnemonic-index 1)
+W1=$(cast wallet address $W1_KEY)
+
+# 1. top up wallet #1 from the operator (bond 0.01 + final fee 0.001 + gas)
+cast send $W1 --value 0.02ether --private-key $VEREX_OPERATOR_KEY --rpc-url $VEREX_RPC_URL
+
+# 2. wrap ETH → WETH and approve the oracle for bond + final fee
+WETH=0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9
+OO=0x9f1263B8f0355673619168b5B8c0248f1d03e88C
+cast send $WETH 'deposit()' --value 0.011ether --private-key $W1_KEY --rpc-url $VEREX_RPC_URL
+cast send $WETH 'approve(address,uint256)' $OO 11000000000000000 \
+  --private-key $W1_KEY --rpc-url $VEREX_RPC_URL
+
+# 3. dispute — same request params as the propose step (§4): the adapter is the
+#    requester, and timestamp/ancillary come from getQuestion(<questionId>)
+ADAPTER=$(node -p "require('./packages/contracts/deployments.json').staging.umaAdapter")
+cast send $OO 'disputePrice(address,bytes32,uint256,bytes)' \
+  $ADAPTER $(cast format-bytes32-string "YES_OR_NO_QUERY") \
+  <requestTimestamp> <ancillaryDataHex> \
+  --private-key $W1_KEY --rpc-url $VEREX_RPC_URL
+```
+
+What you should observe afterwards — this IS the worst case, working as designed:
+
+- `isSettleable(<questionId>)` → `false`, indefinitely
+- `POST /markets/<slug>/uma-resolve` → **409**, indefinitely
+- redeem → 400 (`market is not resolved yet`) — nobody can cash out on a contested answer
+- trading on the book stays open; price now expresses the market's guess about the DVM
+
+Economics: whichever side the DVM eventually rules against loses its bond, half of
+which pays the winning side. Proposing falsely risks 0.01 WETH against a 1-hour
+window watched by anyone; disputing frivolously risks the same. Honesty is the
+cheap strategy on both sides — that is the entire design.
+
+### Joining the DVM (how a verdict actually happens)
+
+For reference — this is mainnet UMA governance, not something the demo needs:
+
+1. **Stake UMA** in VotingV2 (via [vote.uma.xyz](https://vote.uma.xyz)). Staked
+   tokens are your voting power and your skin in the game.
+2. **Vote in the round** a disputed request lands in: **commit** a hashed vote
+   (~24h), then **reveal** it (~24h) — hashing keeps votes secret while open.
+3. **Settlement**: the mode of revealed stake-weighted votes becomes the answer
+   the adapter later reads. Voters who voted with the majority earn emissions;
+   wrong or absent voters are slashed — being right, often, is the yield.
+
+Verex never talks to the DVM directly: the adapter only reads the settled answer
+through `settleAndGetPrice`. Dispute UX likewise belongs to UMA's own dApp
+([oracle.uma.xyz](https://oracle.uma.xyz)) — real deployments (Polymarket included)
+link out to it rather than rebuilding dispute flows in-app.
+
+---
+
+## 4c. The three dispute scenarios, in a browser (mock oracle)
+
+Section 4b's limitation — the DVM verdict can't be simulated — is real only
+against the *real* oracle. Local environments deploy a
+**MockOptimisticOracleV2** instead (`DeployMockOracle.s.sol`, run automatically
+by the seed), whose DVM is a **jury of the demo wallets**: one vote per wallet,
+majority wins, a tie settles Unresolvable. The `UmaCtfAdapter` is the SAME
+contract as on staging — it is constructed against the mock's address and never
+knows the difference, which is precisely the no-discretion property that makes
+it trustworthy against the real oracle.
+
+Every UMA market's page carries an **oracle panel** (`UmaOraclePanel`) that
+walks the whole lifecycle with buttons — no cast, no curl. The three scenarios:
+
+| # | Scenario | Steps in the panel | What it proves |
+|---|---|---|---|
+| 1 | **Dispute defeated** | Propose YES → dispute as wallet #1 → wallets #2–5 vote YES → finalize → resolve | An honest answer survives a challenge; the disputer's bond pays the proposer |
+| 2 | **Dispute upheld** | Propose YES → dispute → jury majority votes NO → finalize → resolve | The oracle can overrule the operator — the market settles on the *jury's* answer, and the proposer's bond pays the disputer |
+| 3 | **Dead end** | Propose → dispute → *cast no votes* | A disputed request never expires: `uma-resolve` returns 409 forever, redeem stays blocked. This is exactly the frozen state a real-oracle dispute leaves on Sepolia (§4b) |
+
+Practical notes:
+
+- Mock-oracle bonds are **10 USDC** (no whitelist, so no WETH dance) and
+  liveness is **5 minutes**, so the undisputed path is also demonstrable by
+  simply waiting out the countdown.
+- Use **throwaway markets** from `/create` (UMA option, binary only) for
+  scenarios you want to repeat; each market's question can run the lifecycle
+  once.
+- A scenario-3 market is not damaged goods — the jury can still vote later and
+  unfreeze it. That, too, mirrors UMA: a dispute is resolved *whenever the DVM
+  rules*, not by a deadline.
+- The API guards: `uma-propose`/`uma-dispute`/`uma-vote`/`uma-finalize` return
+  400 unless `ChainConfig.umaOracleMock` is true. Against the real oracle the
+  panel is read-only — a one-wallet-one-vote jury there would be theatre.
+
+### Step-by-step in the browser
+
+**Prerequisites** — a seeded local stack:
+
+```bash
+anvil &                                # chain on http://127.0.0.1:8545
+pnpm --filter @verex/api seed          # deploys backbone + MOCK oracle + adapter
+pnpm --filter @verex/api dev           # API → http://localhost:4000
+pnpm --filter @verex/web dev           # Web → http://localhost:3000
+```
+
+The API must sign as the seeded operator: `packages/api/.env` needs
+`VEREX_OPERATOR_KEY` (mirrored from `packages/contracts/.env`). Symptom when it
+is missing: `GET http://localhost:4000/wallet/0` returns anvil's well-known
+`0xf39F…` instead of the operator, and every propose fails
+"insufficient allowance".
+
+**URLs:**
+
+| What | URL |
+|---|---|
+| Seeded UMA market (one lifecycle only — spend it wisely) | <http://localhost:3000/market/uma-eth-above-6k-2026> |
+| Create throwaway UMA markets (repeatable scenarios) | <http://localhost:3000/create> |
+| Oracle state, raw (the panel's data source) | <http://localhost:4000/markets/uma-eth-above-6k-2026/uma> |
+| Wallet balance check (bond arithmetic) | <http://localhost:4000/wallet/1> |
+| Staging (real oracle — panel is read-only) | <https://verex-web-q6qvjcw5ma-du.a.run.app/market/uma-eth-above-6k-2026> |
+
+On `/create`: pick **binary Yes/No**, resolution source **UMA oracle**, and
+resolution criteria of at least 20 characters. Each market's question can run
+the lifecycle **once**, so make one throwaway market per scenario run.
+
+**Scenario 1 — dispute defeated.** Open the market page; in the *UMA oracle*
+card:
+
+1. **Propose YES** — state becomes *Proposed*, a 5:00 countdown starts.
+2. **Dispute as wallet #1** during the countdown — state *Disputed*, the jury
+   rows appear.
+3. Vote: **#1 → No** (the disputer backs itself), **#2–#5 → Yes**.
+4. **Finalize verdict** — verdict **Yes** (4–1).
+5. **Copy the verdict on-chain (resolve)** — the market resolves YES.
+
+Expect: `GET /wallet/1` is **down exactly 10 USDC** (its lost bond, paid to the
+proposer). The RESOLVED badge appears; winners redeem in Portfolio.
+
+**Scenario 2 — dispute upheld.** Same clicks, opposite jury: propose YES,
+dispute as #1, but vote the **majority No**. Verdict **No** — the market
+settles against the proposer, whose bond pays the disputer: `GET /wallet/1`
+ends **up 10 USDC** net (bonded 10, got 20 back).
+
+**Scenario 3 — dead end.** Propose, dispute — then **cast no votes**. Expect,
+indefinitely (even long after the countdown would have expired):
+
+- the panel stays on *Disputed* with the frozen-forever note,
+- `POST /markets/<slug>/uma-resolve` → **409**,
+- redeem → 400 "market is not resolved yet".
+
+To show the freeze outlives liveness, warp the chain and watch nothing change:
+
+```bash
+cast rpc evm_increaseTime 600 --rpc-url http://127.0.0.1:8545
+cast rpc evm_mine --rpc-url http://127.0.0.1:8545
+```
+
+A dead-ended market can still be rescued later — jury votes + finalize work at
+any time, which mirrors the real DVM: disputes resolve when the vote happens,
+not by a deadline.
+
+**Bonus — the undisputed path.** Propose and let the 5:00 countdown run out
+without disputing: the panel offers *Resolve market from the oracle*, and the
+proposer's bond simply comes back. This is the happy path staging exercises
+against the real oracle (with a 1-hour window there).
+
+---
+
 ## 5. Testing locally
 
 **UMA does not exist on a plain anvil chain.** There is no mock deployment to point at, so

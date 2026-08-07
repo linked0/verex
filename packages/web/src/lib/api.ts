@@ -448,6 +448,8 @@ export type ApiConfig = {
   tradingEnabled: boolean;
   umaAvailable: boolean;
   umaAdapter: string | null;
+  /// True when the oracle is the demo mock — dispute/vote controls exist only then.
+  umaOracleMock?: boolean;
 };
 
 export async function getConfig(): Promise<ApiConfig> {
@@ -457,9 +459,66 @@ export async function getConfig(): Promise<ApiConfig> {
     return await res.json();
   } catch {
     // An unreachable API is not a reason to offer an oracle we can't verify.
-    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null };
+    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null, umaOracleMock: false };
   }
 }
+
+// ── UMA oracle lifecycle (market page's oracle panel) ──────────────────────
+
+export type UmaAnswer = "Yes" | "No" | "Unresolvable";
+export type UmaRequestState =
+  | "Invalid"
+  | "Requested"
+  | "Proposed"
+  | "Expired"
+  | "Disputed"
+  | "Resolved"
+  | "Settled";
+
+export type UmaLifecycle = {
+  slug: string;
+  oracle: {
+    address: string | null;
+    mock: boolean;
+    state: UmaRequestState;
+    proposer: string | null;
+    proposerIndex: number | null;
+    disputer: string | null;
+    disputerIndex: number | null;
+    proposedAnswer: UmaAnswer | null;
+    verdict: UmaAnswer | null;
+    bond: number;
+    bondCurrency: string;
+    expirationTime: number; // unix seconds; 0 until proposed
+    settled: boolean;
+    ballots: { voter: string; voterIndex: number | null; answer: UmaAnswer | null }[];
+  };
+};
+
+export async function getUmaLifecycle(slug: string): Promise<UmaLifecycle> {
+  const res = await fetch(`${BROWSER_API}/markets/${slug}/uma`, { cache: "no-store" });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "uma state failed");
+  return data;
+}
+
+async function postUma(slug: string, action: string, body?: object) {
+  const res = await fetch(`${BROWSER_API}/markets/${slug}/${action}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? `${action} failed`);
+  return data;
+}
+
+export const postUmaPropose = (slug: string, answer: UmaAnswer) => postUma(slug, "uma-propose", { answer });
+export const postUmaDispute = (slug: string, accountIndex: number) => postUma(slug, "uma-dispute", { accountIndex });
+export const postUmaVote = (slug: string, accountIndex: number, answer: UmaAnswer) =>
+  postUma(slug, "uma-vote", { accountIndex, answer });
+export const postUmaFinalize = (slug: string) => postUma(slug, "uma-finalize");
+export const postUmaResolve = (slug: string) => postUma(slug, "uma-resolve");
 
 export type JobInfo = {
   id: string;

@@ -81,6 +81,13 @@ model ChainConfig {
   /// which is the correct behaviour on anvil and on any environment that
   /// hasn't run runbook §2b.
   umaAdapterAddr String?
+
+  /// The oracle the adapter is bound to, and whether it is the demo mock
+  /// (MockOptimisticOracleV2, whose DVM is a demo-wallet jury) rather than the
+  /// real OptimisticOracleV2. The dispute/vote endpoints only exist when this
+  /// is true — a one-address-one-vote jury on a real oracle would be theatre.
+  umaOracleAddr String?
+  umaOracleMock Boolean @default(false)
 }
 
 /// A binary prediction market backed by an on-chain CTF condition.

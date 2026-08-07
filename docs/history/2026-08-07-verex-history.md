@@ -38,3 +38,46 @@ staging-deploy + re-seed path after PR #15 (UMA/LMSR/docs branch) merged to main
   adapter `0x1B45…00AC` (matches the manifest); `uma-eth-above-6k-2026` present, `oracleType:
   "UMA"`, `OPEN`. Staging is ready for jay's propose → 1h liveness → resolve test.
   Web: https://verex-web-q6qvjcw5ma-du.a.run.app
+
+### Dispute simulation: only half the worst case is simulatable — and no dispute page
+
+- **Cause:** jay asked whether he can simulate being the disputer, whether a dispute page
+  (usable by demo wallet #1) is worth building, and for DVM docs to review locally.
+- **Reasoning:** the dispute *action* (propose → dispute → market frozen) is fully
+  demonstrable with cast + demo wallet #1; the DVM *verdict* is not — Sepolia's test DVM
+  needs real staked voters in a ~2-day commit/reveal round, and even a fork would require
+  puppeteering VotingV2. A dispute page would therefore lead demos into a dead end, needs a
+  WETH faucet flow, and the industry pattern (incl. Polymarket) is to link out to UMA's own
+  dApp — dispute UX belongs to the oracle, not the exchange.
+- **Change:** added runbook section 4b to docs/runbooks/uma-adapter.md — throwaway-market
+  warning (never dispute the seeded UMA market; it freezes indefinitely), full disputer
+  commands (top-up → wrap → approve → disputePrice), expected frozen-state observations,
+  bond economics, and a "joining the DVM" reference.
+- **Result:** recommendation delivered: no dispute page; optionally a "disputed" badge +
+  link to oracle.uma.xyz later. Superseded the same day by jay's educational/portfolio
+  reframe — see the next entry.
+
+### Walkable dispute scenarios: mock oracle with a demo-wallet jury
+
+- **Cause:** jay reframed the site as educational/portfolio, which flipped the earlier
+  "no dispute page" call, and asked for three walkable scenarios: dispute defeated (jury
+  backs the proposer), dispute upheld (jury overturns), and the dead end.
+- **Reasoning:** the un-simulatable half of a dispute is only the DVM verdict — so replace
+  exactly that half. MockOptimisticOracleV2 implements the oracle surface the adapter uses
+  plus a jury: one vote per address, majority wins, tie = Unresolvable, winner takes the
+  loser's bond. The UmaCtfAdapter is deliberately UNCHANGED — same contract, different
+  constructor argument — so the demo exercises the production resolution path. Writes are
+  mock-only by guard; a demo jury on the real oracle would be theatre.
+- **Change:** contract + 10 foundry tests (three scenarios end-to-end through the adapter);
+  DeployMockOracle.s.sol run by local seeds; ChainConfig grows umaOracleAddr/umaOracleMock
+  (migration); SDK uma-oracle client; API GET /markets/:slug/uma + mock-only propose/
+  dispute/vote/finalize; UmaOraclePanel on UMA market pages (countdown, per-wallet vote
+  buttons, verdict copy); runbook §4c. Two latent bugs fixed en route: the seed's CTF
+  allowance budgeted 10 markets but the UMA market is an 11th; app-created UMA markets
+  hardcoded WETH bonds (now 10 USDC + 5-min liveness on mock). Also mirrored
+  VEREX_OPERATOR_KEY into packages/api/.env — the dev server had been signing as anvil
+  account 0, not the seeded operator.
+- **Result:** all three scenarios verified over the API on local anvil: scenario 1 verdict
+  Yes [1,0] with disputer −10 USDC; scenario 2 verdict No [0,1] with disputer +10 (990 →
+  980 bonded → 1000); scenario 3 frozen at Disputed with 409s even 600s past liveness.
+  63/63 contract tests green. Panel renders on the market page; branch claude/uma-dispute-demo.

@@ -40,6 +40,9 @@ const UMA_BOND = parseUnits("0.01", 18);
 /// 1 hour instead of UMA's 7200s default. Shortened because a demo that needs
 /// a two-hour wait before anyone can see resolution work isn't a demo.
 const UMA_LIVENESS = 3600n;
+/// Mock-oracle variants (local anvil) — see prisma/seed.ts's twins.
+const UMA_BOND_MOCK = parseUnits("10", 6); // 10 USDC
+const UMA_LIVENESS_MOCK = 300n;
 /// Minimum length for resolution criteria. Not a formatting rule — this text
 /// is the entire basis on which a UMA voter decides, and a one-word answer
 /// there is how a market settles "unresolvable" and pays both sides half.
@@ -258,12 +261,14 @@ function umaArgs(
     title: p.title,
     resolutionCriteria: p.resolutionCriteria,
     closesAt: new Date(p.closesAt),
-    // WETH rather than the market's own collateral: UMA only accepts bond
-    // currencies on its AddressWhitelist, and Verex's MockUSDC is not on it.
-    rewardToken: UMA_SEPOLIA.weth,
+    // Real oracle: WETH, because UMA only accepts bond currencies on its
+    // AddressWhitelist and Verex's MockUSDC is not on it. Mock oracle: no
+    // whitelist, so the bond is USDC the demo wallets already hold, and
+    // liveness drops to 5 minutes so the dispute window is clickable.
+    rewardToken: chain.umaOracleMock ? chain.usdcAddr : UMA_SEPOLIA.weth,
     reward: UMA_REWARD,
-    bond: UMA_BOND,
-    liveness: UMA_LIVENESS,
+    bond: chain.umaOracleMock ? UMA_BOND_MOCK : UMA_BOND,
+    liveness: chain.umaOracleMock ? UMA_LIVENESS_MOCK : UMA_LIVENESS,
   } satisfies UmaCreateArgs;
 }
 
