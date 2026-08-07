@@ -55,3 +55,14 @@ export {
   type UmaAdapterClient,
   type UmaQuestion,
 } from "./uma";
+
+// Oracle-side lifecycle (propose/dispute, and the mock jury's vote/finalize).
+export {
+  createUmaOracleClient,
+  UMA_REQUEST_STATES,
+  type UmaOracleClient,
+  type UmaOracleRequest,
+  type UmaRequestState,
+  type RequestKey,
+} from "./uma-oracle";
+export { MockOptimisticOracleV2Abi } from "./abis";

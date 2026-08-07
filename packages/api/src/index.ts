@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { prisma } from "./db";
 import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
 import { resolveMarket, resolveMarketFromUma, resolveGroup, redeemPosition, pendingRedeems } from "./resolve";
+import { umaLifecycle, umaPropose, umaDispute, umaVote, umaFinalize, type UmaAnswer } from "./uma-demo";
 import { startWorker } from "./worker";
 import {
   placeOrder,
@@ -36,10 +37,13 @@ app.get("/config", async () => {
       tradingEnabled: chain.chainId !== 0,
       umaAvailable: Boolean(chain.umaAdapterAddr),
       umaAdapter: chain.umaAdapterAddr,
+      // True when the oracle is the demo mock whose DVM is a demo-wallet
+      // jury — the web only offers propose/dispute/vote controls then.
+      umaOracleMock: chain.umaOracleMock,
     };
   } catch {
     // No ChainConfig row yet (un-seeded DB) — browse-only, nothing on offer.
-    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null };
+    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null, umaOracleMock: false };
   }
 });
 
@@ -425,6 +429,87 @@ app.post("/markets/:slug/uma-resolve", async (req, reply) => {
     req.log.error(e);
     return reply.status(status).send({
       error: e?.shortMessage ?? e?.message ?? "uma resolve failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+// ── The oracle lifecycle demo (mock oracle only for writes) ────────────────
+// GET works against either oracle; the writes exist so the three dispute
+// scenarios are walkable in a browser. See src/uma-demo.ts for why writes
+// refuse to run against the real oracle.
+
+app.get("/markets/:slug/uma", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    return await umaLifecycle(slug);
+  } catch (e: any) {
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "uma state failed" });
+  }
+});
+
+app.post("/markets/:slug/uma-propose", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const body = (req.body ?? {}) as { answer?: UmaAnswer };
+    if (!body.answer || !["Yes", "No", "Unresolvable"].includes(body.answer)) {
+      return reply.status(400).send({ error: "answer must be Yes, No or Unresolvable" });
+    }
+    const r = await umaPropose(slug, body.answer);
+    notifyTelegram(`🔮 📣 Verex — answer proposed on ${slug}: ${body.answer}`);
+    return r;
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({
+      error: e?.shortMessage ?? e?.message ?? "propose failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+app.post("/markets/:slug/uma-dispute", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const body = (req.body ?? {}) as { accountIndex?: number };
+    const r = await umaDispute(slug, Number(body.accountIndex));
+    notifyTelegram(`🔮 ⚔️ Verex — proposal disputed on ${slug} by wallet #${body.accountIndex}`);
+    return r;
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({
+      error: e?.shortMessage ?? e?.message ?? "dispute failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+app.post("/markets/:slug/uma-vote", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const body = (req.body ?? {}) as { accountIndex?: number; answer?: UmaAnswer };
+    if (!body.answer || !["Yes", "No", "Unresolvable"].includes(body.answer)) {
+      return reply.status(400).send({ error: "answer must be Yes, No or Unresolvable" });
+    }
+    return await umaVote(slug, Number(body.accountIndex), body.answer);
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({
+      error: e?.shortMessage ?? e?.message ?? "vote failed",
+      detail: revertDetail(e),
+    });
+  }
+});
+
+app.post("/markets/:slug/uma-finalize", async (req, reply) => {
+  try {
+    const { slug } = req.params as { slug: string };
+    const r = await umaFinalize(slug);
+    notifyTelegram(`🔮 🧑‍⚖️ Verex — jury verdict finalized on ${slug}`);
+    return r;
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({
+      error: e?.shortMessage ?? e?.message ?? "finalize failed",
       detail: revertDetail(e),
     });
   }

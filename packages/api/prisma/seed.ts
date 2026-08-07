@@ -90,6 +90,12 @@ const UMA_SEED_BOND = parseUnits("0.01", 18); // WETH, 18dp
 /// 1 hour instead of UMA's 7200s default, so the demo's challenge window is
 /// something a person will actually sit through.
 const UMA_SEED_LIVENESS = 3600n;
+/// Mock-oracle variants (local anvil). The mock has no currency whitelist, so
+/// the bond is plain USDC — demo wallets already hold it — and liveness drops
+/// to 5 minutes: long enough to click "dispute", short enough that the
+/// undisputed path is also demonstrable without warping the chain.
+const UMA_SEED_BOND_MOCK = parseUnits("10", 6); // 10 USDC
+const UMA_SEED_LIVENESS_MOCK = 300n;
 const UMA_SEED = {
   slug: "uma-eth-above-6k-2026",
   title: "Will ETH close above $6,000 in 2026? (UMA-resolved)",
@@ -348,6 +354,11 @@ interface Backbone {
   /// Optional per environment — only set once runbook §2b has been run.
   /// Absent means markets here can only be operator-resolved.
   umaAdapter?: Address;
+  /// The oracle the adapter is bound to. On local anvil this is the
+  /// MockOptimisticOracleV2 (umaMock true) whose DVM is a demo-wallet jury;
+  /// on staging/prod it is the real OptimisticOracleV2.
+  umaOracle?: Address;
+  umaMock?: boolean;
 }
 
 const DEPLOYMENTS_PATH = pathResolve(CONTRACTS_DIR, "deployments.json");
@@ -381,6 +392,8 @@ function manifestBackbone(target: string): Backbone {
     ctf: entry.ctf,
     exchange: entry.exchange,
     umaAdapter: entry.umaAdapter,
+    umaOracle: entry.umaOracle,
+    umaMock: entry.umaMock ?? false,
   };
 }
 
@@ -580,7 +593,31 @@ async function main() {
     ).toString();
     backbone = parseDeployOutput(out);
   }
+
+  // Local only: deploy the demo oracle stack — MockOptimisticOracleV2 plus an
+  // UNCHANGED UmaCtfAdapter bound to it — so the dispute scenarios (defeated /
+  // upheld / dead end) are walkable in the browser with the demo wallets as
+  // the jury. A fresh stack per seed is correct: the adapter's address is part
+  // of every conditionId it prepares, and the seed recreates those markets.
+  if (DEPLOY_TARGET === "local") {
+    console.log("[1b] deploying mock oracle + adapter via forge...");
+    const out = execSync(
+      `forge script script/DeployMockOracle.s.sol --rpc-url ${RPC_URL} --broadcast`,
+      { cwd: CONTRACTS_DIR, env: { ...process.env, PATH: FOUNDRY_PATH, CTF_ADDR: backbone.ctf } },
+    ).toString();
+    const grab = (label: string) => {
+      const m = out.match(new RegExp(`${label}:\\s*(0x[a-fA-F0-9]{40})`));
+      if (!m) throw new Error(`could not parse ${label} from DeployMockOracle output`);
+      return m[1] as Address;
+    };
+    backbone.umaOracle = grab("MockOptimisticOracleV2");
+    backbone.umaAdapter = grab("UmaCtfAdapter");
+    backbone.umaMock = true;
+  }
   console.log(`    USDC ${backbone.usdc}\n    CTF ${backbone.ctf}\n    Exchange ${backbone.exchange}`);
+  if (backbone.umaAdapter) {
+    console.log(`    UmaCtfAdapter ${backbone.umaAdapter} (oracle ${backbone.umaOracle}${backbone.umaMock ? ", MOCK jury" : ""})`);
+  }
 
   const operator = accountAddress(0);
   const operatorWallet = makeWalletClient(0);
@@ -630,6 +667,15 @@ async function main() {
     const userCt = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: userWallet });
     await userUsdc.approve(backbone.exchange, DEMO_APPROVAL);
     await userCt.setApprovalForAll(backbone.exchange, true);
+    // Mock oracle: dispute bonds are pulled in USDC, so pre-approve it the
+    // same way trades are — a dispute should be one confirmation, not two.
+    if (backbone.umaMock && backbone.umaOracle) {
+      await userUsdc.approve(backbone.umaOracle, DEMO_APPROVAL);
+    }
+  }
+  // The operator proposes answers on mock-oracle markets, bonding USDC too.
+  if (backbone.umaMock && backbone.umaOracle) {
+    await usdc.approve(backbone.umaOracle, DEMO_APPROVAL);
   }
 
   // 3. Reset DB content and store chain config
@@ -654,6 +700,8 @@ async function main() {
       // Null unless the manifest carries one — the API offers the UMA oracle
       // at creation only when this is set.
       umaAdapterAddr: backbone.umaAdapter ?? null,
+      umaOracleAddr: backbone.umaOracle ?? null,
+      umaOracleMock: backbone.umaMock ?? false,
     },
   });
 
@@ -691,13 +739,15 @@ async function main() {
             title: args.title,
             resolutionCriteria: args.uma!.resolutionCriteria,
             closesAt: new Date(args.closesAt),
-            rewardToken: UMA_SEPOLIA.weth,
+            // The mock has no whitelist, so its bond is plain USDC; the real
+            // oracle only takes whitelisted currencies (WETH).
+            rewardToken: backbone.umaMock ? backbone.usdc : UMA_SEPOLIA.weth,
             // reward 0: a non-zero reward would have to be held by the ADAPTER
             // before initialize, so a seeded market can't pay one without a
             // funding step the seed has no business performing.
             reward: 0n,
-            bond: UMA_SEED_BOND,
-            liveness: UMA_SEED_LIVENESS,
+            bond: backbone.umaMock ? UMA_SEED_BOND_MOCK : UMA_SEED_BOND,
+            liveness: backbone.umaMock ? UMA_SEED_LIVENESS_MOCK : UMA_SEED_LIVENESS,
           }
         : undefined,
     });

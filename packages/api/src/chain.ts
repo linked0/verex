@@ -31,11 +31,13 @@ import {
   createExchangeClient,
   createUsdcClient,
   createUmaAdapterClient,
+  createUmaOracleClient,
   type AccountConfig,
   type Address,
   type CTClient,
   type ExchangeClient,
   type UmaAdapterClient,
+  type UmaOracleClient,
   type UsdcClient,
 } from "@verex/sdk";
 import { prisma } from "./db";
@@ -102,6 +104,11 @@ export interface ChainCtx {
   /// offered at market creation. True on anvil and on any environment that
   /// hasn't run runbook §2b.
   umaAdapterAddr: Address | null;
+  /// The oracle behind the adapter, and whether it is the demo mock (a
+  /// jury of demo wallets stands in for UMA's DVM). The dispute/vote demo
+  /// endpoints refuse to run unless the mock flag is set.
+  umaOracleAddr: Address | null;
+  umaOracleMock: boolean;
   publicClient: PublicClient;
   /// Clients bound to a wallet — pass the account index (0 = operator).
   ctAs: (index: number) => CTClient;
@@ -111,6 +118,8 @@ export interface ChainCtx {
   /// takes an override because a market must resolve through the adapter it
   /// was CREATED against, which may not be the current one.
   umaAs: (index: number, adapter?: Address) => UmaAdapterClient;
+  /// Oracle-side lifecycle (propose/dispute/vote) bound to a wallet.
+  umaOracleAs: (index: number) => UmaOracleClient;
 }
 
 let cached: ChainCtx | null = null;
@@ -131,7 +140,8 @@ export async function loadChain(): Promise<ChainCtx> {
     cached.usdcAddr === cfg.usdcAddr &&
     cached.ctfAddr === cfg.ctfAddr &&
     cached.exchangeAddr === cfg.exchangeAddr &&
-    cached.umaAdapterAddr === (cfg.umaAdapterAddr as Address | null)
+    cached.umaAdapterAddr === (cfg.umaAdapterAddr as Address | null) &&
+    cached.umaOracleAddr === (cfg.umaOracleAddr as Address | null)
   ) {
     return cached;
   }
@@ -157,6 +167,8 @@ export async function loadChain(): Promise<ChainCtx> {
     exchangeAddr: cfg.exchangeAddr as Address,
     operator: cfg.operator as Address,
     umaAdapterAddr: (cfg.umaAdapterAddr as Address | null) ?? null,
+    umaOracleAddr: (cfg.umaOracleAddr as Address | null) ?? null,
+    umaOracleMock: cfg.umaOracleMock,
     publicClient,
     ctAs: (index) =>
       createCTClient({
@@ -185,6 +197,17 @@ export async function loadChain(): Promise<ChainCtx> {
         );
       }
       return createUmaAdapterClient({
+        address,
+        publicClient,
+        walletClient: makeWalletClient(index),
+      });
+    },
+    umaOracleAs: (index) => {
+      const address = cfg.umaOracleAddr as Address | null;
+      if (!address) {
+        throw new Error("no UMA oracle recorded in this environment's ChainConfig");
+      }
+      return createUmaOracleClient({
         address,
         publicClient,
         walletClient: makeWalletClient(index),
