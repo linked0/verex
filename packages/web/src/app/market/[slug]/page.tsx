@@ -17,6 +17,7 @@ import { EditMarketLink } from "@/components/EditMarketLink";
 import { ProbChart } from "@/components/ProbChart";
 import { MarketSidePanel } from "@/components/MarketSidePanel";
 import { BookPanel } from "@/components/BookPanel";
+import { UmaOraclePanel } from "@/components/UmaOraclePanel";
 
 export const dynamic = "force-dynamic";
 
@@ -87,6 +88,14 @@ export default async function MarketPage({ params }: { params: { slug: string } 
               <ProbChart points={points} height={260} />
             </CardContent>
           </Card>
+
+          {/* UMA markets carry their oracle's whole lifecycle on the page —
+              propose → challenge window → (dispute → jury → verdict) → resolve.
+              Operator markets have no lifecycle to show; their resolution is a
+              single admin action in the side panel. */}
+          {market.oracleType === "UMA" && (
+            <UmaOraclePanel slug={market.slug} marketStatus={market.status} />
+          )}
 
           <Card>
             <CardHeader className="pb-2">
