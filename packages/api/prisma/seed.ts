@@ -640,8 +640,11 @@ async function main() {
   await exchange.addOperator(operator);
   await ct.setApprovalForAll(backbone.exchange, true); // exchange pulls YES/NO on fills
   const memberCount = GROUPS.reduce((a, g) => a + g.outcomes.length, 0);
+  // +1 when the UMA market will be seeded (§4b) — it splits a full market's
+  // inventory too. Missing it exhausts the CTF allowance at the groups.
+  const marketCount = MARKETS.length + (umaAdapterClient ? 1 : 0);
   const totalInventory =
-    INVENTORY_PER_MARKET * BigInt(MARKETS.length) + INVENTORY_PER_MEMBER * BigInt(memberCount);
+    INVENTORY_PER_MARKET * BigInt(marketCount) + INVENTORY_PER_MEMBER * BigInt(memberCount);
   const totalMint = OPERATOR_USDC_BUFFER + totalInventory;
   await usdc.mint(operator, totalMint);
   await usdc.approve(backbone.ctf, totalInventory); // splits pull via CTF
