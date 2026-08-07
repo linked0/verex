@@ -2,7 +2,7 @@
 // Reads forge build output and emits typed ABI modules under src/abis/.
 // Run automatically before `tsc` via the `prebuild` npm script.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +25,23 @@ if (!existsSync(FORGE_OUT)) {
 mkdirSync(ABI_DIR, { recursive: true });
 
 for (const name of CONTRACTS) {
-  const artifactPath = resolve(FORGE_OUT, `${name}.sol`, `${name}.json`);
+  // When a source compiles under more than one solc version (the ctf-exchange
+  // interfaces build at 0.8.15 for the lib AND 0.8.24 for our adapter), forge
+  // writes only version-suffixed artifacts (`Name.0.8.15.json`) and no plain
+  // `Name.json`. The ABI is identical across versions, so fall back to any of
+  // them — sorted, so the pick is deterministic.
+  const artifactDir = resolve(FORGE_OUT, `${name}.sol`);
+  let artifactPath = resolve(artifactDir, `${name}.json`);
+  if (!existsSync(artifactPath)) {
+    const candidates = readdirSync(artifactDir)
+      .filter((f) => f.startsWith(`${name}.`) && f.endsWith(".json"))
+      .sort();
+    if (candidates.length === 0) {
+      console.error(`no artifact for ${name} under ${artifactDir}`);
+      process.exit(1);
+    }
+    artifactPath = resolve(artifactDir, candidates[candidates.length - 1]);
+  }
   const artifact = JSON.parse(readFileSync(artifactPath, "utf8"));
   const abi = artifact.abi;
 
