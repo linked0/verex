@@ -55,7 +55,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      # Submodules: forge-std + ctf-exchange live under packages/contracts/lib
+      # and `forge build` (below) cannot compile without them.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
 
       - uses: google-github-actions/auth@v2
         with:
@@ -64,9 +70,10 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # No `version` input: pnpm/action-setup v4 hard-fails when a version is
+      # given here AND in package.json's `packageManager` — the field is the
+      # single source of truth.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
@@ -121,11 +128,30 @@ jobs:
             --location="$REGION" --project "$PROJECT_ID" >/dev/null 2>&1 \
             || gcloud artifacts repositories create "$AR_REPO" \
                  --location="$REGION" --project "$PROJECT_ID" --repository-format=docker
-          # Generated ABIs must exist in the build context before it is uploaded.
+          # Generated ABIs must exist in the build context before it is
+          # uploaded — they are not committed, so compile them here.
+          forge build --root packages/contracts
           pnpm --filter @verex/sdk sync-abis
-          gcloud builds submit --config cloudbuild-api.yaml \
+          # --async + poll, NOT the default streaming mode: streaming reads the
+          # default logs bucket, which needs project Viewer — without it the CLI
+          # exits 1 while the build keeps running server-side (run 4's failure).
+          # Polling only needs cloudbuild.builds.get, which the builds.editor
+          # role already carries. Logs stay available in the Cloud Console.
+          BUILD_ID=$(gcloud builds submit --config cloudbuild-api.yaml \
             --project "$PROJECT_ID" \
-            --substitutions "_IMAGE=${{ steps.cfg.outputs.image }}" .
+            --substitutions "_IMAGE=${{ steps.cfg.outputs.image }}" \
+            --async --format='value(id)' .)
+          echo "build: $BUILD_ID"
+          while :; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project "$PROJECT_ID" --format='value(status)')
+            echo "  $STATUS"
+            case "$STATUS" in
+              SUCCESS) break;;
+              QUEUED|PENDING|WORKING) sleep 15;;
+              *) echo "Cloud Build ended: $STATUS"; exit 1;;
+            esac
+          done
 
       - name: Deploy API
         id: api
