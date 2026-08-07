@@ -93,6 +93,15 @@ export const liquidity: Doc = {
               p: "Concretely, the change is to the ladder's centre. Today the centre is a stored probability that gets nudged to the last traded price. Under LMSR the centre is computed from the outcome quantities the operator has sold, so it moves *because inventory moved* — the quote responds to actual exposure rather than to the last print.",
             },
             {
+              p: "One consequence surprises almost everyone the first time: **after a trade, the operator's previous levels are gone entirely.** Buy at 51¢ on a book centred at 50¢ and the 45–49¢ bids you were just looking at no longer exist. They were not filled — they were cancelled. Every re-quote tears down the whole ladder and posts a fresh one around the new centre.",
+            },
+            {
+              p: "This is the difference between an *order* and a *quote*. An order is a standing instruction that persists until its owner cancels it; a quote is a statement of what the venue will do right now, and it is only valid until the next fill. The operator's rungs are quotes. They are cancelled DB-side only — nothing was escrowed on-chain when they were posted, so withdrawing them costs one update and no transaction.",
+            },
+            {
+              p: "Two things this does *not* touch. Your own resting orders are never cancelled — the sweep is scoped to the market maker's own orders, so a user bid inside the spread survives every re-quote and still gets hit first. And depth is not additive across time: the book you see is always exactly one ladder, the most recent one, never an accumulation of every price the market has passed through.",
+            },
+            {
               p: "This was planned in two phases. **Phase A** — LMSR computing the quote centres inside the market maker, with everything else unchanged — is what Verex runs today. **Phase B** would put an actual pool on-chain so traders could transact directly against the curve even if the off-chain matcher were unavailable.",
             },
           ],
@@ -203,6 +212,15 @@ export const liquidity: Doc = {
             },
             {
               p: "구체적으로 바뀌는 것은 사다리의 중심입니다. 지금은 중심이 저장된 확률값이고 마지막 체결가 쪽으로 조금씩 밀립니다. LMSR에서는 중심이 운영자가 판매한 결과 수량으로부터 계산되므로, *재고가 움직였기 때문에* 중심이 움직입니다 — 마지막 체결가가 아니라 실제 익스포저에 호가가 반응하는 것입니다.",
+            },
+            {
+              p: "여기서 파생되는 결과 하나가 처음 보는 사람을 거의 예외 없이 놀라게 합니다: **거래가 끝나면 운영자의 기존 호가 단계는 통째로 사라집니다.** 중심이 50¢인 호가창에서 51¢에 매수하면, 방금까지 보고 있던 45–49¢ 매수 호가들이 더는 존재하지 않습니다. 체결된 것이 아니라 **취소된** 것입니다. 재호가 때마다 사다리 전체를 철거하고 새 중심 주위에 다시 깝니다.",
+            },
+            {
+              p: "이것이 *주문(order)* 과 *호가(quote)* 의 차이입니다. 주문은 주인이 취소할 때까지 남아 있는 상시 지시이고, 호가는 “지금 이 순간 이 거래소가 무엇을 하겠다”는 표명이라 다음 체결까지만 유효합니다. 운영자의 사다리 단계는 호가입니다. 취소는 DB에서만 이루어집니다 — 게시할 때 온체인에 에스크로된 것이 없으므로, 거둬들이는 비용은 업데이트 한 번이고 트랜잭션은 발생하지 않습니다.",
+            },
+            {
+              p: "이 동작이 건드리지 *않는* 것 두 가지. 사용자 본인의 대기 주문은 절대 취소되지 않습니다 — 정리 대상이 마켓메이커 자신의 주문으로 한정되어 있어, 스프레드 안쪽의 사용자 호가는 모든 재호가를 살아남고 여전히 먼저 체결됩니다. 그리고 깊이는 시간에 걸쳐 누적되지 않습니다. 보이는 호가창은 언제나 정확히 사다리 하나, 가장 최근 것뿐이며, 마켓이 지나온 모든 가격이 쌓인 것이 아닙니다.",
             },
             {
               p: "원래 두 단계로 계획되었습니다. **A단계** — LMSR이 마켓메이커 안에서 호가 중심을 계산하고 나머지는 그대로 두는 방식 — 가 현재 Verex가 돌리고 있는 것입니다. **B단계**는 실제 풀을 온체인에 올려, 오프체인 매처가 죽어 있어도 트레이더가 곡선과 직접 거래할 수 있게 하는 단계입니다.",
