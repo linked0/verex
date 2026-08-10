@@ -421,3 +421,21 @@ the UMA runbooks by environment.
   3 rows EN), desktop 1280px unchanged (tabs one 40px row, full wallet labels,
   overflow 0). `tsc --noEmit` clean. Told jay the phone needs a hard refresh — the
   old page is cached on-device.
+
+### Category tabs get a curated order — Politics first, not alphabetical
+
+- **Cause:** jay: "change the order of categories, like Politics before Economics."
+  The `/categories` endpoint returns `orderBy: { category: "asc" }`, so the tabs
+  rendered in alphabetical accident (Climate, Crypto, Culture, Economics, Politics…)
+  rather than by priority.
+- **Reasoning:** display order is a display concern, so the fix lives in the web, not
+  the API (which stays a dumb distinct-list). `CATEGORY_KEYS` in `CategoryTabs.tsx`
+  already encodes the canonical order (matching the create-page dropdown): Politics,
+  Sports, Crypto, Economics, Tech & Science, Climate, Culture — its key order now
+  doubles as the sort order. Unknown (future user-created) categories fall to the
+  end alphabetically instead of breaking.
+- **Change:** `CategoryTabs.tsx` — `CATEGORY_ORDER` + exported `sortCategories()`;
+  the nav renders `sortCategories(categories)`.
+- **Result:** verified locally against the prod API, both locales: All | Politics |
+  Sports | Crypto | Economics | Tech & Science | Climate | Culture. `tsc --noEmit`
+  clean. New branch `claude/category-tab-order` (new request).
