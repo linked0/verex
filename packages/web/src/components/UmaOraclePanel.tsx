@@ -2,7 +2,7 @@
 
 // The oracle lifecycle panel for UMA markets — the dispute demo's stage.
 //
-// Three walkable scenarios (docs/runbooks/uma-adapter.md §4c):
+// Three walkable scenarios (docs/runbooks/uma-local-demo.md):
 //   1. dispute defeated — a wallet disputes, the jury backs the proposer
 //   2. dispute upheld   — the jury overturns the proposed answer
 //   3. dead end         — a dispute with no verdict freezes the market
@@ -11,12 +11,18 @@
 // the real oracle the panel is read-only and explains where disputes actually
 // go (UMA's DVM). The polling is deliberate: oracle state changes on-chain,
 // not through this tab, and a demo often drives it from two windows.
+//
+// Everyone SEES everything (state, ballots, verdict); you ACT only as the
+// wallet selected in the header. Proposer, disputer and each juror are
+// separate parties in UMA — a panel that drove all five from one screen would
+// demo the mechanics while teaching the opposite of what the oracle is for.
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Scale, ShieldAlert, Gavel, CheckCircle2, Hourglass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWallet } from "@/components/WalletProvider";
 import {
   getUmaLifecycle,
   postUmaPropose,
@@ -34,8 +40,21 @@ function answerClass(a: UmaAnswer | null) {
   return a === "Yes" ? "text-yes" : a === "No" ? "text-no" : "text-muted-foreground";
 }
 
-export function UmaOraclePanel({ slug, marketStatus }: { slug: string; marketStatus: string }) {
+function walletLabel(i: number) {
+  return i === 0 ? "the operator" : `Demo Wallet ${i}`;
+}
+
+export function UmaOraclePanel({
+  slug,
+  marketStatus,
+  closesAt,
+}: {
+  slug: string;
+  marketStatus: string;
+  closesAt?: string | null;
+}) {
   const router = useRouter();
+  const { accountIndex } = useWallet();
   const [life, setLife] = React.useState<UmaLifecycle | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -94,6 +113,10 @@ export function UmaOraclePanel({ slug, marketStatus }: { slug: string; marketSta
   const windowOpen = o.state === "Proposed" && secondsLeft > 0;
   const votedBy = new Map(o.ballots.map((b) => [b.voterIndex, b.answer]));
   const resolvedOnVerex = marketStatus === "RESOLVED";
+  // The market's trading cutoff and the oracle's clock are independent — a
+  // proposal before the cutoff is premature (the question isn't decided yet),
+  // which is worth saying out loud right where the countdown confuses people.
+  const beforeCutoff = !!closesAt && now * 1000 < new Date(closesAt).getTime();
 
   return (
     <Card>
@@ -148,28 +171,47 @@ export function UmaOraclePanel({ slug, marketStatus }: { slug: string; marketSta
           </p>
         ) : (
           <>
+            {beforeCutoff && (o.state === "Requested" || o.state === "Proposed") && (
+              <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                This market&apos;s question isn&apos;t decided until{" "}
+                <strong>
+                  {new Date(closesAt!).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </strong>{" "}
+                — a proposal made now is <strong>premature</strong>. On the real oracle,
+                watchers would dispute it for exactly that reason; in this demo it&apos;s a
+                handy way to set up the dispute scenarios.
+              </p>
+            )}
             {o.state === "Requested" && (
               <div className="space-y-2">
                 <p className="text-muted-foreground">
-                  No answer proposed yet. The operator proposes one, bonding {o.bond}{" "}
-                  {o.bondCurrency} — a wrong answer can be disputed and the bond lost.
+                  No answer proposed yet. Anyone may propose one — it costs a {o.bond}{" "}
+                  {o.bondCurrency} bond, refunded unless a dispute proves the answer wrong.
                 </p>
                 <div className="flex gap-2">
                   <Button
                     className="flex-1 bg-yes text-white hover:bg-yes/90"
                     disabled={busy !== null}
-                    onClick={() => act("propose", () => postUmaPropose(slug, "Yes"))}
+                    onClick={() => act("propose", () => postUmaPropose(slug, "Yes", accountIndex))}
                   >
                     {busy === "propose" ? "Proposing…" : "Propose YES"}
                   </Button>
                   <Button
                     className="flex-1 bg-no text-white hover:bg-no/90"
                     disabled={busy !== null}
-                    onClick={() => act("propose", () => postUmaPropose(slug, "No"))}
+                    onClick={() => act("propose", () => postUmaPropose(slug, "No", accountIndex))}
                   >
                     Propose NO
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  You would propose as <strong>{walletLabel(accountIndex)}</strong> — switch
+                  wallets in the header to propose as someone else.
+                </p>
               </div>
             )}
 
@@ -181,21 +223,23 @@ export function UmaOraclePanel({ slug, marketStatus }: { slug: string; marketSta
                   left. Anyone who thinks the answer is wrong can dispute, bonding {o.bond}{" "}
                   {o.bondCurrency}.
                 </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-no" />
-                  <span className="text-muted-foreground">Dispute as</span>
-                  {JURY.map((i) => (
-                    <Button
-                      key={i}
-                      size="sm"
-                      variant="outline"
-                      disabled={busy !== null}
-                      onClick={() => act(`dispute-${i}`, () => postUmaDispute(slug, i))}
-                    >
-                      {busy === `dispute-${i}` ? "…" : `wallet #${i}`}
-                    </Button>
-                  ))}
-                </div>
+                <Button
+                  variant="outline"
+                  className="w-full border-no/50 text-no hover:bg-no/10"
+                  disabled={busy !== null}
+                  onClick={() => act("dispute", () => postUmaDispute(slug, accountIndex))}
+                >
+                  <ShieldAlert className="mr-2 h-4 w-4" />
+                  {busy === "dispute"
+                    ? "Disputing…"
+                    : `Dispute this answer as ${walletLabel(accountIndex)}`}
+                </Button>
+                {o.proposerIndex === accountIndex && (
+                  <p className="text-xs text-muted-foreground">
+                    You proposed this answer. Disputing yourself is allowed — on real UMA
+                    it is the only way to retract a proposal you now believe is wrong.
+                  </p>
+                )}
               </div>
             )}
 
@@ -221,46 +265,65 @@ export function UmaOraclePanel({ slug, marketStatus }: { slug: string; marketSta
                   is UMA&apos;s DVM voting for ~48h; here the demo wallets are the jury.
                   Leave it unvoted and this stays frozen forever — that is scenario 3.
                 </p>
+                {/* Everyone sees the whole tally; only the selected wallet can add to it. */}
                 <div className="space-y-1.5">
                   {JURY.map((i) => {
                     const ballot = votedBy.get(i);
+                    const isYou = i === accountIndex;
                     return (
-                      <div key={i} className="flex items-center justify-between rounded-md border px-3 py-1.5">
-                        <span className="font-medium">wallet #{i}</span>
+                      <div
+                        key={i}
+                        className={`flex items-center justify-between rounded-md border px-3 py-1.5 ${
+                          isYou ? "border-primary/40 bg-primary/5" : ""
+                        }`}
+                      >
+                        <span className="font-medium">
+                          wallet #{i}
+                          {isYou && <span className="ml-1.5 text-xs text-primary">(you)</span>}
+                        </span>
                         {ballot !== undefined ? (
                           <span className={`text-sm font-semibold ${answerClass(ballot ?? null)}`}>
                             voted {ballot}
                           </span>
-                        ) : (
+                        ) : isYou ? (
                           <span className="flex gap-1.5">
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-7 border-yes/50 px-2 text-yes hover:bg-yes/10"
                               disabled={busy !== null}
-                              onClick={() => act(`vote-${i}`, () => postUmaVote(slug, i, "Yes"))}
+                              onClick={() => act("vote", () => postUmaVote(slug, i, "Yes"))}
                             >
-                              Yes
+                              Vote Yes
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-7 border-no/50 px-2 text-no hover:bg-no/10"
                               disabled={busy !== null}
-                              onClick={() => act(`vote-${i}`, () => postUmaVote(slug, i, "No"))}
+                              onClick={() => act("vote", () => postUmaVote(slug, i, "No"))}
                             >
-                              No
+                              Vote No
                             </Button>
                           </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">not voted</span>
                         )}
                       </div>
                     );
                   })}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {accountIndex === 0
+                    ? "The operator runs the venue and does not sit on the jury — switch to a demo wallet in the header to cast a vote."
+                    : votedBy.has(accountIndex)
+                      ? `You have voted as ${walletLabel(accountIndex)}. Each address votes once — switch wallets in the header to add another juror's vote.`
+                      : `You vote as ${walletLabel(accountIndex)}. Each address votes once; switch wallets in the header to vote as another juror.`}
+                </p>
                 <Button
                   className="w-full"
                   disabled={busy !== null || o.ballots.length === 0}
-                  onClick={() => act("finalize", () => postUmaFinalize(slug))}
+                  onClick={() => act("finalize", () => postUmaFinalize(slug, accountIndex))}
                 >
                   <Gavel className="mr-2 h-4 w-4" />
                   {busy === "finalize"

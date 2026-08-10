@@ -42,6 +42,13 @@ export function TradePanel({ market }: { market: Market }) {
   const price = Number((outcome === "Yes" ? yes : no)?.price ?? 0.5);
   const amt = Number(amount) || 0;
 
+  // closesAt is the trading cutoff (the API enforces it too); resolution runs
+  // on its own clock, so a market can sit closed-but-unresolved for a while.
+  const closedForTrading =
+    market.status === "OPEN" &&
+    !!market.closesAt &&
+    new Date(market.closesAt).getTime() <= Date.now();
+
   // BUY: amount = USDC in → tokens out. SELL: amount = tokens in → USDC out.
   const tokensOut = price > 0 ? amt / price : 0;
   const usdcOut = amt * price;
@@ -181,14 +188,28 @@ export function TradePanel({ market }: { market: Market }) {
         <Button
           className="w-full"
           size="lg"
-          disabled={busy || amt <= 0}
+          disabled={busy || amt <= 0 || closedForTrading}
           variant={outcome === "Yes" ? "yes" : "no"}
           onClick={submit}
         >
-          {busy
-            ? "Matching against the book…"
-            : `${side === "BUY" ? "Buy" : "Sell"} ${outcome}`}
+          {closedForTrading
+            ? "Trading closed"
+            : busy
+              ? "Matching against the book…"
+              : `${side === "BUY" ? "Buy" : "Sell"} ${outcome}`}
         </Button>
+
+        {closedForTrading && (
+          <div className="rounded-md border bg-muted/50 p-2.5 text-xs text-muted-foreground">
+            This market closed for trading on{" "}
+            {new Date(market.closesAt!).toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })}
+            . Positions are locked until it resolves.
+          </div>
+        )}
 
         {pending && (
           <div className="animate-pulse rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">

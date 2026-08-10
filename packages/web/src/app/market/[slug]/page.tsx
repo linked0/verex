@@ -94,7 +94,11 @@ export default async function MarketPage({ params }: { params: { slug: string } 
               Operator markets have no lifecycle to show; their resolution is a
               single admin action in the side panel. */}
           {market.oracleType === "UMA" && (
-            <UmaOraclePanel slug={market.slug} marketStatus={market.status} />
+            <UmaOraclePanel
+              slug={market.slug}
+              marketStatus={market.status}
+              closesAt={market.closesAt}
+            />
           )}
 
           <Card>
