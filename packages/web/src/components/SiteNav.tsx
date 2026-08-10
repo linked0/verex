@@ -42,7 +42,7 @@ export function SiteNav() {
           Verex
         </Link>
 
-        <form onSubmit={onSearch} className="relative hidden max-w-sm flex-1 md:block">
+        <form onSubmit={onSearch} className="relative hidden min-w-0 max-w-sm flex-1 md:block">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             name="q"
@@ -55,23 +55,23 @@ export function SiteNav() {
         <div className="ml-auto flex items-center gap-2">
           <Link
             href="/docs"
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <BookText className="h-4 w-4" />
+            <BookText className="h-4 w-4 shrink-0" />
             {t("nav.docs")}
           </Link>
           <Link
             href="/create"
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <PlusCircle className="h-4 w-4" />
+            <PlusCircle className="h-4 w-4 shrink-0" />
             {t("nav.create")}
           </Link>
           <Link
             href="/portfolio"
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
-            <BriefcaseBusiness className="h-4 w-4" />
+            <BriefcaseBusiness className="h-4 w-4 shrink-0" />
             {t("nav.portfolio")}
           </Link>
           <Button
@@ -84,8 +84,8 @@ export function SiteNav() {
             <Droplets className="h-3.5 w-3.5" />
             {minting ? t("nav.faucetMinting") : t("nav.faucet")}
           </Button>
-          <div className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
-            <Wallet className="h-4 w-4 text-primary" />
+          <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
+            <Wallet className="h-4 w-4 shrink-0 text-primary" />
             <select
               aria-label={t("nav.walletLabel")}
               className="bg-transparent text-sm font-medium outline-none"
