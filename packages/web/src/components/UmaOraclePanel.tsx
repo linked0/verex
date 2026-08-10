@@ -23,6 +23,8 @@ import { Scale, ShieldAlert, Gavel, CheckCircle2, Hourglass } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWallet } from "@/components/WalletProvider";
+import { useLocale } from "@/components/LocaleProvider";
+import type { MessageKey } from "@/lib/i18n";
 import {
   getUmaLifecycle,
   postUmaPropose,
@@ -40,10 +42,6 @@ function answerClass(a: UmaAnswer | null) {
   return a === "Yes" ? "text-yes" : a === "No" ? "text-no" : "text-muted-foreground";
 }
 
-function walletLabel(i: number) {
-  return i === 0 ? "the operator" : `Demo Wallet ${i}`;
-}
-
 export function UmaOraclePanel({
   slug,
   marketStatus,
@@ -55,19 +53,28 @@ export function UmaOraclePanel({
 }) {
   const router = useRouter();
   const { accountIndex } = useWallet();
+  const { t, intl } = useLocale();
   const [life, setLife] = React.useState<UmaLifecycle | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => Math.floor(Date.now() / 1000));
+
+  // Oracle states and answers are API data, not copy — they get looked up as
+  // labels so the wire values stay untouched.
+  const walletLabel = (i: number) =>
+    i === 0 ? t("uma.walletOperator") : t("uma.walletDemo", { n: i });
+  const stateLabel = (s: string) => t(`uma.state.${s}` as MessageKey);
+  const answerLabel = (a: UmaAnswer | null | undefined) =>
+    a ? t(`uma.answer.${a}` as MessageKey) : "";
 
   const refresh = React.useCallback(async () => {
     try {
       setLife(await getUmaLifecycle(slug));
       setError(null);
     } catch (e: any) {
-      setError(e?.message ?? "oracle state unavailable");
+      setError(e?.message ?? t("uma.stateUnavailable"));
     }
-  }, [slug]);
+  }, [slug, t]);
 
   React.useEffect(() => {
     refresh();
@@ -84,11 +91,11 @@ export function UmaOraclePanel({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <Scale className="h-4 w-4 text-primary" /> UMA oracle
+            <Scale className="h-4 w-4 text-primary" /> {t("uma.title")}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">{error ?? "Loading oracle state…"}</p>
+          <p className="text-sm text-muted-foreground">{error ?? t("uma.loading")}</p>
         </CardContent>
       </Card>
     );
@@ -103,7 +110,7 @@ export function UmaOraclePanel({
       await refresh();
       if (refreshPage) router.refresh();
     } catch (e: any) {
-      setError(e?.message ?? `${label} failed`);
+      setError(e?.message ?? t("uma.actionFailed", { action: t(`uma.action.${label}` as MessageKey) }));
     } finally {
       setBusy(null);
     }
@@ -122,10 +129,10 @@ export function UmaOraclePanel({
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Scale className="h-4 w-4 text-primary" /> UMA oracle
+          <Scale className="h-4 w-4 text-primary" /> {t("uma.title")}
           {o.mock && (
             <span className="rounded-md bg-accent px-2 py-0.5 text-[0.7rem] font-medium text-accent-foreground">
-              demo jury
+              {t("uma.demoJuryBadge")}
             </span>
           )}
         </CardTitle>
@@ -134,63 +141,68 @@ export function UmaOraclePanel({
         {/* State line — always shown, whichever oracle */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <span>
-            State: <strong>{resolvedOnVerex ? "Settled" : o.state}</strong>
+            {t("uma.stateLabel")}: <strong>{stateLabel(resolvedOnVerex ? "Settled" : o.state)}</strong>
           </span>
           {o.proposedAnswer && (
             <span>
-              Proposed: <strong className={answerClass(o.proposedAnswer)}>{o.proposedAnswer}</strong>
-              {o.proposerIndex === 0 ? " (operator)" : o.proposerIndex ? ` (wallet #${o.proposerIndex})` : ""}
+              {t("uma.proposedLabel")}:{" "}
+              <strong className={answerClass(o.proposedAnswer)}>{answerLabel(o.proposedAnswer)}</strong>
+              {o.proposerIndex === 0
+                ? ` ${t("uma.byOperator")}`
+                : o.proposerIndex
+                  ? ` ${t("uma.byWallet", { n: o.proposerIndex })}`
+                  : ""}
             </span>
           )}
           {o.disputer && (
             <span>
-              Disputed by <strong>{o.disputerIndex ? `wallet #${o.disputerIndex}` : "someone"}</strong>
+              {t("uma.disputedByPre")}
+              <strong>
+                {o.disputerIndex ? t("uma.walletNo", { n: o.disputerIndex }) : t("uma.someone")}
+              </strong>
+              {t("uma.disputedByPost")}
             </span>
           )}
           {o.verdict && (
             <span>
-              Verdict: <strong className={answerClass(o.verdict)}>{o.verdict}</strong>
+              {t("uma.verdictLabel")}:{" "}
+              <strong className={answerClass(o.verdict)}>{answerLabel(o.verdict)}</strong>
             </span>
           )}
           <span className="text-muted-foreground">
-            Bond {o.bond} {o.bondCurrency}
+            {t("uma.bond", { amount: o.bond, currency: o.bondCurrency })}
           </span>
         </div>
 
         {!o.mock ? (
           // Real oracle: read-only. Disputes go to UMA's DVM, not to a page.
-          <p className="text-muted-foreground">
-            This market settles on UMA&apos;s real Optimistic Oracle. Propose and dispute
-            on-chain (see the runbook); a dispute escalates to UMA&apos;s DVM, where staked
-            UMA holders vote — that part has no button anywhere, by design.
-          </p>
+          <p className="text-muted-foreground">{t("uma.realOracle")}</p>
         ) : resolvedOnVerex ? (
           <p className="flex items-center gap-2 text-muted-foreground">
             <CheckCircle2 className="h-4 w-4 text-yes" />
-            The verdict has been copied on-chain — winners can redeem in Portfolio.
+            {t("uma.settledOnChain")}
           </p>
         ) : (
           <>
             {beforeCutoff && (o.state === "Requested" || o.state === "Proposed") && (
               <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                This market&apos;s question isn&apos;t decided until{" "}
+                {t("uma.prematurePre")}
                 <strong>
-                  {new Date(closesAt!).toLocaleDateString("en-US", {
+                  {new Date(closesAt!).toLocaleDateString(intl, {
                     month: "short",
                     day: "numeric",
                     year: "numeric",
                   })}
-                </strong>{" "}
-                — a proposal made now is <strong>premature</strong>. On the real oracle,
-                watchers would dispute it for exactly that reason; in this demo it&apos;s a
-                handy way to set up the dispute scenarios.
+                </strong>
+                {t("uma.prematureMid")}
+                <strong>{t("uma.prematureWord")}</strong>
+                {t("uma.prematurePost")}
               </p>
             )}
             {o.state === "Requested" && (
               <div className="space-y-2">
                 <p className="text-muted-foreground">
-                  No answer proposed yet. Anyone may propose one — it costs a {o.bond}{" "}
-                  {o.bondCurrency} bond, refunded unless a dispute proves the answer wrong.
+                  {t("uma.noProposal", { amount: o.bond, currency: o.bondCurrency })}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -198,19 +210,20 @@ export function UmaOraclePanel({
                     disabled={busy !== null}
                     onClick={() => act("propose", () => postUmaPropose(slug, "Yes", accountIndex))}
                   >
-                    {busy === "propose" ? "Proposing…" : "Propose YES"}
+                    {busy === "propose" ? t("uma.proposing") : t("uma.proposeYes")}
                   </Button>
                   <Button
                     className="flex-1 bg-no text-white hover:bg-no/90"
                     disabled={busy !== null}
                     onClick={() => act("propose", () => postUmaPropose(slug, "No", accountIndex))}
                   >
-                    Propose NO
+                    {t("uma.proposeNo")}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  You would propose as <strong>{walletLabel(accountIndex)}</strong> — switch
-                  wallets in the header to propose as someone else.
+                  {t("uma.proposeAsPre")}
+                  <strong>{walletLabel(accountIndex)}</strong>
+                  {t("uma.proposeAsPost")}
                 </p>
               </div>
             )}
@@ -219,9 +232,9 @@ export function UmaOraclePanel({
               <div className="space-y-2">
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Hourglass className="h-4 w-4" />
-                  Challenge window: <strong className="tabular-nums">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</strong>{" "}
-                  left. Anyone who thinks the answer is wrong can dispute, bonding {o.bond}{" "}
-                  {o.bondCurrency}.
+                  {t("uma.challengeWindow")}{" "}
+                  <strong className="tabular-nums">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, "0")}</strong>
+                  {t("uma.challengeWindowRest", { amount: o.bond, currency: o.bondCurrency })}
                 </p>
                 <Button
                   variant="outline"
@@ -231,40 +244,31 @@ export function UmaOraclePanel({
                 >
                   <ShieldAlert className="mr-2 h-4 w-4" />
                   {busy === "dispute"
-                    ? "Disputing…"
-                    : `Dispute this answer as ${walletLabel(accountIndex)}`}
+                    ? t("uma.disputing")
+                    : t("uma.disputeAs", { wallet: walletLabel(accountIndex) })}
                 </Button>
                 {o.proposerIndex === accountIndex && (
-                  <p className="text-xs text-muted-foreground">
-                    You proposed this answer. Disputing yourself is allowed — on real UMA
-                    it is the only way to retract a proposal you now believe is wrong.
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t("uma.selfDispute")}</p>
                 )}
               </div>
             )}
 
             {(o.state === "Expired" || (o.state === "Proposed" && !windowOpen)) && (
               <div className="space-y-2">
-                <p className="text-muted-foreground">
-                  The challenge window closed with no dispute — the proposed answer stands.
-                </p>
+                <p className="text-muted-foreground">{t("uma.windowClosed")}</p>
                 <Button
                   className="w-full"
                   disabled={busy !== null}
                   onClick={() => act("resolve", () => postUmaResolve(slug), true)}
                 >
-                  {busy === "resolve" ? "Resolving…" : "Resolve market from the oracle"}
+                  {busy === "resolve" ? t("uma.resolving") : t("uma.resolveFromOracle")}
                 </Button>
               </div>
             )}
 
             {o.state === "Disputed" && (
               <div className="space-y-3">
-                <p className="text-muted-foreground">
-                  Disputed — the market is frozen until the jury rules. In production this
-                  is UMA&apos;s DVM voting for ~48h; here the demo wallets are the jury.
-                  Leave it unvoted and this stays frozen forever — that is scenario 3.
-                </p>
+                <p className="text-muted-foreground">{t("uma.disputedBody")}</p>
                 {/* Everyone sees the whole tally; only the selected wallet can add to it. */}
                 <div className="space-y-1.5">
                   {JURY.map((i) => {
@@ -278,12 +282,14 @@ export function UmaOraclePanel({
                         }`}
                       >
                         <span className="font-medium">
-                          wallet #{i}
-                          {isYou && <span className="ml-1.5 text-xs text-primary">(you)</span>}
+                          {t("uma.walletNo", { n: i })}
+                          {isYou && (
+                            <span className="ml-1.5 text-xs text-primary">{t("uma.you")}</span>
+                          )}
                         </span>
                         {ballot !== undefined ? (
                           <span className={`text-sm font-semibold ${answerClass(ballot ?? null)}`}>
-                            voted {ballot}
+                            {t("uma.votedFor", { answer: answerLabel(ballot) })}
                           </span>
                         ) : isYou ? (
                           <span className="flex gap-1.5">
@@ -294,7 +300,7 @@ export function UmaOraclePanel({
                               disabled={busy !== null}
                               onClick={() => act("vote", () => postUmaVote(slug, i, "Yes"))}
                             >
-                              Vote Yes
+                              {t("uma.voteYes")}
                             </Button>
                             <Button
                               size="sm"
@@ -303,11 +309,11 @@ export function UmaOraclePanel({
                               disabled={busy !== null}
                               onClick={() => act("vote", () => postUmaVote(slug, i, "No"))}
                             >
-                              Vote No
+                              {t("uma.voteNo")}
                             </Button>
                           </span>
                         ) : (
-                          <span className="text-sm text-muted-foreground">not voted</span>
+                          <span className="text-sm text-muted-foreground">{t("uma.notVoted")}</span>
                         )}
                       </div>
                     );
@@ -315,10 +321,10 @@ export function UmaOraclePanel({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {accountIndex === 0
-                    ? "The operator runs the venue and does not sit on the jury — switch to a demo wallet in the header to cast a vote."
+                    ? t("uma.operatorNotJuror")
                     : votedBy.has(accountIndex)
-                      ? `You have voted as ${walletLabel(accountIndex)}. Each address votes once — switch wallets in the header to add another juror's vote.`
-                      : `You vote as ${walletLabel(accountIndex)}. Each address votes once; switch wallets in the header to vote as another juror.`}
+                      ? t("uma.youHaveVoted", { wallet: walletLabel(accountIndex) })
+                      : t("uma.youVoteAs", { wallet: walletLabel(accountIndex) })}
                 </p>
                 <Button
                   className="w-full"
@@ -327,10 +333,12 @@ export function UmaOraclePanel({
                 >
                   <Gavel className="mr-2 h-4 w-4" />
                   {busy === "finalize"
-                    ? "Finalizing…"
+                    ? t("uma.finalizing")
                     : o.ballots.length === 0
-                      ? "Finalize verdict (needs at least one vote)"
-                      : `Finalize verdict (${o.ballots.length} vote${o.ballots.length > 1 ? "s" : ""}, majority wins)`}
+                      ? t("uma.finalizeNeedsVote")
+                      : o.ballots.length === 1
+                        ? t("uma.finalizeOne")
+                        : t("uma.finalizeMany", { n: o.ballots.length })}
                 </Button>
               </div>
             )}
@@ -338,17 +346,18 @@ export function UmaOraclePanel({
             {o.state === "Resolved" && (
               <div className="space-y-2">
                 <p className="text-muted-foreground">
-                  The jury ruled <strong className={answerClass(o.verdict)}>{o.verdict}</strong>
+                  {t("uma.juryRuledPre")}
+                  <strong className={answerClass(o.verdict)}>{answerLabel(o.verdict)}</strong>
                   {o.verdict === o.proposedAnswer
-                    ? " — the dispute was defeated; the disputer loses its bond to the proposer."
-                    : " — the dispute was upheld; the proposer loses its bond to the disputer."}
+                    ? t("uma.disputeDefeated")
+                    : t("uma.disputeUpheld")}
                 </p>
                 <Button
                   className="w-full"
                   disabled={busy !== null}
                   onClick={() => act("resolve", () => postUmaResolve(slug), true)}
                 >
-                  {busy === "resolve" ? "Resolving…" : "Copy the verdict on-chain (resolve)"}
+                  {busy === "resolve" ? t("uma.resolving") : t("uma.copyVerdict")}
                 </Button>
               </div>
             )}

@@ -14,7 +14,7 @@ import {
 } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CategoryTabs } from "@/components/CategoryTabs";
+import { CategoryTabs, categoryLabel } from "@/components/CategoryTabs";
 import { GroupCard } from "@/components/GroupCard";
 import { MarketCard } from "@/components/MarketCard";
 import { ProbChart } from "@/components/ProbChart";
@@ -43,7 +43,7 @@ async function Featured({ market, t, intl }: { market: Market; t: Translate; int
           />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Badge>{market.category}</Badge>
+              <Badge>{categoryLabel(market.category, t)}</Badge>
               <Badge variant="secondary">{t("home.featured")}</Badge>
             </div>
             <Link href={`/market/${market.slug}`}>
@@ -145,7 +145,7 @@ export default async function Home({
 
   return (
     <main className="container space-y-6 py-6">
-      <CategoryTabs categories={["All", ...categories]} active={active} />
+      <CategoryTabs categories={["All", ...categories]} active={active} t={t} />
 
       {q && (
         <p className="text-sm text-muted-foreground">
@@ -168,7 +168,7 @@ export default async function Home({
                 item.kind === "group" ? (
                   <GroupCard key={`g-${item.group.id}`} group={item.group} />
                 ) : (
-                  <MarketCard key={item.market.id} market={item.market} />
+                  <MarketCard key={item.market.id} market={item.market} t={t} intl={intl} />
                 ),
               )}
             </div>

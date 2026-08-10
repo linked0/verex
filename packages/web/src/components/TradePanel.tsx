@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWallet } from "@/components/WalletProvider";
+import { useLocale } from "@/components/LocaleProvider";
 import { SettlementChip } from "@/components/SettlementChip";
 import { cents, postTrade, type Market, type TradeResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 export function TradePanel({ market }: { market: Market }) {
   const router = useRouter();
   const { accountIndex, summary, refresh } = useWallet();
+  const { t, intl } = useLocale();
 
   const [side, setSide] = React.useState<"BUY" | "SELL">("BUY");
   const [outcome, setOutcome] = React.useState<"Yes" | "No">("Yes");
@@ -75,7 +77,7 @@ export function TradePanel({ market }: { market: Market }) {
       router.refresh(); // re-render server components with new prices
     } catch (e: any) {
       setPending(null);
-      setError(e?.message ?? "trade failed");
+      setError(e?.message ?? t("market.tradeFailed"));
     } finally {
       setBusy(false);
     }
@@ -85,14 +87,14 @@ export function TradePanel({ market }: { market: Market }) {
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Trade</CardTitle>
+          <CardTitle className="text-base">{t("market.trade")}</CardTitle>
           <Tabs value={side} onValueChange={(v) => setSide(v as "BUY" | "SELL")}>
             <TabsList className="h-8">
               <TabsTrigger value="BUY" className="px-4 text-xs">
-                Buy
+                {t("market.buy")}
               </TabsTrigger>
               <TabsTrigger value="SELL" className="px-4 text-xs">
-                Sell
+                {t("market.sell")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -126,7 +128,9 @@ export function TradePanel({ market }: { market: Market }) {
 
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-            {side === "BUY" ? "Amount (USDC)" : `${outcome} tokens to sell`}
+            {side === "BUY"
+              ? t("market.amountUsdc")
+              : t("market.tokensToSell", { outcome })}
           </label>
           <Input
             type="number"
@@ -147,7 +151,7 @@ export function TradePanel({ market }: { market: Market }) {
                 size="sm"
                 onClick={() => setAmount(String(Math.floor(position.tokens)))}
               >
-                Max
+                {t("market.max")}
               </Button>
             )}
           </div>
@@ -157,28 +161,28 @@ export function TradePanel({ market }: { market: Market }) {
 
         <div className="space-y-1.5 text-sm">
           <div className="flex justify-between text-muted-foreground">
-            <span>Price</span>
+            <span>{t("market.priceLabel")}</span>
             <span className="tabular-nums">{cents(price)}</span>
           </div>
           {side === "BUY" ? (
             <>
               <div className="flex justify-between text-muted-foreground">
-                <span>Est. {outcome} tokens</span>
+                <span>{t("market.estTokens", { outcome })}</span>
                 <span className="tabular-nums">{tokensOut.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-semibold">
-                <span>Payout if {outcome} wins</span>
+                <span>{t("market.payoutIfWins", { outcome })}</span>
                 <span className="tabular-nums text-yes">${tokensOut.toFixed(2)}</span>
               </div>
             </>
           ) : (
             <>
               <div className="flex justify-between text-muted-foreground">
-                <span>You hold</span>
+                <span>{t("market.youHold")}</span>
                 <span className="tabular-nums">{position ? position.tokens.toFixed(2) : "0"}</span>
               </div>
               <div className="flex justify-between font-semibold">
-                <span>You receive</span>
+                <span>{t("market.youReceive")}</span>
                 <span className="tabular-nums">${usdcOut.toFixed(2)}</span>
               </div>
             </>
@@ -193,39 +197,49 @@ export function TradePanel({ market }: { market: Market }) {
           onClick={submit}
         >
           {closedForTrading
-            ? "Trading closed"
+            ? t("market.tradingClosed")
             : busy
-              ? "Matching against the book…"
-              : `${side === "BUY" ? "Buy" : "Sell"} ${outcome}`}
+              ? t("market.matching")
+              : t(side === "BUY" ? "market.buyOutcome" : "market.sellOutcome", { outcome })}
         </Button>
 
         {closedForTrading && (
           <div className="rounded-md border bg-muted/50 p-2.5 text-xs text-muted-foreground">
-            This market closed for trading on{" "}
-            {new Date(market.closesAt!).toLocaleString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
+            {t("market.closedNote", {
+              date: new Date(market.closesAt!).toLocaleString(intl, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }),
             })}
-            . Positions are locked until it resolves.
           </div>
         )}
 
         {pending && (
           <div className="animate-pulse rounded-md border border-primary/30 bg-primary/5 p-2.5 text-xs">
             <div className="font-semibold text-primary">
-              Pending: {pending.side} ~{pending.tokensOut.toFixed(2)} {pending.outcome} for ~$
-              {pending.usdcOut.toFixed(2)}
+              {t("market.pendingLine", {
+                side: t(pending.side === "BUY" ? "market.buy" : "market.sell"),
+                tokens: pending.tokensOut.toFixed(2),
+                outcome: pending.outcome,
+                usdc: pending.usdcOut.toFixed(2),
+              })}
             </div>
-            <div className="mt-1 text-muted-foreground">Matching against the book…</div>
+            <div className="mt-1 text-muted-foreground">{t("market.matching")}</div>
           </div>
         )}
         {result && (
           <div className="rounded-md border border-yes/30 bg-yes/10 p-2.5 text-xs">
             <div className="font-semibold text-yes">
-              Filled: {result.side} {result.tokenAmount.toFixed(2)} {result.outcome} for $
-              {result.usdcAmount.toFixed(2)}
-              {result.price != null ? ` (avg ${Math.round(result.price * 100)}¢)` : ""}
+              {t("market.filledLine", {
+                side: t(result.side === "BUY" ? "market.buy" : "market.sell"),
+                tokens: result.tokenAmount.toFixed(2),
+                outcome: result.outcome,
+                usdc: result.usdcAmount.toFixed(2),
+              })}
+              {result.price != null
+                ? t("market.avgPrice", { price: Math.round(result.price * 100) })
+                : ""}
             </div>
             {result.jobId && (
               <div className="mt-1">
@@ -233,9 +247,7 @@ export function TradePanel({ market }: { market: Market }) {
               </div>
             )}
             {result.faucetMinted && (
-              <div className="mt-1 text-muted-foreground">
-                (Demo faucet topped up your USDC automatically)
-              </div>
+              <div className="mt-1 text-muted-foreground">{t("market.faucetTopUp")}</div>
             )}
           </div>
         )}
@@ -246,9 +258,8 @@ export function TradePanel({ market }: { market: Market }) {
         )}
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Orders fill instantly against the book; matched pairs settle
-          on-chain via CTFExchange right after. Demo Wallet {accountIndex}
-          {summary ? ` · $${summary.usdc.toLocaleString("en-US", { maximumFractionDigits: 0 })} USDC` : ""}
+          {t("market.tradeNote")} {t("nav.demoWallet", { n: accountIndex })}
+          {summary ? ` · $${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })} USDC` : ""}
         </p>
       </CardContent>
     </Card>

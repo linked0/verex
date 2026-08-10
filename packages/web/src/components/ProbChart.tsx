@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useLocale } from "@/components/LocaleProvider";
 import type { PricePoint } from "@/lib/api";
 
 export function ProbChart({
@@ -20,8 +21,9 @@ export function ProbChart({
   points: PricePoint[];
   height?: number;
 }) {
+  const { intl } = useLocale();
   const data = points.map((p) => ({
-    at: new Date(p.at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    at: new Date(p.at).toLocaleDateString(intl, { month: "short", day: "numeric" }),
     pct: Math.round(Number(p.price) * 100),
   }));
 

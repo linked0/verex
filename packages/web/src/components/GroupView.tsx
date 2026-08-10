@@ -8,6 +8,7 @@ import * as React from "react";
 import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWallet } from "@/components/WalletProvider";
+import { useLocale } from "@/components/LocaleProvider";
 import { TradePanel } from "@/components/TradePanel";
 import { BookPanel } from "@/components/BookPanel";
 import { GroupResolvePanel } from "@/components/GroupResolvePanel";
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 export function GroupView({ group }: { group: MarketGroup }) {
   const { isAdmin } = useWallet();
+  const { t } = useLocale();
   const members = [...group.markets].sort(
     (a, b) => Number(b.quoteCenter ?? 0) - Number(a.quoteCenter ?? 0),
   );
@@ -28,7 +30,7 @@ export function GroupView({ group }: { group: MarketGroup }) {
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <Card className="self-start">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Outcomes</CardTitle>
+          <CardTitle className="text-base">{t("group.outcomes")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5">
           {members.map((m) => {
@@ -50,7 +52,7 @@ export function GroupView({ group }: { group: MarketGroup }) {
                     <span className="truncate font-medium">{m.groupLabel}</span>
                     {isWinner && (
                       <span className="inline-flex items-center gap-1 text-xs font-semibold text-yes">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Winner
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {t("group.winnerBadge")}
                       </span>
                     )}
                   </div>
@@ -82,22 +84,22 @@ export function GroupView({ group }: { group: MarketGroup }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <CheckCircle2 className="h-4 w-4 text-yes" /> Group resolved
+                <CheckCircle2 className="h-4 w-4 text-yes" /> {t("group.resolvedTitle")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
               <p>
-                Winner:{" "}
+                {t("group.winnerLabel")}:{" "}
                 <span className="font-semibold text-yes">
                   {members.find((m) => m.id === winnerId)?.groupLabel ?? "—"}
                 </span>
               </p>
               <p>
-                Winning tokens pay $1 each — redeem from your{" "}
+                {t("group.payoutPre")}
                 <a href="/portfolio" className="underline hover:text-foreground">
-                  Portfolio
+                  {t("group.portfolio")}
                 </a>
-                .
+                {t("group.payoutPost")}
               </p>
             </CardContent>
           </Card>
@@ -107,7 +109,7 @@ export function GroupView({ group }: { group: MarketGroup }) {
           selected && (
             <>
               <div className="rounded-md border bg-muted/50 px-3 py-2 text-sm">
-                Trading: <span className="font-semibold">{selected.groupLabel}</span>
+                {t("group.trading")}: <span className="font-semibold">{selected.groupLabel}</span>
               </div>
               <TradePanel key={selected.slug} market={selected} />
             </>

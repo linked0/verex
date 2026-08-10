@@ -200,3 +200,36 @@ the UMA runbooks by environment.
   the jury", jury 4–1, finalized as **#3** (permissionless), resolved 200; bonds
   moved exactly −10 (disputer #1) / +10 (proposer #2). `tsc --noEmit` clean on both
   packages.
+
+### i18n reaches the app's four main pages (home, market, portfolio, create)
+
+- **Cause:** jay asked for the language toggle to actually work on Main, Detail,
+  Portfolio and Creation. Until now only the nav, welcome overlay, home cards and
+  docs were translated — every other surface was English regardless of the toggle,
+  so switching to Korean produced a half-Korean site.
+- **Reasoning:** the existing i18n needed no redesign — flat dotted keys, `getT()` on
+  the server, `useLocale()` on the client, and `ko: Record<MessageKey, string>` making
+  a missing Korean value a *compile* error. The work was inventory-and-convert across
+  ~2,500 lines, so it went to five parallel agents on disjoint files, each with its
+  own key namespace (`home.` `market.` `portfolio.` `create.` `uma.`/`group.`) and
+  forbidden from editing `lib/i18n.ts` — one owner for the dictionary meant no write
+  conflicts, and the type system caught anything they got wrong on merge. Two rules
+  they were held to: never translate values that cross the wire (category filter
+  values, the literal `Yes`/`No` outcome labels the `isBinary` check string-matches,
+  oracle state enums), and route displayed enums through a lookup instead.
+- **Change:** ~200 key pairs added to `lib/i18n.ts`; 14 components/pages converted,
+  including hardcoded `toLocaleDateString("en-US")` calls now taking the locale-aware
+  `intl`. `GroupView` was included though not requested — the group page is one click
+  from home and a half-translated path is worse than either extreme. Also fixed a
+  pre-existing inconsistency the audit exposed: the market page rendered
+  `market.category` raw while the home page ran it through `categoryLabel()`.
+- **Result:** `tsc --noEmit` and `next build` clean; verified against the production
+  build on a spare port — 13 Korean and 6 English assertions across all four pages
+  plus the group page. A leftover-English sweep found only what should stay English:
+  market titles, seeded rules copy ("Settled by UMA's Optimistic Oracle…"), and
+  `Condition` (CTF protocol term, deliberate).
+- **Self-inflicted damage worth recording:** running `pnpm run build` inside
+  `packages/web` overwrites the same `.next` the dev server is using, which 500s the
+  running dev server; clearing `.next` then left it 404ing until restart. Verify
+  against `next start` on a spare port only when no dev server is running against the
+  same directory — or accept that the dev server needs a restart afterwards.

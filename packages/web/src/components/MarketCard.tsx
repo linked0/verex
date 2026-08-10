@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { cents, marketThumbnail, pct, usd, type Market } from "@/lib/api";
+import { categoryLabel } from "@/components/CategoryTabs";
+import type { Translate } from "@/lib/i18n";
 
 // Grid card: title, Yes probability + Yes/No prices, volume.
-export function MarketCard({ market }: { market: Market }) {
+export function MarketCard({ market, t, intl }: { market: Market; t: Translate; intl: string }) {
   const yes = market.outcomes.find((o) => o.label === "Yes");
   const no = market.outcomes.find((o) => o.label === "No");
 
@@ -50,11 +52,19 @@ export function MarketCard({ market }: { market: Market }) {
           </div>
         </CardContent>
         <CardFooter className="gap-2 text-xs text-muted-foreground">
-          <Badge variant="secondary">{market.category}</Badge>
-          <span>{usd(market.volume)} Vol</span>
+          <Badge variant="secondary">{categoryLabel(market.category, t)}</Badge>
+          <span>
+            {usd(market.volume)} {t("home.volume")}
+          </span>
           {market.closesAt && (
             <span className="ml-auto">
-              Closes {new Date(market.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+              {t("home.closes", {
+                date: new Date(market.closesAt).toLocaleDateString(intl, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                }),
+              })}
             </span>
           )}
         </CardFooter>

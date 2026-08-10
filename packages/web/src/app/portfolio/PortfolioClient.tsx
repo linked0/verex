@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
 import { SettlementChip } from "@/components/SettlementChip";
 import {
@@ -23,19 +24,38 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const money = (v: number) =>
-  `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Grouping/decimal separators follow the active locale, so Korean and English
+// render the same amount with their own conventions.
+const fmtMoney = (v: number, intl: string) =>
+  `$${v.toLocaleString(intl, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const signedMoney = (v: number) => `${v >= 0 ? "+" : "−"}${money(Math.abs(v))}`;
+// The API's `side` enum is a wire value, not a label — map it to a message key
+// so Korean can say 매수/매도 instead of leaking BUY/SELL into the UI.
+const SIDE_KEY = {
+  BUY: "portfolio.sideBuy",
+  SELL: "portfolio.sideSell",
+  REDEEM: "portfolio.sideRedeem",
+} as const;
 
 export default function PortfolioClient() {
   const { accountIndex, summary, refresh, isAdmin } = useWallet();
+  const { t, intl } = useLocale();
+  const money = React.useCallback((v: number) => fmtMoney(v, intl), [intl]);
+  const signedMoney = React.useCallback(
+    (v: number) => `${v >= 0 ? "+" : "−"}${fmtMoney(Math.abs(v), intl)}`,
+    [intl],
+  );
   const [redeeming, setRedeeming] = React.useState<string | null>(null);
   /// slug → jobId of in-flight redemptions. Seeded from the server on every
   /// visit (a redeem takes real time on Sepolia — leaving the page must not
   /// lose its status), extended locally when a new redeem starts.
   const [redeemJobs, setRedeemJobs] = React.useState<Record<string, string>>({});
-  const [toast, setToast] = React.useState<string | null>(null);
+  /// Held as structured data, not a rendered sentence: the "redeeming →
+  /// redeemed" transition used to be a string .replace(), which only works in
+  /// English. The message is composed from `t()` at render time instead.
+  const [toast, setToast] = React.useState<{ slug: string; usdc: number; done: boolean } | null>(
+    null,
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
   const [pnlDetails, setPnlDetails] = React.useState<HistoryRow | null>(null);
@@ -86,10 +106,10 @@ export default function PortfolioClient() {
     setToast(null);
     try {
       const r = await postRedeem({ slug: p.slug, accountIndex });
-      setToast(`Redeeming ${p.slug} — expecting $${r.expectedUsdc.toFixed(2)} USDC`);
+      setToast({ slug: p.slug, usdc: r.expectedUsdc, done: false });
       setRedeemJobs((m) => ({ ...m, [p.slug]: r.jobId })); // row chip polls; balances refresh on settle
     } catch (e: any) {
-      setError(e?.message ?? "redeem failed");
+      setError(e?.message ?? t("portfolio.redeemError"));
     } finally {
       setRedeeming(null);
     }
@@ -98,9 +118,9 @@ export default function PortfolioClient() {
   const onRedeemSettled = React.useCallback(
     (slug: string) => async (status: "CONFIRMED" | "FAILED") => {
       if (status === "CONFIRMED") {
-        setToast((t) => t?.replace("Redeeming", "Redeemed").replace("expecting", "received") ?? t);
+        setToast((prev) => (prev && prev.slug === slug ? { ...prev, done: true } : prev));
       } else {
-        setError(`redeem of ${slug} failed on-chain — your tokens are untouched`);
+        setError(t("portfolio.redeemFailedOnChain", { slug }));
       }
       setRedeemJobs((m) => {
         const { [slug]: _, ...rest } = m;
@@ -109,7 +129,7 @@ export default function PortfolioClient() {
       await refresh();
       await loadHistory();
     },
-    [refresh, loadHistory],
+    [refresh, loadHistory, t],
   );
 
   if (isAdmin) {
@@ -117,16 +137,16 @@ export default function PortfolioClient() {
       <main className="container max-w-3xl space-y-4 py-8">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
-            <BriefcaseBusiness className="h-6 w-6" /> Portfolio
+            <BriefcaseBusiness className="h-6 w-6" /> {t("portfolio.title")}
           </h1>
           {summary?.address && (
             <button
               type="button"
               onClick={copyAddress}
-              title="Copy the operator address"
+              title={t("portfolio.copyOperatorAddress")}
               className="mt-1.5 inline-flex items-center gap-1.5 break-all text-left font-mono text-xs text-muted-foreground hover:text-foreground"
             >
-              Operator · {summary.address}
+              {t("portfolio.operator")} · {summary.address}
               {copied ? (
                 <Check className="h-3.5 w-3.5 shrink-0 text-yes" />
               ) : (
@@ -136,10 +156,11 @@ export default function PortfolioClient() {
           )}
         </div>
         <p className="text-sm text-muted-foreground">
-          The operator (#0) has no portfolio — its holdings are market-making inventory
-          across every market
-          {summary ? ` (treasury: ${money(summary.usdc)} USDC)` : ""}. Switch to a demo
-          wallet (#1–5) to see a portfolio, or open a market page to resolve it.
+          {t("portfolio.operatorNote", {
+            treasury: summary
+              ? t("portfolio.operatorTreasury", { amount: money(summary.usdc) })
+              : "",
+          })}
         </p>
       </main>
     );
@@ -154,13 +175,13 @@ export default function PortfolioClient() {
     <main className="container max-w-4xl space-y-6 py-8">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <BriefcaseBusiness className="h-6 w-6" /> Portfolio
+          <BriefcaseBusiness className="h-6 w-6" /> {t("portfolio.title")}
         </h1>
         {summary?.address && (
           <button
             type="button"
             onClick={copyAddress}
-            title="Copy the wallet address"
+            title={t("portfolio.copyAddress")}
             className="mt-1.5 inline-flex items-center gap-1.5 break-all text-left font-mono text-xs text-muted-foreground hover:text-foreground"
           >
             {summary.address}
@@ -177,7 +198,7 @@ export default function PortfolioClient() {
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-              <Wallet className="h-4 w-4" /> Demo Wallet {accountIndex} balance
+              <Wallet className="h-4 w-4" /> {t("portfolio.walletBalance", { n: accountIndex })}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold tabular-nums">
@@ -187,14 +208,16 @@ export default function PortfolioClient() {
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Positions value
+              {t("portfolio.positionsValue")}
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold tabular-nums">{money(totalValue)}</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-1">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Open P&L</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {t("portfolio.openPnl")}
+            </CardTitle>
           </CardHeader>
           <CardContent
             className={cn(
@@ -208,7 +231,7 @@ export default function PortfolioClient() {
         <Card>
           <CardHeader className="pb-1">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Realized P&L
+              {t("portfolio.realizedPnl")}
             </CardTitle>
           </CardHeader>
           <CardContent
@@ -222,21 +245,28 @@ export default function PortfolioClient() {
         </Card>
       </div>
 
-      {toast && <p className="rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">{toast}</p>}
+      {toast && (
+        <p className="rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">
+          {t(toast.done ? "portfolio.toastRedeemed" : "portfolio.toastRedeeming", {
+            slug: toast.slug,
+            amount: money(toast.usdc),
+          })}
+        </p>
+      )}
       {error && <p className="rounded-md bg-no/10 px-3 py-2 text-sm text-no">{error}</p>}
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Positions</CardTitle>
+          <CardTitle className="text-base">{t("portfolio.positions")}</CardTitle>
         </CardHeader>
         <CardContent>
           {positions.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No positions yet —{" "}
+              {t("portfolio.noPositionsPre")}
               <Link href="/" className="underline hover:text-foreground">
-                find a market
-              </Link>{" "}
-              and make a trade.
+                {t("portfolio.noPositionsLink")}
+              </Link>
+              {t("portfolio.noPositionsPost")}
             </p>
           ) : (
             <div className="space-y-2">
@@ -257,21 +287,26 @@ export default function PortfolioClient() {
                         {p.outcome}
                       </span>
                       <span>
-                        {p.tokens.toFixed(1)} tokens @ {cents(p.price)}
+                        {t("portfolio.tokensAt", {
+                          n: p.tokens.toFixed(1),
+                          price: cents(p.price),
+                        })}
                       </span>
                       {p.marketStatus === "RESOLVED" && (
                         <Badge
                           variant="outline"
                           className={p.won ? "border-yes text-yes" : "border-no text-no"}
                         >
-                          {p.won ? "WON" : "LOST"}
+                          {t(p.won ? "portfolio.won" : "portfolio.lost")}
                         </Badge>
                       )}
                     </div>
                   </div>
                   <div className="text-right tabular-nums">
                     <div className="text-sm font-semibold">{money(p.value)}</div>
-                    <div className="text-xs text-muted-foreground">cost {money(p.costBasis)}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {t("portfolio.cost", { amount: money(p.costBasis) })}
+                    </div>
                   </div>
                   <div
                     className={cn(
@@ -293,7 +328,7 @@ export default function PortfolioClient() {
                         disabled={redeeming === p.slug}
                         onClick={() => onRedeem(p)}
                       >
-                        {redeeming === p.slug ? "Redeeming…" : "Redeem"}
+                        {t(redeeming === p.slug ? "portfolio.redeeming" : "portfolio.redeem")}
                       </Button>
                     ))}
                 </div>
@@ -305,11 +340,13 @@ export default function PortfolioClient() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Activity</CardTitle>
+          <CardTitle className="text-base">{t("portfolio.activity")}</CardTitle>
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">No activity yet.</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              {t("portfolio.noActivity")}
+            </p>
           ) : (
             <div className="space-y-2">
               {history.map((h) => (
@@ -323,7 +360,7 @@ export default function PortfolioClient() {
                       onClick={() => setPnlDetails(h)}
                       className="w-16 shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-center text-xs font-semibold text-primary underline-offset-2 hover:underline"
                     >
-                      {h.side}
+                      {t(SIDE_KEY[h.side])}
                     </button>
                   ) : (
                     <span
@@ -333,7 +370,7 @@ export default function PortfolioClient() {
                         h.side === "SELL" && "bg-no/10 text-no",
                       )}
                     >
-                      {h.side}
+                      {t(SIDE_KEY[h.side])}
                     </span>
                   )}
                   <Link
@@ -343,16 +380,20 @@ export default function PortfolioClient() {
                     {h.marketTitle}
                   </Link>
                   <span className="text-xs text-muted-foreground">
-                    {h.tokenAmount.toFixed(1)} {h.outcome} @ {cents(h.price)}
+                    {t("portfolio.historyAmount", {
+                      n: h.tokenAmount.toFixed(1),
+                      outcome: h.outcome,
+                      price: cents(h.price),
+                    })}
                   </span>
                   {h.settlement === "PENDING" && (
                     <Badge variant="outline" className="border-primary/40 text-primary">
-                      settling…
+                      {t("portfolio.settling")}
                     </Badge>
                   )}
                   {h.settlement === "FAILED" && (
                     <Badge variant="outline" className="border-no text-no">
-                      reverted
+                      {t("portfolio.reverted")}
                     </Badge>
                   )}
                   <span className="w-20 text-right tabular-nums">
@@ -365,12 +406,13 @@ export default function PortfolioClient() {
                         h.realizedPnl >= 0 ? "text-yes" : "text-no",
                       )}
                     >
-                      {h.realizedPnl >= 0 ? "won " : "lost "}
-                      {signedMoney(h.realizedPnl)}
+                      {t(h.realizedPnl >= 0 ? "portfolio.realizedWon" : "portfolio.realizedLost", {
+                        amount: signedMoney(h.realizedPnl),
+                      })}
                     </span>
                   )}
                   <span className="w-28 text-right text-xs text-muted-foreground">
-                    {new Date(h.createdAt).toLocaleString("en-US", {
+                    {new Date(h.createdAt).toLocaleString(intl, {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",
@@ -395,12 +437,12 @@ export default function PortfolioClient() {
           >
             <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
               <div className="min-w-0">
-                <CardTitle className="text-base">Redemption P&amp;L</CardTitle>
+                <CardTitle className="text-base">{t("portfolio.redemptionPnl")}</CardTitle>
                 <p className="truncate text-xs text-muted-foreground">{pnlDetails.marketTitle}</p>
               </div>
               <button
                 type="button"
-                aria-label="Close"
+                aria-label={t("portfolio.close")}
                 onClick={() => setPnlDetails(null)}
                 className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
@@ -409,24 +451,28 @@ export default function PortfolioClient() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Outcome</span>
+                <span className="text-muted-foreground">{t("portfolio.outcome")}</span>
                 <span className="font-medium">
-                  {pnlDetails.tokenAmount.toFixed(1)} {pnlDetails.outcome} @ {cents(pnlDetails.price)}
+                  {t("portfolio.historyAmount", {
+                    n: pnlDetails.tokenAmount.toFixed(1),
+                    outcome: pnlDetails.outcome,
+                    price: cents(pnlDetails.price),
+                  })}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Cost basis</span>
+                <span className="text-muted-foreground">{t("portfolio.costBasis")}</span>
                 <span className="tabular-nums">
                   {money(pnlDetails.usdcAmount - pnlDetails.realizedPnl)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Redeemed for</span>
+                <span className="text-muted-foreground">{t("portfolio.redeemedFor")}</span>
                 <span className="tabular-nums">{money(pnlDetails.usdcAmount)}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between font-semibold">
-                <span>Realized P&amp;L</span>
+                <span>{t("portfolio.realizedPnl")}</span>
                 <span
                   className={cn(
                     "tabular-nums",
@@ -437,19 +483,21 @@ export default function PortfolioClient() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Redeemed for {money(pnlDetails.usdcAmount)} − cost basis{" "}
-                {money(pnlDetails.usdcAmount - pnlDetails.realizedPnl)} ={" "}
-                {signedMoney(pnlDetails.realizedPnl)}
+                {t("portfolio.pnlFormula", {
+                  redeemed: money(pnlDetails.usdcAmount),
+                  cost: money(pnlDetails.usdcAmount - pnlDetails.realizedPnl),
+                  pnl: signedMoney(pnlDetails.realizedPnl),
+                })}
               </p>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Wallet balance now</span>
+                <span className="text-muted-foreground">{t("portfolio.walletBalanceNow")}</span>
                 <span className="font-semibold tabular-nums">
                   {summary ? money(summary.usdc) : "…"}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {new Date(pnlDetails.createdAt).toLocaleString("en-US", {
+                {new Date(pnlDetails.createdAt).toLocaleString(intl, {
                   dateStyle: "medium",
                   timeStyle: "short",
                 })}

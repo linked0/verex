@@ -7,12 +7,14 @@
 import { CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWallet } from "@/components/WalletProvider";
+import { useLocale } from "@/components/LocaleProvider";
 import { TradePanel } from "@/components/TradePanel";
 import { ResolvePanel } from "@/components/ResolvePanel";
 import type { Market } from "@/lib/api";
 
 export function MarketSidePanel({ market }: { market: Market }) {
   const { isAdmin } = useWallet();
+  const { t } = useLocale();
 
   if (market.status === "RESOLVED") {
     const winner = market.outcomes.find((o) => Number(o.price) === 1);
@@ -20,22 +22,22 @@ export function MarketSidePanel({ market }: { market: Market }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <CheckCircle2 className="h-4 w-4 text-yes" /> Market resolved
+            <CheckCircle2 className="h-4 w-4 text-yes" /> {t("market.resolvedTitle")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            Final outcome:{" "}
+            {t("market.finalOutcome")}{" "}
             <span className={winner?.label === "Yes" ? "font-semibold text-yes" : "font-semibold text-no"}>
               {winner?.label ?? "—"}
             </span>
           </p>
           <p>
-            Winning tokens pay $1 each — redeem them from your{" "}
+            {t("market.redeemPre")}
             <a href="/portfolio" className="underline hover:text-foreground">
-              Portfolio
+              {t("market.portfolio")}
             </a>
-            .
+            {t("market.redeemPost")}
           </p>
         </CardContent>
       </Card>
@@ -48,14 +50,14 @@ export function MarketSidePanel({ market }: { market: Market }) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Resolve via the group</CardTitle>
+          <CardTitle className="text-base">{t("market.resolveViaGroup")}</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          This market is one outcome of{" "}
+          {t("market.groupNotePre")}
           <a href={`/group/${market.group.slug}`} className="underline hover:text-foreground">
             {market.group.title}
           </a>
-          . Pick the winner there — all member markets resolve together.
+          {t("market.groupNotePost")}
         </CardContent>
       </Card>
     );

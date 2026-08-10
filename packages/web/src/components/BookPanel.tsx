@@ -6,11 +6,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useLocale } from "@/components/LocaleProvider";
 import { cents, getBookSnapshot, type BookSnapshot } from "@/lib/api";
 
 const LEVELS = 5;
 
 export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) {
+  const { t } = useLocale();
   const [book, setBook] = React.useState<BookSnapshot | null>(null);
 
   React.useEffect(() => {
@@ -35,15 +37,19 @@ export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) 
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-baseline justify-between">
-          <CardTitle className="text-base">Order book · {outcome}</CardTitle>
+          <CardTitle className="text-base">
+            {t("market.orderBook")} · {outcome}
+          </CardTitle>
           {book?.mid != null && (
-            <span className="text-xs text-muted-foreground">mid {cents(book.mid)}</span>
+            <span className="text-xs text-muted-foreground">
+              {t("market.mid", { price: cents(book.mid) })}
+            </span>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-0.5 text-xs">
         {asks.length === 0 && bids.length === 0 && (
-          <p className="py-2 text-center text-muted-foreground">No open orders.</p>
+          <p className="py-2 text-center text-muted-foreground">{t("market.noOrders")}</p>
         )}
         {[...asks].reverse().map((l) => (
           <div key={`a${l.price}`} className="relative flex items-center justify-between px-1 py-0.5">
@@ -77,16 +83,14 @@ export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) 
             not orders — replaced wholesale on every fill. Say so here rather than
             leaving people to infer it from a book that keeps changing shape. */}
         <p className="mt-2 border-t pt-2 text-[11px] leading-relaxed text-muted-foreground">
-          Prices here come from{" "}
+          {t("market.bookNotePre")}
           <Link
             href="/docs/hybrid-amm-clob#does-the-book-change"
             className="underline underline-offset-2 hover:text-foreground"
           >
             LMSR
           </Link>
-          : after each trade the operator cancels its entire ladder and re-posts it
-          around a new centre, so its levels move rather than persist. Your own
-          resting orders are never cancelled.
+          {t("market.bookNotePost")}
         </p>
       </CardContent>
     </Card>

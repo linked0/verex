@@ -13,15 +13,20 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { categoryLabel } from "@/components/CategoryTabs";
 import { EditMarketLink } from "@/components/EditMarketLink";
 import { ProbChart } from "@/components/ProbChart";
 import { MarketSidePanel } from "@/components/MarketSidePanel";
 import { BookPanel } from "@/components/BookPanel";
 import { UmaOraclePanel } from "@/components/UmaOraclePanel";
+import { getLocale, getT } from "@/lib/i18n-server";
+import { intlLocale } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketPage({ params }: { params: { slug: string } }) {
+  const t = getT();
+  const intl = intlLocale(getLocale());
   const market = await getMarket(params.slug);
   if (!market) notFound();
 
@@ -39,7 +44,7 @@ export default async function MarketPage({ params }: { params: { slug: string } 
         className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        {market.group ? market.group.title : "All markets"}
+        {market.group ? market.group.title : t("market.allMarkets")}
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -47,17 +52,17 @@ export default async function MarketPage({ params }: { params: { slug: string } 
         <div className="space-y-6">
           <div>
             <div className="mb-2 flex items-center gap-2">
-              <Badge>{market.category}</Badge>
+              <Badge>{categoryLabel(market.category, t)}</Badge>
               {market.status === "RESOLVED" && (
                 <Badge variant="outline" className="border-yes text-yes">
-                  RESOLVED —{" "}
+                  {t("market.resolvedLabel")}{" "}
                   {market.outcomes.find((o) => Number(o.price) === 1)?.label?.toUpperCase() ?? "?"}
                 </Badge>
               )}
               <span className="text-xs text-muted-foreground">
-                {usd(market.volume)} Vol
+                {usd(market.volume)} {t("market.volume")}
                 {market.closesAt &&
-                  ` · Closes ${new Date(market.closesAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+                  ` · ${t("market.closes", { date: new Date(market.closesAt).toLocaleDateString(intl, { month: "short", day: "numeric", year: "numeric" }) })}`}
               </span>
               <EditMarketLink slug={market.slug} />
             </div>
@@ -81,7 +86,7 @@ export default async function MarketPage({ params }: { params: { slug: string } 
                 <span className="text-3xl font-bold tabular-nums text-primary">
                   {yes ? pct(yes.price) : "—"}%
                 </span>
-                <span className="text-sm text-muted-foreground">Yes chance</span>
+                <span className="text-sm text-muted-foreground">{t("market.yesChance")}</span>
               </div>
             </CardHeader>
             <CardContent>
@@ -103,7 +108,7 @@ export default async function MarketPage({ params }: { params: { slug: string } 
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Outcomes</CardTitle>
+              <CardTitle className="text-base">{t("market.outcomes")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {market.outcomes.map((o) => (
@@ -132,13 +137,13 @@ export default async function MarketPage({ params }: { params: { slug: string } 
           {market.description && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Rules</CardTitle>
+                <CardTitle className="text-base">{t("market.rules")}</CardTitle>
               </CardHeader>
               <CardContent className="text-sm leading-relaxed text-muted-foreground">
                 {market.description}
                 <Separator className="my-3" />
                 <div className="break-all text-xs">
-                  Condition: <code>{market.conditionId}</code>
+                  {t("market.condition")}: <code>{market.conditionId}</code>
                 </div>
               </CardContent>
             </Card>
@@ -146,33 +151,46 @@ export default async function MarketPage({ params }: { params: { slug: string } 
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Recent activity</CardTitle>
+              <CardTitle className="text-base">{t("market.recentActivity")}</CardTitle>
             </CardHeader>
             <CardContent>
               {trades.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">
-                  No trades yet — be the first.
+                  {t("market.noTrades")}
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {trades.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-2 text-sm">
+                  {trades.map((tr) => (
+                    <div key={tr.id} className="flex items-center justify-between gap-2 text-sm">
                       <span className="font-mono text-xs text-muted-foreground">
-                        {t.user.slice(0, 6)}…{t.user.slice(-4)}
+                        {tr.user.slice(0, 6)}…{tr.user.slice(-4)}
                       </span>
                       <span
                         className={
-                          t.side === "BUY" ? "text-yes" : t.side === "SELL" ? "text-no" : "text-primary"
+                          tr.side === "BUY"
+                            ? "text-yes"
+                            : tr.side === "SELL"
+                              ? "text-no"
+                              : "text-primary"
                         }
                       >
-                        {t.side === "BUY" ? "Bought" : t.side === "SELL" ? "Sold" : "Redeemed"}{" "}
-                        {Number(t.tokenAmount).toFixed(1)} {t.outcome.label}
+                        {t(
+                          tr.side === "BUY"
+                            ? "market.tradeBought"
+                            : tr.side === "SELL"
+                              ? "market.tradeSold"
+                              : "market.tradeRedeemed",
+                          {
+                            amount: Number(tr.tokenAmount).toFixed(1),
+                            outcome: tr.outcome.label,
+                          },
+                        )}
                       </span>
                       <span className="tabular-nums text-muted-foreground">
-                        @{cents(t.price)}
+                        @{cents(tr.price)}
                       </span>
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {new Date(t.createdAt).toLocaleTimeString("en-US", {
+                        {new Date(tr.createdAt).toLocaleTimeString(intl, {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
