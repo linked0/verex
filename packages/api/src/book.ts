@@ -253,6 +253,11 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
   });
   if (!market) throw httpError("market not found", 404);
   if (market.status !== "OPEN") throw httpError("market is not open", 400);
+  // closesAt is the trading cutoff, not the settlement time: orders stop here,
+  // while resolution (operator or oracle) proceeds on its own clock.
+  if (market.closesAt && market.closesAt.getTime() <= Date.now()) {
+    throw httpError(`market closed for trading at ${market.closesAt.toISOString()}`, 400);
+  }
   const outcome = market.outcomes.find((o) => o.label === req.outcome);
   if (!outcome) throw httpError("outcome not found", 404);
   const tokenId = BigInt(outcome.tokenId);
