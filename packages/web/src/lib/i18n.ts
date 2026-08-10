@@ -11,7 +11,14 @@ export type Locale = "en" | "ko";
 
 export const LOCALES: Locale[] = ["en", "ko"];
 export const DEFAULT_LOCALE: Locale = "en";
-export const LOCALE_COOKIE = "verex-locale";
+// The name is Firebase's, not ours: verex.jaylabs.xyz reaches Cloud Run through
+// a Firebase Hosting rewrite, and Firebase strips EVERY cookie except one named
+// exactly "__session" before forwarding. Any other name means the server never
+// sees the locale on the custom domain and silently renders English — while the
+// *.run.app URLs work, which makes it a maddening domain-only bug. localStorage
+// keeps the descriptive name; only the cookie must be __session.
+export const LOCALE_COOKIE = "__session";
+export const LOCALE_STORAGE_KEY = "verex-locale";
 
 export const LOCALE_LABEL: Record<Locale, string> = { en: "EN", ko: "한국어" };
 

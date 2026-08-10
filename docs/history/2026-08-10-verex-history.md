@@ -296,3 +296,46 @@ the UMA runbooks by environment.
   /wallet/3 came back EMPTY where the old code would have shown 88.89 ghost tokens.
   UMA wiring intact after the env-reuse seed. Note: ghost USDC (e.g. wallet #2's
   1019.41) is NOT covered — MockUSDC balances still persist; cosmetic, no fake P&L.
+
+### Prod deploy (code-only) + staging stopped
+
+- **Cause:** jay: deploy to the prod server; then "you can stop the staging server
+  because they are used for testing online."
+- **Reasoning:** prod already existed (verex-*-prod services, verex-db-prod, prod
+  secrets) but ran pre-UMA code — `/config` didn't even exist. A re-deploy per the
+  wrapper's own rule (`SKIP_SEED=1`: code + migrations, keep data) brings everything
+  from PRs #15–#23 without touching prod's seeded markets. Stopping staging: the
+  Cloud Run services cost ~nothing idle; the 24/7 cost is the `verex-db` Cloud SQL
+  instance, so that is what got stopped — reversibly (`--activation-policy NEVER`),
+  not deleted.
+- **Change:** `SKIP_SEED=1 ./scripts/deploy-prod.sh` (exit 0); then
+  `gcloud sql instances patch verex-db --activation-policy NEVER` → state STOPPED.
+- **Result:** prod verified on new code: `/config` live (`umaAvailable: false` —
+  correct, no adapter recorded for prod), 10 markets kept, `/wallet/1` 0.57s,
+  Korean + English render, https://verex.jaylabs.xyz still 200. Staging API now
+  fails (DB stopped, expected); prod unaffected (separate instance). Restart
+  staging: `gcloud sql instances patch verex-db --activation-policy ALWAYS`, then
+  re-deploy or just wait — services are still in place. Note for later: prod shows
+  the same 9 past-close-date markets as "Trading closed" now that the cutoff is
+  enforced; the stale-seed-dates decision applies to prod too.
+
+### The language toggle didn't survive the custom domain — Firebase eats cookies
+
+- **Cause:** jay: "why the docs isn't changed by the language selection?" Docs are
+  the most server-rendered surface, which made them the visible symptom.
+- **Reasoning:** the app was correct — the direct *.run.app URL rendered Korean with
+  the cookie; only https://verex.jaylabs.xyz stayed English. The domain reaches
+  Cloud Run through a Firebase Hosting rewrite, and Firebase strips EVERY cookie
+  except one named exactly `__session` before forwarding. The server never saw
+  `verex-locale`, so `getLocale()` fell back to English on every server render —
+  a domain-only bug invisible in all our *.run.app testing. Client components kept
+  switching (React state), which is why the site looked *partially* translated
+  there rather than plainly broken.
+- **Change:** `LOCALE_COOKIE` renamed to `__session` with a comment explaining the
+  name is Firebase's constraint, not a choice; localStorage keeps the descriptive
+  `verex-locale` key (existing saved preferences survive; the old cookie is simply
+  ignored and localStorage restore re-writes the new one).
+- **Result:** verified on a local production build: `__session=ko` → Korean docs,
+  `__session=en` → English, old cookie name ignored. Deployed to prod and verified
+  through the domain itself. Lesson recorded: anything cookie-driven must be tested
+  through the Firebase-fronted domain, not only the run.app URLs.
