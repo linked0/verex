@@ -144,6 +144,30 @@ the UMA runbooks by environment.
   the four committed `*.example` files still tracked. Nothing secret was ever
   committed — the file was untracked the whole time.
 
+### The closesAt cutoff broke the seed — and exposed that the seed's dates rot
+
+- **Cause:** the first staging deploy after merging failed at `[6] posting MM ladders`:
+  `seed failed: market closed for trading at 2026-07-10T00:00:00.000Z`. The new
+  `placeOrder` cutoff rejected the operator's own opening quotes on markets whose
+  hardcoded seed dates are now in the past. Staging was left half-seeded (markets, no
+  books) on the previous revision — the deploy aborted before building the image.
+- **Reasoning:** two distinct problems. (1) `postLadders` guarded `status !== "OPEN"`
+  but not the cutoff, so it quoted a market that cannot accept orders — a closed
+  market having no book is a *state*, not an error, so the guard belongs next to the
+  status check rather than as a try/catch at the call site. (2) The seed's dates are
+  absolute literals written months ago, so real time walks past them: today **9 of 32**
+  markets are closed (`kr-world-cup-quarterfinals-2026`, `ai-imo-gold-2026`, and all
+  7 members of `mlb-home-run-derby-2026`). Left as-is that ships a demo where a
+  quarter of the markets are inert. Not silently "fixed" by rewriting the questions'
+  dates — a World Cup market closing in December is nonsense, so the real fix is
+  relative-to-run-time dates, which is jay's call.
+- **Change:** `mm.ts` `postLadders` returns early past `closesAt`; `seed.ts` step 6
+  skips those markets and **prints which ones**, so an inert market is never a silent
+  omission.
+- **Result:** local `db:reset` green again, listing the 9 skipped slugs. My process
+  failure worth naming: I enforced the cutoff and deployed without re-running the seed
+  — the one command that exercises order placement across every seeded market.
+
 ### Oracle panel acts as the selected wallet — one screen stops being five jurors
 
 - **Cause:** jay: "voting should be done only by the selected wallet; the summary

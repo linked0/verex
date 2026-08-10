@@ -845,10 +845,23 @@ async function main() {
     }
   }
 
-  // 6. Initial MM ladders — the books every market opens with.
+  // 6. Initial MM ladders — the books every market opens with. Markets whose
+  // closesAt has already passed get no book (postLadders skips them): the
+  // seed's dates are fixed, so real time eventually walks past some of them.
   console.log(`[6] posting MM ladders for ${seededMarketIds.length} markets...`);
+  const closed: string[] = [];
   for (const m of seededMarketIds) {
+    const market = await prisma.market.findUniqueOrThrow({ where: { id: m.id } });
+    if (market.closesAt && market.closesAt.getTime() <= Date.now()) {
+      closed.push(market.slug);
+      continue;
+    }
     await postLadders(m.id, m.yesPrice);
+  }
+  if (closed.length > 0) {
+    console.log(
+      `[6] ${closed.length} market(s) are past their close date — no book, trading closed: ${closed.join(", ")}`,
+    );
   }
 
   console.log(

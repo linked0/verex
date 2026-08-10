@@ -53,6 +53,10 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
     include: { outcomes: true },
   });
   if (market.status !== "OPEN") return;
+  // Past its trading cutoff the market takes no orders (book.ts placeOrder),
+  // so quoting it would throw on the first level. A closed market simply has
+  // no book — that is the state, not an error to propagate to the caller.
+  if (market.closesAt && market.closesAt.getTime() <= Date.now()) return;
 
   await prisma.order.updateMany({
     where: { marketId, isMM: true, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
