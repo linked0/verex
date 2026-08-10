@@ -2,9 +2,11 @@
 
 Manual verification of the features that only show up in a running app. It lives in
 `docs/runbooks/` because that is where the "how to actually do a thing, step by step" docs
-already are ([deploy.md](deploy.md), [uma-adapter.md](uma-adapter.md)) — and because
-`uma-adapter.md` §5 is already the same genre. That section stays where it is (it is
-UMA-specific and needs a Sepolia fork); this file covers everything testable on plain anvil.
+already are ([deploy.md](deploy.md), [uma-adapter.md](uma-adapter.md)). UMA keeps its own
+two runbooks — [uma-local-demo.md](uma-local-demo.md) for the dispute demo on plain anvil,
+[uma-adapter.md](uma-adapter.md) for everything real-oracle (staging, Sepolia fork) — and
+this file covers everything else testable on plain anvil, plus the `/create` UMA-card
+checks in §5.
 
 Each check below states **what to expect**, not just what to click. A step you can't fail is
 not a test.
@@ -116,60 +118,58 @@ Open http://localhost:3000/create and scroll to **Resolution source**. There are
 | Card | Local anvil | Why |
 |---|---|---|
 | **Operator** | selected, enabled | the default; the platform reports the result |
-| **UMA oracle** | **visible but greyed out**, not clickable | no adapter exists on this chain |
+| **UMA oracle** | **enabled, selectable** (binary markets) | the seed deploys a mock oracle + a real `UmaCtfAdapter` — see [uma-local-demo.md](uma-local-demo.md) |
 
-The UMA card must read:
+> Before the mock oracle existed, this card was greyed out on anvil with *"Not available
+> in this environment — no adapter deployed."* If you still see that, your `ChainConfig`
+> predates the mock — re-seed (`./scripts/reset.sh`).
 
-> *Not available in this environment — no adapter deployed.*
+The card *does* still grey out — for a different reason. See 5.3.
 
-**Disabled, not hidden — that is deliberate.** A hidden control teaches the reader nothing
-and is indistinguishable from a component that failed to render. A disabled one with its
-reason printed on it says both *this feature exists* and *here is what is missing*.
+### 5.2 The chain of state behind that one card
 
-So the failure to watch for is not "the card is there". It is **the card being clickable**,
-or the reason text being absent or wrong.
-
-### 5.2 Why it is disabled — the chain of state behind that one card
-
-Nothing about the form is hard-coded. The greyed-out state is the end of a chain that starts
+Nothing about the form is hard-coded. The enabled state is the end of a chain that starts
 on-chain:
 
 ```
-no UmaCtfAdapter deployed on anvil
-  → seed writes ChainConfig.umaAdapterAddr = null      (prisma/seed.ts)
-  → loadChain() exposes umaAdapterAddr = null          (src/chain.ts)
-  → GET /config returns umaAvailable: false            (src/index.ts)
-  → CreateClient fetches it on mount and disables the card
+seed runs DeployMockOracle.s.sol on anvil (mock oracle + adapter)
+  → seed writes ChainConfig.umaAdapterAddr + umaOracleAddr,
+    umaOracleMock = true                               (prisma/seed.ts)
+  → loadChain() exposes them                           (src/chain.ts)
+  → GET /config returns umaAvailable: true             (src/index.ts)
+  → CreateClient fetches it on mount and enables the card
 ```
 
 Verify the middle of that chain directly:
 
 ```bash
 curl -s localhost:4000/config | jq
-# { "chainId": 31337, "tradingEnabled": true, "umaAvailable": false, "umaAdapter": null }
+# { "chainId": 31337, "tradingEnabled": true, "umaAvailable": true,
+#   "umaAdapter": "0x…", "umaOracleMock": true }
 ```
 
-If `/config` says `false` but the card is enabled, the bug is in the client. If `/config`
-says `true` on plain anvil, the bug is further back — something wrote an adapter address
-into `ChainConfig` that does not exist on this chain (a leftover from a fork session is the
-usual cause).
+If `/config` says `true` but the card is disabled (on a binary form), the bug is in the
+client. If `/config` says `false` on seeded anvil, the bug is further back — the seed
+didn't run `DeployMockOracle`, or the DB predates it. And `umaOracleMock` must be `true`
+locally: `false` with a real-looking address means a *staging* config leaked into the
+local DB (a leftover from a fork session is the usual cause).
 
-### 5.3 The second condition: binary markets only
+### 5.3 The disabled state still exists: binary markets only
 
-The same card is disabled for a *different* reason when UMA **is** available. Add a third
-outcome, and even on an environment with an adapter the card greys out with:
+The card greys out when the outcome list isn't exactly Yes/No. Add a third outcome and it
+must read:
 
 > *Binary markets only — set outcomes to exactly Yes and No.*
 
-You can exercise this branch locally by reading the code path
-([`CreateClient.tsx`](../../packages/web/src/app/create/CreateClient.tsx), `disabled={!umaAvailable || !isBinary}`),
-but not visually — locally the first condition already fails, so you cannot tell the two
-apart on anvil. That is a limitation of this check, not something to work around.
+This used to be unobservable on anvil (the missing-adapter condition fired first); with the
+mock deployed it is now a genuine visual check
+([`CreateClient.tsx`](../../packages/web/src/app/create/CreateClient.tsx), `disabled={!umaAvailable || !isBinary}`).
 
 ### 5.4 The real test: the UI is only a hint
 
-A disabled button is a courtesy, not a defence. Anyone can post to the API directly, so the
-check that matters is that **the server refuses too**:
+A disabled card is a courtesy, not a defence. Anyone can post to the API directly, so the
+checks that matter are that **the server enforces the same rules**. Both rejections are
+now firable on plain anvil (they used to be masked by the missing-adapter check):
 
 ```bash
 curl -s -X POST localhost:4000/market-groups \
@@ -177,7 +177,7 @@ curl -s -X POST localhost:4000/market-groups \
   -d '{
         "title": "Will this request be rejected?",
         "category": "Crypto",
-        "outcomes": [{"label":"Yes"},{"label":"No"}],
+        "outcomes": [{"label":"A"},{"label":"B"},{"label":"C"}],
         "closesAt": "2027-01-01T00:00:00Z",
         "creatorIndex": 0,
         "liquidityPerOutcome": 5,
@@ -186,26 +186,22 @@ curl -s -X POST localhost:4000/market-groups \
       }' | jq
 ```
 
-**Expect `400`**, with an error naming the missing adapter:
-
-```
-UMA resolution isn't available in this environment — no UmaCtfAdapter is deployed
-```
-
-A `200` here is the serious failure. It means the UI was the only thing standing between a
-user and an unresolvable market.
-
-Two more server-side rejections worth firing while you are here — change `oracleType` to
-`UMA` and:
-
-| Change | Expected 400 |
+| Variant | Expected 400 |
 |---|---|
-| three outcomes | `…supports binary (Yes/No) markets only…` |
-| `"resolutionCriteria": "yes if high"` | `resolution criteria are required … at least 20 characters` |
+| three outcomes (as above) | `…supports binary (Yes/No) markets only…` |
+| binary, but `"resolutionCriteria": "yes if high"` | `resolution criteria are required … at least 20 characters` |
 
-(On anvil the missing-adapter check fires first, so these two only surface once an adapter
-exists — the fork run in [uma-adapter.md §5](uma-adapter.md) covers them, and
-`scripts/uma-e2e-fork.ts` asserts both.)
+A `200` on either is the serious failure — it means the UI was the only thing standing
+between a user and a broken market. (`scripts/uma-e2e-fork.ts` asserts both, too.)
+
+With **valid** UMA params (binary Yes/No, criteria ≥ 20 chars), expect the request to
+**succeed**: it creates a real UMA market against the mock oracle, which you can then walk
+through the dispute scenarios in [uma-local-demo.md](uma-local-demo.md).
+
+The third rejection — `UMA resolution isn't available in this environment — no
+UmaCtfAdapter is deployed` — can no longer be reproduced on seeded anvil, because an
+adapter now always exists here. The guard is still in `createMarketGroup` for
+environments whose `ChainConfig` has no adapter; why that guard is load-bearing is 5.5.
 
 ### 5.5 Why this is the check worth stopping for
 
@@ -233,9 +229,13 @@ already cost money and cannot be undone.
 
 ### 5.6 The positive case
 
-Everything above tests the *refusal*. Testing that UMA actually works — the option enabled, a
-market created through it, an answer proposed, liveness elapsed, the market resolved and
-redeemed — needs a real oracle, and therefore a Sepolia fork:
+Everything above tests the *refusals*. The positive path — a market created through the
+UMA option, an answer proposed, disputed, a verdict, the market resolved and redeemed —
+runs on plain anvil against the mock oracle: [uma-local-demo.md](uma-local-demo.md), with
+all three dispute endings clickable in the browser.
+
+What the mock **cannot** prove is that the adapter matches the *real* oracle's behaviour —
+a mock only encodes its author's understanding. That check needs a Sepolia fork:
 [uma-adapter.md §5](uma-adapter.md).
 
 ---
@@ -416,5 +416,5 @@ the operator, redeem.
 
 | Feature | Why | Where |
 |---|---|---|
-| UMA market creation + resolution | UMA has no anvil deployment | [uma-adapter.md §5](uma-adapter.md) — Sepolia fork |
+| UMA against the **real** oracle (whitelist, WETH bonds, real settlement) | UMA has no anvil deployment — the local mock proves adapter mechanics, not UMA conformance | [uma-adapter.md §5](uma-adapter.md) — Sepolia fork |
 | Cloud Run / Cloud SQL behaviour | env-specific by definition | [deploy.md](deploy.md) |
