@@ -76,9 +76,15 @@ export async function createBinaryMarketOnChain(args: {
   exchange: ExchangeClient;
   usdcAddr: Address;
   operator: Address;
-  /// Deterministic question key, e.g. "verex:eth-above-10k-2026" — hashed
-  /// into the on-chain questionId on the OPERATOR path, and folded into the
-  /// ancillary data on the UMA path to keep questions unique.
+  /// Question key, e.g. "verex:eth-above-10k-2026:<nonce>" — hashed into the
+  /// on-chain questionId on the OPERATOR path, and folded into the ancillary
+  /// data on the UMA path. The nonce (job id / seed run id) matters: the CTF
+  /// derives token ids from this key, and a key that is a pure function of the
+  /// slug means a re-seeded environment re-creates the SAME token ids — wallet
+  /// balances from wiped sessions reattach to the new markets as ghost
+  /// positions with no trades behind them. The nonce must be stable across
+  /// retries of one creation attempt (resume relies on "already prepared"),
+  /// which is why callers pass a persisted id, not a timestamp per call.
   questionKey: string;
   /// Operator inventory to mint for this market (E6). splitPosition turns
   /// this much USDC into equal Yes+No token inventory.

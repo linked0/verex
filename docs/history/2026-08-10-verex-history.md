@@ -264,3 +264,35 @@ the UMA runbooks by environment.
   arrive — the most alarming part of the old behaviour. `tsc` clean on api/sdk/web,
   SDK tests pass. Does **not** fix the settlement-lag inconsistency reported earlier
   (chain balance vs DB cost basis); that one is still awaiting a decision.
+
+### The two portfolio-truth fixes: pending fills netted in, ghost positions eliminated
+
+- **Cause:** jay approved both fixes from the day's diagnosis: (1) settlement lag —
+  right after a buy the portfolio showed the pre-trade balance with the post-trade
+  cost basis ("bought $100, worth $7"); (2) ghost positions — staging wallet #1 held
+  434.78 Dodgers tokens with zero trades and +$95.65 P&L out of thin air, because a
+  re-seed wipes the DB but not the chain, and question keys were a pure function of
+  the slug, so the fresh markets recomputed the SAME token ids and old balances
+  reattached.
+- **Reasoning:** (1) is the same read-your-own-writes race as the Aug-7 MM-ladder
+  fix, so it gets the same shape: net PENDING fills into what the chain reports —
+  tokens per outcome and USDC both, clamped at zero; CONFIRMED is already in
+  balanceOf and FAILED moved nothing (FAILED rows now also excluded from cost
+  basis). The include-test runs on the adjusted balance so a brand-new position
+  that exists only as a pending buy appears. (2) fold a nonce into the question
+  key. The nonce must be stable across retries of one creation attempt — resume
+  relies on catching "already prepared"/"AlreadyInitialized" with the same key —
+  so a timestamp-per-call would orphan inventory on retry: app path uses the
+  persisted job id, seed uses one per-run base-36 timestamp. DB-only seed path
+  (chain 0, placeholder ids) deliberately untouched.
+- **Change:** `trade.ts` walletSummary (pending netting, FAILED exclusion);
+  `group-create.ts` ×2 `questionKey: verex:<slug>:<job.id>`; `seed.ts` run nonce +
+  key; `market-create.ts` questionKey doc rewritten to say why the nonce exists.
+- **Result:** verified live, both. (1) buy $30 as wallet #2 → IMMEDIATE read: usdc
+  970, 107.14 tokens, cost 30 — identical after settlement confirms (the invariant,
+  as with the ladder). (2) reproduced staging's exact conditions locally via the
+  env-backbone path: wallet #3 bought 88.89 tokens (CONFIRMED on chain), re-seeded
+  against the SAME CTF — token id for the same slug rotated (3124… → 7224…) and
+  /wallet/3 came back EMPTY where the old code would have shown 88.89 ghost tokens.
+  UMA wiring intact after the env-reuse seed. Note: ghost USDC (e.g. wallet #2's
+  1019.41) is NOT covered — MockUSDC balances still persist; cosmetic, no fake P&L.
