@@ -63,14 +63,27 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
 
   // Cost basis per outcome: net USDC the user has put in (Σ BUY − Σ SELL).
   // REDEEM rows are excluded — they close a position, not change its cost.
+  // FAILED rows too: a reverted settlement moved nothing on either side.
   const userTrades = await prisma.trade.findMany({
-    where: { user, side: { in: ["BUY", "SELL"] } },
-    select: { outcomeId: true, side: true, usdcAmount: true },
+    where: { user, side: { in: ["BUY", "SELL"] }, settlement: { not: "FAILED" } },
+    select: { outcomeId: true, side: true, usdcAmount: true, tokenAmount: true, settlement: true },
   });
   const netCost = new Map<string, number>();
+  // PENDING fills, netted into what the chain reports. The book fills a trade
+  // instantly but SETTLE_MATCH mines a block later; in that window the chain
+  // still shows pre-trade balances while cost basis (DB) already moved — the
+  // portfolio showed "bought $100, worth $7" right after a fair fill. Same
+  // read-your-own-writes race as the MM ladder (mm.unsettledOperatorSold), and
+  // the same fix: count what is in flight. CONFIRMED is already in balanceOf.
+  const pendingTokens = new Map<string, number>();
+  let pendingUsdc = 0;
   for (const t of userTrades) {
-    const signed = (t.side === "BUY" ? 1 : -1) * Number(t.usdcAmount);
-    netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + signed);
+    const sign = t.side === "BUY" ? 1 : -1;
+    netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + sign * Number(t.usdcAmount));
+    if (t.settlement === "PENDING") {
+      pendingTokens.set(t.outcomeId, (pendingTokens.get(t.outcomeId) ?? 0) + sign * Number(t.tokenAmount));
+      pendingUsdc -= sign * Number(t.usdcAmount);
+    }
   }
 
   // Every outcome of every market in ONE call. One-at-a-time cost a network
@@ -85,8 +98,12 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
   const positions: WalletSummary["positions"] = [];
   for (const [i, { m, o }] of slots.entries()) {
     const bal = balances[i] ?? 0n;
-    if (bal === 0n) continue;
-    const tokens = Number(formatUnits(bal, 6));
+    // Chain balance ± in-flight fills. Clamped at zero: a pending SELL of the
+    // whole position must show 0, never a negative holding. Note the include
+    // test runs on the ADJUSTED number — a brand-new position that exists only
+    // as a pending buy must appear, even though the chain still says 0.
+    const tokens = Math.max(0, Number(formatUnits(bal, 6)) + (pendingTokens.get(o.id) ?? 0));
+    if (tokens < 0.000001) continue;
     const price = Number(o.price);
     const value = Number((tokens * price).toFixed(2));
     const costBasis = Number((netCost.get(o.id) ?? 0).toFixed(2));
@@ -106,7 +123,9 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
   return {
     accountIndex,
     address: user,
-    usdc: Number(formatUnits(usdcBal, 6)),
+    // Same adjustment for cash: a pending BUY's USDC has left the wallet as
+    // far as the user is concerned, even though the transfer settles later.
+    usdc: Math.max(0, Number(formatUnits(usdcBal, 6)) + pendingUsdc),
     positions,
   };
 }

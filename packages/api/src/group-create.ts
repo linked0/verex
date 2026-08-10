@@ -313,13 +313,17 @@ registerHandler("CREATE_GROUP", {
       await progress(job, i, total, `creating "${o.label}" on-chain`);
 
       if (p.kind === "binary") {
-        // One market with real Yes/No outcomes.
+        // One market with real Yes/No outcomes. The job id in the question key
+        // makes this creation's condition (and so its token ids) unique to this
+        // creation — see createBinaryMarketOnChain's questionKey doc. Stable
+        // across retries of THIS job, different for any later re-creation of
+        // the same slug.
         const onchain = await createBinaryMarketOnChain({
           ct,
           exchange,
           usdcAddr: chain.usdcAddr,
           operator: chain.operator,
-          questionKey: `verex:${memberSlug}`,
+          questionKey: `verex:${memberSlug}:${job.id}`,
           inventoryE6: liquidityE6 * 2n, // both labels share one condition
           uma: umaArgs(p, chain),
         });
@@ -360,7 +364,7 @@ registerHandler("CREATE_GROUP", {
         exchange,
         usdcAddr: chain.usdcAddr,
         operator: chain.operator,
-        questionKey: `verex:${memberSlug}`,
+        questionKey: `verex:${memberSlug}:${job.id}`,
         inventoryE6: liquidityE6,
       });
       const market = await prisma.market.create({

@@ -546,6 +546,15 @@ async function mainDbOnly() {
 async function main() {
   if (process.env.SEED_DB_ONLY === "1") return mainDbOnly();
 
+  // One nonce per seed RUN, folded into every question key. Without it the
+  // key is a pure function of the slug, so a re-seed (which wipes the DB but
+  // cannot wipe the chain) re-creates the SAME condition and token ids — and
+  // wallet balances from previous sessions reattach to the fresh markets as
+  // ghost positions with zero cost basis. Base-36 timestamp: short, unique
+  // per run, and sortable when debugging on-chain leftovers.
+  const seedRun = Date.now().toString(36);
+  console.log(`    seed run nonce: ${seedRun} (isolates this run's token ids)`);
+
   const pc = makePublicClient();
 
   // Guard: anvil must be up.
@@ -734,7 +743,7 @@ async function main() {
       exchange,
       usdcAddr: backbone.usdc,
       operator,
-      questionKey: `verex:${args.slug}`,
+      questionKey: `verex:${args.slug}:${seedRun}`,
       inventoryE6: args.inventoryE6,
       uma: useUma
         ? {
