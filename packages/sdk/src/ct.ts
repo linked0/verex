@@ -18,6 +18,16 @@ const ERC1155_BALANCE_AND_APPROVAL_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "balanceOfBatch",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "accounts", type: "address[]" },
+      { name: "ids", type: "uint256[]" },
+    ],
+    outputs: [{ name: "", type: "uint256[]" }],
+  },
+  {
     name: "setApprovalForAll",
     type: "function",
     stateMutability: "nonpayable",
@@ -104,6 +114,25 @@ export async function balanceOf1155(
     functionName: "balanceOf",
     args: [account, positionId],
   });
+}
+
+/// One RPC round-trip for many position ids. A portfolio has to check every
+/// outcome of every market, and doing that one call at a time costs a network
+/// round-trip each — seconds against a remote node.
+export async function balanceOfBatch1155(
+  publicClient: PublicClient,
+  ct: Address,
+  account: Address,
+  positionIds: bigint[],
+): Promise<bigint[]> {
+  if (positionIds.length === 0) return [];
+  const balances = await publicClient.readContract({
+    address: ct,
+    abi: ERC1155_BALANCE_AND_APPROVAL_ABI,
+    functionName: "balanceOfBatch",
+    args: [positionIds.map(() => account), positionIds],
+  });
+  return [...(balances as readonly bigint[])];
 }
 
 export async function getOutcomeSlotCount(

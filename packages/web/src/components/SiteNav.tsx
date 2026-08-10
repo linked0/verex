@@ -6,6 +6,7 @@ import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle, BookText } fro
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLocale } from "@/components/LocaleProvider";
@@ -99,11 +100,15 @@ export function SiteNav() {
               <option value={0}>{t("nav.operatorWallet")}</option>
             </select>
             <span className="tabular-nums text-muted-foreground">
-              {isAdmin
-                ? t("nav.admin")
-                : summary
-                  ? `$${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })}`
-                  : "…"}
+              {isAdmin ? (
+                t("nav.admin")
+              ) : summary ? (
+                `$${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })}`
+              ) : (
+                // A balance is worse wrong than absent — while the new wallet
+                // loads, show a placeholder rather than the last one's number.
+                <Skeleton className="inline-block h-4 w-12 align-middle" />
+              )}
             </span>
           </div>
           <div className="flex items-center">

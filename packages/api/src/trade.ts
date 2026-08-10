@@ -73,29 +73,35 @@ export async function walletSummary(accountIndex: number): Promise<WalletSummary
     netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + signed);
   }
 
+  // Every outcome of every market in ONE call. One-at-a-time cost a network
+  // round-trip each — ~5s for a seeded environment against a remote node, and
+  // the whole portfolio waits on it.
+  const slots = markets.flatMap((m) => m.outcomes.map((o) => ({ m, o })));
+  const balances = await userCt.balanceOfBatch(
+    user,
+    slots.map((s) => BigInt(s.o.tokenId)),
+  );
+
   const positions: WalletSummary["positions"] = [];
-  for (const m of markets) {
-    for (const o of m.outcomes) {
-      const bal = await userCt.balanceOf(user, BigInt(o.tokenId));
-      if (bal > 0n) {
-        const tokens = Number(formatUnits(bal, 6));
-        const price = Number(o.price);
-        const value = Number((tokens * price).toFixed(2));
-        const costBasis = Number((netCost.get(o.id) ?? 0).toFixed(2));
-        positions.push({
-          slug: m.slug,
-          title: m.title,
-          outcome: o.label,
-          tokens,
-          price,
-          value,
-          costBasis,
-          pnl: Number((value - costBasis).toFixed(2)),
-          marketStatus: m.status,
-          won: m.status === "RESOLVED" ? m.resolvedOutcomeId === o.id : null,
-        });
-      }
-    }
+  for (const [i, { m, o }] of slots.entries()) {
+    const bal = balances[i] ?? 0n;
+    if (bal === 0n) continue;
+    const tokens = Number(formatUnits(bal, 6));
+    const price = Number(o.price);
+    const value = Number((tokens * price).toFixed(2));
+    const costBasis = Number((netCost.get(o.id) ?? 0).toFixed(2));
+    positions.push({
+      slug: m.slug,
+      title: m.title,
+      outcome: o.label,
+      tokens,
+      price,
+      value,
+      costBasis,
+      pnl: Number((value - costBasis).toFixed(2)),
+      marketStatus: m.status,
+      won: m.status === "RESOLVED" ? m.resolvedOutcomeId === o.id : null,
+    });
   }
   return {
     accountIndex,

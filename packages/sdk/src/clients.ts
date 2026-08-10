@@ -21,6 +21,8 @@ export interface CTClient {
 
   getBinaryPositionIds: (collateral: Address, conditionId: Hex) => Promise<{ yes: bigint; no: bigint }>;
   balanceOf: (account: Address, positionId: bigint) => Promise<bigint>;
+  /// Many ids, one round-trip — see ct.balanceOfBatch1155.
+  balanceOfBatch: (account: Address, positionIds: bigint[]) => Promise<bigint[]>;
   getPayoutDenominator: (conditionId: Hex) => Promise<bigint>;
   /// Binary conditions: index 0 = Yes, 1 = No.
   getPayoutNumerator: (conditionId: Hex, index: bigint) => Promise<bigint>;
@@ -58,6 +60,8 @@ export function createCTClient(args: {
       ct.getBinaryPositionIds(publicClient, address, collateral, conditionId),
     balanceOf: (account, positionId) =>
       ct.balanceOf1155(publicClient, address, account, positionId),
+    balanceOfBatch: (account, positionIds) =>
+      ct.balanceOfBatch1155(publicClient, address, account, positionIds),
     getPayoutDenominator: (conditionId) =>
       ct.getPayoutDenominator(publicClient, address, conditionId),
     getPayoutNumerator: (conditionId, index) =>

@@ -6,11 +6,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, Check, Copy, Wallet, X } from "lucide-react";
+import { BriefcaseBusiness, Check, Copy, Loader2, Wallet, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
 import { SettlementChip } from "@/components/SettlementChip";
@@ -38,7 +39,11 @@ const SIDE_KEY = {
 } as const;
 
 export default function PortfolioClient() {
-  const { accountIndex, summary, refresh, isAdmin } = useWallet();
+  const { accountIndex, summary, refresh, isAdmin, loading } = useWallet();
+  /// History is fetched here rather than in the provider, so it has its own
+  /// in-flight flag; the two load together and the UI treats them as one.
+  const [historyLoading, setHistoryLoading] = React.useState(true);
+  const busy = loading || historyLoading;
   const { t, intl } = useLocale();
   const money = React.useCallback((v: number) => fmtMoney(v, intl), [intl]);
   const signedMoney = React.useCallback(
@@ -69,7 +74,14 @@ export default function PortfolioClient() {
   };
 
   const loadHistory = React.useCallback(async () => {
-    setHistory(isAdmin ? [] : await getWalletHistory(accountIndex));
+    // Clear first: the rows on screen belong to the wallet we are leaving.
+    setHistory([]);
+    setHistoryLoading(true);
+    try {
+      setHistory(isAdmin ? [] : await getWalletHistory(accountIndex));
+    } finally {
+      setHistoryLoading(false);
+    }
   }, [accountIndex, isAdmin]);
 
   React.useEffect(() => {
@@ -202,7 +214,7 @@ export default function PortfolioClient() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold tabular-nums">
-            {summary ? money(summary.usdc) : "…"}
+            {summary ? money(summary.usdc) : <Skeleton className="h-8 w-32" />}
           </CardContent>
         </Card>
         <Card>
@@ -211,7 +223,9 @@ export default function PortfolioClient() {
               {t("portfolio.positionsValue")}
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-2xl font-bold tabular-nums">{money(totalValue)}</CardContent>
+          <CardContent className="text-2xl font-bold tabular-nums">
+            {busy ? <Skeleton className="h-8 w-24" /> : money(totalValue)}
+          </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-1">
@@ -225,7 +239,7 @@ export default function PortfolioClient() {
               totalPnl >= 0 ? "text-yes" : "text-no",
             )}
           >
-            {signedMoney(totalPnl)}
+            {busy ? <Skeleton className="h-8 w-24" /> : signedMoney(totalPnl)}
           </CardContent>
         </Card>
         <Card>
@@ -240,7 +254,7 @@ export default function PortfolioClient() {
               realizedPnl >= 0 ? "text-yes" : "text-no",
             )}
           >
-            {signedMoney(realizedPnl)}
+            {busy ? <Skeleton className="h-8 w-24" /> : signedMoney(realizedPnl)}
           </CardContent>
         </Card>
       </div>
@@ -257,10 +271,30 @@ export default function PortfolioClient() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("portfolio.positions")}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            {t("portfolio.positions")}
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {positions.length === 0 ? (
+          {busy ? (
+            // Never the empty state while loading: "no positions yet" followed
+            // by rows popping in reads as data loss, then a correction.
+            <div className="space-y-2">
+              {[0, 1].map((i) => (
+                <div key={i} className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-56" />
+                    <Skeleton className="h-3 w-28" />
+                  </div>
+                  <div className="space-y-2 text-right">
+                    <Skeleton className="ml-auto h-4 w-20" />
+                    <Skeleton className="ml-auto h-3 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : positions.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {t("portfolio.noPositionsPre")}
               <Link href="/" className="underline hover:text-foreground">
@@ -340,10 +374,23 @@ export default function PortfolioClient() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">{t("portfolio.activity")}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            {t("portfolio.activity")}
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {history.length === 0 ? (
+          {busy ? (
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3 border-b pb-2 last:border-b-0">
+                  <Skeleton className="h-5 w-12" />
+                  <Skeleton className="h-4 flex-1" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : history.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               {t("portfolio.noActivity")}
             </p>
@@ -493,7 +540,7 @@ export default function PortfolioClient() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{t("portfolio.walletBalanceNow")}</span>
                 <span className="font-semibold tabular-nums">
-                  {summary ? money(summary.usdc) : "…"}
+                  {summary ? money(summary.usdc) : <Skeleton className="h-8 w-32" />}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">

@@ -233,3 +233,34 @@ the UMA runbooks by environment.
   running dev server; clearing `.next` then left it 404ing until restart. Verify
   against `next start` on a spare port only when no dev server is running against the
   same directory — or accept that the dev server needs a restart afterwards.
+
+### Portfolio was slow for a backend reason, and confusing for a frontend one
+
+- **Cause:** jay: "the Positions part is so late and confusing when changing the Demo
+  Wallet or going from the trade page" — and asked for a loading indicator. Measuring
+  first showed the complaint was two separate defects, only one of them cosmetic:
+  `/wallet/N` took **5.0s** on staging, and during those 5s the page displayed the
+  *previous* wallet's balance and positions.
+- **Reasoning:** the latency was `walletSummary` calling `balanceOf` once per outcome
+  per market — ~64 sequential RPC round-trips before the page could render anything.
+  The CT is ERC-1155, which has `balanceOfBatch`, but the SDK's hand-rolled ERC-1155
+  ABI only declared the single-item call, so nobody could batch. Adding it makes the
+  whole portfolio one round-trip. The confusion was separate and worse than staleness:
+  the provider kept the old summary while fetching, so a wallet switch showed another
+  account's money **attributed to the account you just selected**. Storing the summary
+  *with* the wallet it describes makes that structurally impossible; a rising request
+  id stops a slow response for an abandoned wallet from overwriting a newer one.
+  Chose skeletons over jay's suggested hourglass — same signal, no layout jump, and
+  unlike a spinner they never imply the number underneath is still valid.
+- **Change:** SDK `ct.balanceOfBatch1155` + `CTClient.balanceOfBatch`; `walletSummary`
+  flattens market×outcome into one batched read; `WalletProvider` gains
+  `{index, summary}` pairing, a request id, and a `loading` flag; new
+  `ui/skeleton.tsx`; portfolio stat cards, position rows and activity rows render
+  skeletons while busy, with a spinner beside the section titles for refresh-in-place;
+  the nav balance too.
+- **Result:** local `/wallet/1` **5.0s → 0.09s**, verified correct after a real trade
+  (111.11 tokens, cost $50, P&L +$17.70). Build renders 22 skeleton blocks and 2
+  spinners; the "no positions yet" empty state no longer flashes before positions
+  arrive — the most alarming part of the old behaviour. `tsc` clean on api/sdk/web,
+  SDK tests pass. Does **not** fix the settlement-lag inconsistency reported earlier
+  (chain balance vs DB cost basis); that one is still awaiting a decision.
