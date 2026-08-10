@@ -37,9 +37,9 @@ export function SiteNav() {
   return (
     <header className="sticky top-0 z-40 border-b bg-card/95 backdrop-blur">
       <div className="container flex h-14 items-center gap-4">
-        <Link href="/" className="flex items-center gap-1.5 text-lg font-bold tracking-tight">
+        <Link href="/" className="flex shrink-0 items-center gap-1.5 text-lg font-bold tracking-tight">
           <VerexMark className="h-6 w-6 shrink-0" />
-          Verex
+          <span className="hidden sm:inline">Verex</span>
         </Link>
 
         <form onSubmit={onSearch} className="relative hidden min-w-0 max-w-sm flex-1 md:block">
@@ -58,21 +58,21 @@ export function SiteNav() {
             className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <BookText className="h-4 w-4 shrink-0" />
-            {t("nav.docs")}
+            <span className="hidden lg:inline">{t("nav.docs")}</span>
           </Link>
           <Link
             href="/create"
             className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <PlusCircle className="h-4 w-4 shrink-0" />
-            {t("nav.create")}
+            <span className="hidden lg:inline">{t("nav.create")}</span>
           </Link>
           <Link
             href="/portfolio"
             className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             <BriefcaseBusiness className="h-4 w-4 shrink-0" />
-            {t("nav.portfolio")}
+            <span className="hidden lg:inline">{t("nav.portfolio")}</span>
           </Link>
           <Button
             variant="outline"
@@ -80,9 +80,12 @@ export function SiteNav() {
             onClick={onFaucet}
             disabled={minting || isAdmin}
             title={t("nav.faucetTitle")}
+            aria-label={t("nav.faucet")}
           >
-            <Droplets className="h-3.5 w-3.5" />
-            {minting ? t("nav.faucetMinting") : t("nav.faucet")}
+            <Droplets className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden lg:inline">
+              {minting ? t("nav.faucetMinting") : t("nav.faucet")}
+            </span>
           </Button>
           <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
             <Wallet className="h-4 w-4 shrink-0 text-primary" />
@@ -99,7 +102,7 @@ export function SiteNav() {
               ))}
               <option value={0}>{t("nav.operatorWallet")}</option>
             </select>
-            <span className="tabular-nums text-muted-foreground">
+            <span className="hidden tabular-nums text-muted-foreground sm:inline">
               {isAdmin ? (
                 t("nav.admin")
               ) : summary ? (

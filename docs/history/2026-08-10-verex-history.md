@@ -360,4 +360,38 @@ the UMA runbooks by environment.
   `claude/fix-nav-korean-layout`, uncommitted at time of writing. **Not** yet
   visually verified in a browser (no headless browser available locally; the app needs
   API+DB to run) — recommend a quick `pnpm --filter @verex/web dev` check in Korean
-  before the prod deploy.
+  before the prod deploy. *(Merged as PR #25 and deployed to prod the same session.)*
+
+### The nav overflowed on narrow viewports — sticky header rode the horizontal scroll
+
+- **Cause:** jay: "the top menu and content move simultaneously when scrolling
+  horizontally — separate them." The header is `sticky top-0`, which pins only
+  *vertically*; any horizontal page overflow scrolls the whole body — header included —
+  sideways together. Driving the **live prod site** with Playwright (Chrome, `__session`
+  cookie for locale) and measuring `scrollWidth − clientWidth` across widths pinned the
+  source precisely: **no overflow at all on desktop (≥768px, both locales, every page)**;
+  overflow appears only below ~725px and the sole culprit is the nav's right cluster
+  (`ml-auto flex … gap-2`, ~609px, can't shrink). The prior day's `shrink-0` fix had
+  converted the old "wrap" into "overflow." Realistically this bites via **browser zoom**
+  (which shrinks the effective viewport) or a split/narrow window, not just phones.
+- **Reasoning:** the fix is to make the nav *fit* narrow widths so the page never scrolls
+  horizontally — then there is nothing for the header to ride. Collapse the least
+  essential things first, keeping every control usable: nav-link and Faucet labels go
+  icon-only below `lg`; the wordmark text, wallet balance, and locale label hide below
+  `sm` (all non-critical or shown elsewhere). Confirmed `CategoryTabs` was a **false
+  positive** — a precise "not inside an overflow-scroll ancestor" check showed it sits
+  within the viewport and scrolls internally; the residual sub-414px overflow is still
+  the nav's wallet `<select>`, and only in English ("Demo Wallet 1" > "데모 지갑 1").
+  Stopped there rather than truncate core wallet text — chasing the last 40px on
+  360–413px English phones is over-engineering for a demo that isn't phone-first.
+- **Change:** `SiteNav.tsx` — `hidden lg:inline` label spans on the three links + Faucet
+  (Faucet gains `aria-label` since its text can hide); `hidden sm:inline` on the wordmark
+  text and the wallet balance; `shrink-0` on the logo link. `LocaleToggle.tsx` — locale
+  label `hidden sm:inline`.
+- **Result:** measured locally against the prod API before deploying (the miss from PR
+  #25): **0 horizontal overflow from 1440px down to 414px in both locales**; Korean fits
+  to 390px (1px slack), English to ~414px. Screenshotted 768px and 390px — nav fits
+  cleanly, no cutoff. `tsc --noEmit` clean. Branch `claude/fix-nav-korean-layout`
+  (reused per the one-branch-per-request rule), uncommitted at time of writing. Known
+  minor: English portrait phones < 414px still show a small nav overflow from the wallet
+  selector width.

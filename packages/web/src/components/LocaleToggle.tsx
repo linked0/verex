@@ -20,8 +20,8 @@ export function LocaleToggle() {
       title={t("nav.language")}
       aria-label={`${t("nav.language")} — ${LOCALE_LABEL[next]}`}
     >
-      <Languages className="h-4 w-4" />
-      <span className="text-xs font-semibold">{LOCALE_LABEL[next]}</span>
+      <Languages className="h-4 w-4 shrink-0" />
+      <span className="hidden text-xs font-semibold sm:inline">{LOCALE_LABEL[next]}</span>
     </Button>
   );
 }
