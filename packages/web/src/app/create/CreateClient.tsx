@@ -65,6 +65,20 @@ function CreateMarketInner() {
   const [description, setDescription] = React.useState("");
   const [liquidity, setLiquidity] = React.useState("100");
   const [outcomes, setOutcomes] = React.useState<string[]>(["", ""]);
+  // Binary shortcut: fixes outcomes to Yes/No so nobody has to type them (and
+  // get the exact labels wrong — UMA requires them verbatim). The previous
+  // outcome list is stashed so unchecking restores whatever was typed.
+  const [binaryChecked, setBinaryChecked] = React.useState(false);
+  const stashedOutcomes = React.useRef<string[]>(["", ""]);
+  const toggleBinary = (checked: boolean) => {
+    setBinaryChecked(checked);
+    if (checked) {
+      stashedOutcomes.current = outcomes;
+      setOutcomes(["Yes", "No"]);
+    } else {
+      setOutcomes(stashedOutcomes.current);
+    }
+  };
   const [closesDate, setClosesDate] = React.useState("");
   const [closesTime, setClosesTime] = React.useState("23:59");
   const [oracleType, setOracleType] = React.useState<OracleType>("OPERATOR");
@@ -447,39 +461,55 @@ function CreateMarketInner() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Outcomes * (minimum 2 — exactly “Yes” and “No” makes a binary market)
+              Outcomes * {!binaryChecked && "(minimum 2 — exactly “Yes” and “No” makes a binary market)"}
             </label>
-            <div className="space-y-2">
-              {outcomes.map((o, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input
-                    placeholder={`Outcome ${i + 1}…`}
-                    value={o}
-                    onChange={(e) =>
-                      setOutcomes((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
-                    }
-                  />
-                  {outcomes.length > 2 && (
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Remove outcome"
-                      onClick={() => setOutcomes((prev) => prev.filter((_, j) => j !== i))}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-              <Button
-                variant="secondary"
-                className="w-full"
-                disabled={outcomes.length >= 12}
-                onClick={() => setOutcomes((prev) => [...prev, ""])}
-              >
-                <Plus className="h-4 w-4" /> Add outcome
-              </Button>
-            </div>
+            <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={binaryChecked}
+                onChange={(e) => toggleBinary(e.target.checked)}
+              />
+              Binary market (Yes / No)
+            </label>
+            {binaryChecked ? (
+              <p className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                Outcomes are set to <strong>Yes</strong> and <strong>No</strong> — the labels the
+                UMA oracle option requires.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {outcomes.map((o, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input
+                      placeholder={`Outcome ${i + 1}…`}
+                      value={o}
+                      onChange={(e) =>
+                        setOutcomes((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                      }
+                    />
+                    {outcomes.length > 2 && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        aria-label="Remove outcome"
+                        onClick={() => setOutcomes((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  disabled={outcomes.length >= 12}
+                  onClick={() => setOutcomes((prev) => [...prev, ""])}
+                >
+                  <Plus className="h-4 w-4" /> Add outcome
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
