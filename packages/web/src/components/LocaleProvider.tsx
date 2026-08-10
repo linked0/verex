@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import {
   DEFAULT_LOCALE,
   LOCALE_COOKIE,
+  LOCALE_STORAGE_KEY,
   intlLocale,
   isLocale,
   translator,
@@ -49,7 +50,7 @@ export function LocaleProvider({
   React.useEffect(() => {
     if (initialLocale !== DEFAULT_LOCALE) return;
     try {
-      const saved = localStorage.getItem(LOCALE_COOKIE);
+      const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
       if (isLocale(saved) && saved !== DEFAULT_LOCALE) {
         writeCookie(saved);
         setLocaleState(saved);
@@ -65,7 +66,7 @@ export function LocaleProvider({
       setLocaleState(l);
       writeCookie(l);
       try {
-        localStorage.setItem(LOCALE_COOKIE, l);
+        localStorage.setItem(LOCALE_STORAGE_KEY, l);
       } catch {
         // Non-fatal: the cookie is the source of truth.
       }
