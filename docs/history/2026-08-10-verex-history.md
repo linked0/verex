@@ -339,3 +339,25 @@ the UMA runbooks by environment.
   `__session=en` → English, old cookie name ignored. Deployed to prod and verified
   through the domain itself. Lesson recorded: anything cookie-driven must be tested
   through the Firebase-fronted domain, not only the run.app URLs.
+
+### Top nav layout broke in Korean — nav links wrapped inside the h-14 row
+
+- **Cause:** jay: the top menu looks weird in Korean mode but fine in English. The
+  header is a single fixed-height `flex h-14` row (`SiteNav.tsx`); the three nav links
+  (Docs / Create / Portfolio) carried no `whitespace-nowrap`, so under horizontal
+  pressure the Korean label `마켓 생성` (it has a space) wrapped to two lines and blew
+  out the row's vertical alignment. English labels are single tokens, so they never
+  tripped it.
+- **Reasoning:** the `Button` component already sets `whitespace-nowrap`, so the Faucet
+  button was safe — only the raw `<Link>`s were exposed. Fixing the wrap alone isn't
+  enough: if the links can't wrap they must be allowed to keep their width, so the
+  `flex-1` search box needs `min-w-0` to yield space first, and the links/wallet box get
+  `shrink-0` so the search absorbs the squeeze instead of them. Minimal CSS-class-only
+  change — no markup or logic touched, so it can't regress English.
+- **Change:** `SiteNav.tsx` — `whitespace-nowrap shrink-0` on the three nav `<Link>`s,
+  `shrink-0` on their icons and the wallet box, `min-w-0` on the search `<form>`.
+- **Result:** `tsc --noEmit` clean on `@verex/web`. Branch
+  `claude/fix-nav-korean-layout`, uncommitted at time of writing. **Not** yet
+  visually verified in a browser (no headless browser available locally; the app needs
+  API+DB to run) — recommend a quick `pnpm --filter @verex/web dev` check in Korean
+  before the prod deploy.
