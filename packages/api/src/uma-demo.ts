@@ -2,7 +2,7 @@
 // MOCK oracle, plus a read-only lifecycle view that works against either
 // oracle.
 //
-// Three scenarios this enables in a browser (docs/runbooks/uma-adapter.md §4c):
+// Three scenarios this enables in a browser (docs/runbooks/uma-local-demo.md):
 //   1. dispute defeated — wallet #1 disputes, the jury sides with the proposer
 //   2. dispute upheld   — the jury overturns the proposed answer
 //   3. dead end         — a dispute with no verdict freezes the market (this
@@ -129,19 +129,39 @@ export async function umaLifecycle(slug: string) {
   };
 }
 
-/// Operator proposes an answer, bonding USDC. Mock only.
-export async function umaPropose(slug: string, answer: UmaAnswer) {
+/// Every write below acts AS a caller the UI names (the selected demo wallet),
+/// never as an ambient "the app does it". Proposing, disputing and voting are
+/// separate parties in UMA's design, and a demo that lets one screen drive all
+/// of them teaches the opposite of what the oracle is for.
+function requireAccount(accountIndex: number, opts: { juryOnly?: boolean } = {}) {
+  if (!Number.isInteger(accountIndex) || accountIndex < 0 || accountIndex > 9) {
+    throw httpError("accountIndex must be 0..9", 400);
+  }
+  // The operator runs the venue; letting it also judge its own markets is the
+  // conflict of interest UMA exists to remove. Proposing/disputing are fine —
+  // those only make claims, and anyone may make one.
+  if (opts.juryOnly && accountIndex === 0) {
+    throw httpError("the operator does not sit on the jury — vote as a demo wallet", 400);
+  }
+}
+
+/// Propose an answer, bonding USDC. Permissionless in UMA, so any wallet. Mock only.
+export async function umaPropose(slug: string, answer: UmaAnswer, accountIndex: number) {
+  requireAccount(accountIndex);
   const chain = await loadChain();
   requireMock(chain);
   const market = await umaMarket(slug);
   const key = await requestKeyFor(chain, market);
-  const txHash = await chain.umaOracleAs(0).proposePrice({ ...key, price: ANSWER_PRICE[answer] });
-  return { slug, proposed: answer, txHash };
+  const txHash = await chain
+    .umaOracleAs(accountIndex)
+    .proposePrice({ ...key, price: ANSWER_PRICE[answer] });
+  return { slug, proposed: answer, proposer: accountIndex, txHash };
 }
 
-/// A demo wallet disputes the live proposal, bonding USDC. Mock only.
+/// Dispute the live proposal, bonding USDC. Mock only. Self-dispute is allowed
+/// on purpose: on real UMA it is the only way to retract your own wrong answer.
 export async function umaDispute(slug: string, accountIndex: number) {
-  if (accountIndex < 1 || accountIndex > 9) throw httpError("accountIndex must be 1..9", 400);
+  requireAccount(accountIndex);
   const chain = await loadChain();
   requireMock(chain);
   const market = await umaMarket(slug);
@@ -152,7 +172,7 @@ export async function umaDispute(slug: string, accountIndex: number) {
 
 /// A demo wallet casts its one jury vote. Mock only.
 export async function umaVote(slug: string, accountIndex: number, answer: UmaAnswer) {
-  if (accountIndex < 1 || accountIndex > 9) throw httpError("accountIndex must be 1..9", 400);
+  requireAccount(accountIndex, { juryOnly: true });
   const chain = await loadChain();
   requireMock(chain);
   const market = await umaMarket(slug);
@@ -162,13 +182,14 @@ export async function umaVote(slug: string, accountIndex: number, answer: UmaAns
 }
 
 /// Close the jury: majority wins, a tie settles Unresolvable. Mock only.
-/// Signed by the operator but not privileged — anyone could send it.
-export async function umaFinalize(slug: string) {
+/// Not privileged — like resolve, anyone may send it; it only counts ballots.
+export async function umaFinalize(slug: string, accountIndex: number) {
+  requireAccount(accountIndex);
   const chain = await loadChain();
   requireMock(chain);
   const market = await umaMarket(slug);
   const key = await requestKeyFor(chain, market);
-  const txHash = await chain.umaOracleAs(0).finalizeVote(key);
-  const state = await chain.umaOracleAs(0).getState(key);
+  const txHash = await chain.umaOracleAs(accountIndex).finalizeVote(key);
+  const state = await chain.umaOracleAs(accountIndex).getState(key);
   return { slug, state, txHash };
 }

@@ -513,11 +513,15 @@ async function postUma(slug: string, action: string, body?: object) {
   return data;
 }
 
-export const postUmaPropose = (slug: string, answer: UmaAnswer) => postUma(slug, "uma-propose", { answer });
+// Every oracle write names the wallet acting — propose, dispute and vote are
+// separate parties in UMA's design, so the panel acts as the selected wallet.
+export const postUmaPropose = (slug: string, answer: UmaAnswer, accountIndex: number) =>
+  postUma(slug, "uma-propose", { answer, accountIndex });
 export const postUmaDispute = (slug: string, accountIndex: number) => postUma(slug, "uma-dispute", { accountIndex });
 export const postUmaVote = (slug: string, accountIndex: number, answer: UmaAnswer) =>
   postUma(slug, "uma-vote", { accountIndex, answer });
-export const postUmaFinalize = (slug: string) => postUma(slug, "uma-finalize");
+export const postUmaFinalize = (slug: string, accountIndex: number) =>
+  postUma(slug, "uma-finalize", { accountIndex });
 export const postUmaResolve = (slug: string) => postUma(slug, "uma-resolve");
 
 export type JobInfo = {

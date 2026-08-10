@@ -451,11 +451,11 @@ app.get("/markets/:slug/uma", async (req, reply) => {
 app.post("/markets/:slug/uma-propose", async (req, reply) => {
   try {
     const { slug } = req.params as { slug: string };
-    const body = (req.body ?? {}) as { answer?: UmaAnswer };
+    const body = (req.body ?? {}) as { answer?: UmaAnswer; accountIndex?: number };
     if (!body.answer || !["Yes", "No", "Unresolvable"].includes(body.answer)) {
       return reply.status(400).send({ error: "answer must be Yes, No or Unresolvable" });
     }
-    const r = await umaPropose(slug, body.answer);
+    const r = await umaPropose(slug, body.answer, Number(body.accountIndex ?? 0));
     notifyTelegram(`🔮 📣 Verex — answer proposed on ${slug}: ${body.answer}`);
     return r;
   } catch (e: any) {
@@ -503,7 +503,8 @@ app.post("/markets/:slug/uma-vote", async (req, reply) => {
 app.post("/markets/:slug/uma-finalize", async (req, reply) => {
   try {
     const { slug } = req.params as { slug: string };
-    const r = await umaFinalize(slug);
+    const body = (req.body ?? {}) as { accountIndex?: number };
+    const r = await umaFinalize(slug, Number(body.accountIndex ?? 0));
     notifyTelegram(`🔮 🧑‍⚖️ Verex — jury verdict finalized on ${slug}`);
     return r;
   } catch (e: any) {
