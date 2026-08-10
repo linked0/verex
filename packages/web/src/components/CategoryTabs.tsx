@@ -34,7 +34,10 @@ export function CategoryTabs({
   t: Translate;
 }) {
   return (
-    <nav aria-label={t("home.categoriesLabel")} className="scrollbar-none -mx-1 flex gap-1 overflow-x-auto py-1">
+    // flex-wrap, not overflow-x-auto: with the scrollbar hidden, a scrolling
+    // row just looks cut off on phones ("스포…") — wrapping shows every
+    // category. Desktop fits one line either way.
+    <nav aria-label={t("home.categoriesLabel")} className="-mx-1 flex flex-wrap gap-1 py-1">
       {categories.map((c) => {
         const isActive = c === active;
         return (

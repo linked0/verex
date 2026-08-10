@@ -89,9 +89,25 @@ export function SiteNav() {
           </Button>
           <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
             <Wallet className="h-4 w-4 shrink-0 text-primary" />
+            {/* A <select> is as wide as its widest <option>, and option text
+                can't be restyled per-breakpoint — so two selects: compact
+                labels below sm, full labels from sm up. */}
             <select
               aria-label={t("nav.walletLabel")}
-              className="bg-transparent text-sm font-medium outline-none"
+              className="bg-transparent text-sm font-medium outline-none sm:hidden"
+              value={accountIndex}
+              onChange={(e) => setAccountIndex(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5].map((i) => (
+                <option key={i} value={i}>
+                  {t("nav.demoWalletShort", { n: i })}
+                </option>
+              ))}
+              <option value={0}>{t("nav.operatorWalletShort")}</option>
+            </select>
+            <select
+              aria-label={t("nav.walletLabel")}
+              className="hidden bg-transparent text-sm font-medium outline-none sm:block"
               value={accountIndex}
               onChange={(e) => setAccountIndex(Number(e.target.value))}
             >

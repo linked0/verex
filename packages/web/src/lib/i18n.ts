@@ -38,6 +38,10 @@ const en = {
   "nav.faucetTitle": "Mint 1,000 test USDC to the active demo wallet",
   "nav.demoWallet": "Demo Wallet {n}",
   "nav.operatorWallet": "Operator Wallet",
+  // Short variants for the nav's wallet <select> on phone widths — a <select>
+  // is as wide as its widest option, and "Demo Wallet N" alone overflows 390px.
+  "nav.demoWalletShort": "Wallet {n}",
+  "nav.operatorWalletShort": "Operator",
   "nav.walletLabel": "Demo wallet",
   "nav.admin": "admin",
   "nav.theme": "Toggle light / dark theme",
@@ -389,6 +393,8 @@ const ko: Record<MessageKey, string> = {
   "nav.faucetTitle": "현재 데모 지갑에 테스트 USDC 1,000개를 발행합니다",
   "nav.demoWallet": "데모 지갑 {n}",
   "nav.operatorWallet": "운영자 지갑",
+  "nav.demoWalletShort": "지갑 {n}",
+  "nav.operatorWalletShort": "운영자",
   "nav.walletLabel": "데모 지갑",
   "nav.admin": "관리자",
   "nav.theme": "라이트 / 다크 테마 전환",
