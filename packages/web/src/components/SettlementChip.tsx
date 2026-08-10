@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import { CheckCircle2, CircleDashed, XCircle } from "lucide-react";
+import { useLocale } from "@/components/LocaleProvider";
 import { BROWSER_API } from "@/lib/api";
 
 type JobStatus = "PENDING" | "RUNNING" | "CONFIRMED" | "FAILED";
@@ -20,6 +21,7 @@ export function SettlementChip({
   /// for refreshing balances.
   onSettled?: (status: "CONFIRMED" | "FAILED") => void;
 }) {
+  const { t } = useLocale();
   const [status, setStatus] = React.useState<JobStatus>("PENDING");
   const [txHash, setTxHash] = React.useState<string | null>(null);
   const settledRef = React.useRef(false);
@@ -61,7 +63,7 @@ export function SettlementChip({
   if (status === "FAILED") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-no">
-        <XCircle className="h-3.5 w-3.5" /> on-chain settlement failed — reverted
+        <XCircle className="h-3.5 w-3.5" /> {t("market.settleFailed")}
       </span>
     );
   }
@@ -69,13 +71,14 @@ export function SettlementChip({
     return (
       <span className="inline-flex items-center gap-1 break-all text-xs text-muted-foreground">
         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-yes" />
-        settled on-chain{txHash ? ` · tx ${txHash.slice(0, 10)}…${txHash.slice(-6)}` : ""}
+        {t("market.settled")}
+        {txHash ? ` · tx ${txHash.slice(0, 10)}…${txHash.slice(-6)}` : ""}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-      <CircleDashed className="h-3.5 w-3.5 animate-spin text-primary" /> settling on-chain…
+      <CircleDashed className="h-3.5 w-3.5 animate-spin text-primary" /> {t("market.settling")}
     </span>
   );
 }

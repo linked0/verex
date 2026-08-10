@@ -10,10 +10,12 @@ import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SettlementChip } from "@/components/SettlementChip";
+import { useLocale } from "@/components/LocaleProvider";
 import { postResolve, type Market } from "@/lib/api";
 
 export function ResolvePanel({ market }: { market: Market }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [confirming, setConfirming] = React.useState<"Yes" | "No" | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [jobId, setJobId] = React.useState<string | null>(null);
@@ -29,7 +31,7 @@ export function ResolvePanel({ market }: { market: Market }) {
       setResolved(outcome); // the DB already flipped — show it immediately
       router.refresh();
     } catch (e: any) {
-      setError(e?.message ?? "resolve failed");
+      setError(e?.message ?? t("market.resolveFailed"));
     } finally {
       setBusy(false);
       setConfirming(null);
@@ -40,18 +42,19 @@ export function ResolvePanel({ market }: { market: Market }) {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldCheck className="h-4 w-4 text-primary" /> Resolve market (admin)
+          <ShieldCheck className="h-4 w-4 text-primary" /> {t("market.resolveTitle")}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Report the final outcome as the oracle. This is <strong>irreversible</strong>:
-          trading stops, the winning token pays $1, the losing token pays $0.
+          {t("market.resolveDescPre")}
+          <strong>{t("market.resolveIrreversible")}</strong>
+          {t("market.resolveDescPost")}
         </p>
         {resolved ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">
-              RESOLVED —{" "}
+              {t("market.resolvedLabel")}{" "}
               <span className={resolved === "Yes" ? "text-yes" : "text-no"}>
                 {resolved.toUpperCase()}
               </span>
@@ -61,7 +64,9 @@ export function ResolvePanel({ market }: { market: Market }) {
         ) : confirming ? (
           <div className="space-y-2">
             <p className="text-sm font-medium">
-              Resolve as <span className={confirming === "Yes" ? "text-yes" : "text-no"}>{confirming}</span>?
+              {t("market.resolveAsPre")}
+              <span className={confirming === "Yes" ? "text-yes" : "text-no"}>{confirming}</span>
+              {t("market.resolveAsPost")}
             </p>
             <div className="flex gap-2">
               <Button
@@ -69,7 +74,7 @@ export function ResolvePanel({ market }: { market: Market }) {
                 disabled={busy}
                 onClick={() => resolve(confirming)}
               >
-                {busy ? "Reporting…" : `Confirm ${confirming}`}
+                {busy ? t("market.reporting") : t("market.confirmOutcome", { outcome: confirming })}
               </Button>
               <Button
                 variant="outline"
@@ -77,7 +82,7 @@ export function ResolvePanel({ market }: { market: Market }) {
                 disabled={busy}
                 onClick={() => setConfirming(null)}
               >
-                Cancel
+                {t("market.cancel")}
               </Button>
             </div>
           </div>
@@ -88,14 +93,14 @@ export function ResolvePanel({ market }: { market: Market }) {
               disabled={busy}
               onClick={() => setConfirming("Yes")}
             >
-              Resolve YES
+              {t("market.resolveYes")}
             </Button>
             <Button
               className="flex-1 bg-no text-white hover:bg-no/90"
               disabled={busy}
               onClick={() => setConfirming("No")}
             >
-              Resolve NO
+              {t("market.resolveNo")}
             </Button>
           </div>
         )}

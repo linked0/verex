@@ -17,7 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
+import type { MessageKey } from "@/lib/i18n";
 import {
   getConfig,
   getGroupBrowser,
@@ -32,6 +34,9 @@ import {
   type OracleType,
 } from "@/lib/api";
 
+// These strings are the values the API stores, so they must never be
+// localised. Only the rendered <option> text is translated, via the lookup
+// below — a category the map doesn't know (a seeded one) falls back to itself.
 const CATEGORIES = [
   "Politics",
   "Sports",
@@ -41,6 +46,16 @@ const CATEGORIES = [
   "Climate",
   "Culture",
 ];
+
+const CATEGORY_LABEL_KEY: Record<string, MessageKey> = {
+  Politics: "create.cat.politics",
+  Sports: "create.cat.sports",
+  Crypto: "create.cat.crypto",
+  Economics: "create.cat.economics",
+  "Tech & Science": "create.cat.techScience",
+  Climate: "create.cat.climate",
+  Culture: "create.cat.culture",
+};
 
 export default function CreateClient() {
   // useSearchParams needs a Suspense boundary for prerendering.
@@ -53,6 +68,8 @@ export default function CreateClient() {
 
 function CreateMarketInner() {
   const router = useRouter();
+  const { t, intl } = useLocale();
+  const categoryLabel = (c: string) => (CATEGORY_LABEL_KEY[c] ? t(CATEGORY_LABEL_KEY[c]) : c);
   const { accountIndex, isAdmin } = useWallet();
   const searchParams = useSearchParams();
   const editSlug = searchParams.get("edit");
@@ -176,7 +193,7 @@ function CreateMarketInner() {
       setCreated({ kind: r.kind, slug: r.slug });
       setJob({ id: r.jobId, type: "CREATE_GROUP", status: "PENDING" });
     } catch (e: any) {
-      setError(e?.message ?? "creation failed");
+      setError(e?.message ?? t("create.errCreateFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -203,7 +220,7 @@ function CreateMarketInner() {
       }
       router.refresh();
     } catch (e: any) {
-      setError(e?.message ?? "update failed");
+      setError(e?.message ?? t("create.errUpdateFailed"));
       setSubmitting(false);
     }
   };
@@ -218,17 +235,16 @@ function CreateMarketInner() {
     return (
       <main className="container max-w-2xl space-y-6 py-8">
         <div>
-          <h1 className="text-2xl font-bold">Edit market</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Display fields only — outcomes, liquidity, and the resolution date can&apos;t change
-            after creation.
-          </p>
+          <h1 className="text-2xl font-bold">{t("create.editTitle")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("create.editSubtitle")}</p>
         </div>
         {editLoading ? (
-          <p className="text-sm text-muted-foreground">Loading market…</p>
+          <p className="text-sm text-muted-foreground">{t("create.loadingMarket")}</p>
         ) : !editTarget ? (
           <p className="text-sm text-no">
-            {editGroupSlug ? "Group" : "Market"} “{editing}” not found.
+            {t(editGroupSlug ? "create.groupNotFound" : "create.marketNotFound", {
+              slug: editing!,
+            })}
           </p>
         ) : (
           <Card>
@@ -240,15 +256,16 @@ function CreateMarketInner() {
                 <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
                   <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div>
-                    Only the <span className="font-semibold">Operator Wallet</span> can edit
-                    markets — switch wallets in the top bar to make changes.
+                    {t("create.operatorOnlyPre")}
+                    <span className="font-semibold">{t("create.operatorOnlyWallet")}</span>
+                    {t("create.operatorOnlyPost")}
                   </div>
                 </div>
               )}
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Image URL
+                  {t("create.imageUrl")}
                 </label>
                 <Input
                   placeholder="https://…"
@@ -256,14 +273,12 @@ function CreateMarketInner() {
                   disabled={!isAdmin}
                   onChange={(e) => setImageUrl(e.target.value)}
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Leave empty to fall back to the default per-market photo.
-                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("create.imageUrlHint")}</p>
               </div>
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Category
+                  {t("create.category")}
                 </label>
                 <select
                   className="h-9 w-full rounded-md border bg-transparent px-3 text-sm disabled:opacity-50"
@@ -273,7 +288,7 @@ function CreateMarketInner() {
                 >
                   {categoryOptions.map((c) => (
                     <option key={c} value={c}>
-                      {c}
+                      {categoryLabel(c)}
                     </option>
                   ))}
                 </select>
@@ -281,11 +296,11 @@ function CreateMarketInner() {
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Rules / description
+                  {t("create.rules")}
                 </label>
                 <textarea
                   className="min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm disabled:opacity-50"
-                  placeholder="How does this market resolve?"
+                  placeholder={t("create.rulesPlaceholder")}
                   value={description}
                   disabled={!isAdmin}
                   onChange={(e) => setDescription(e.target.value)}
@@ -294,7 +309,7 @@ function CreateMarketInner() {
 
               <div className="flex gap-2">
                 <Button className="flex-1" disabled={submitting || !isAdmin} onClick={saveEdit}>
-                  {submitting ? "Saving…" : "Save changes"}
+                  {submitting ? t("create.saving") : t("create.saveChanges")}
                 </Button>
                 <Button
                   variant="outline"
@@ -305,7 +320,7 @@ function CreateMarketInner() {
                     )
                   }
                 >
-                  Cancel
+                  {t("create.cancel")}
                 </Button>
               </div>
               {error && (
@@ -323,25 +338,25 @@ function CreateMarketInner() {
   if (created && job) {
     return (
       <main className="container max-w-2xl space-y-6 py-8">
-        <h1 className="text-2xl font-bold">Creating your market…</h1>
+        <h1 className="text-2xl font-bold">{t("create.creatingTitle")}</h1>
         <Card>
           <CardContent className="space-y-4 pt-6">
             {failed ? (
               <>
                 <p className="text-sm font-medium text-no">
-                  Creation failed{job.result?.error ? ` — ${job.result.error}` : ""}.
+                  {/* job.result.error comes from the server — shown verbatim. */}
+                  {job.result?.error
+                    ? t("create.creationFailedReason", { error: job.result.error })
+                    : t("create.creationFailed")}
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Nothing was published. You can adjust the form and try again.
-                </p>
-                <Button onClick={() => { setCreated(null); setJob(null); }}>Back to the form</Button>
+                <p className="text-sm text-muted-foreground">{t("create.nothingPublished")}</p>
+                <Button onClick={() => { setCreated(null); setJob(null); }}>
+                  {t("create.backToForm")}
+                </Button>
               </>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  Our batch processor is creating the on-chain markets and providing the
-                  operator&apos;s liquidity — no gas needed from you.
-                </p>
+                <p className="text-sm text-muted-foreground">{t("create.batchRunning")}</p>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary transition-all duration-500"
@@ -353,7 +368,7 @@ function CreateMarketInner() {
                 <p className="text-xs text-muted-foreground">
                   {progress
                     ? `${progress.stage} (${Math.min(progress.done + 1, progress.total)}/${progress.total})`
-                    : "queued…"}
+                    : t("create.queued")}
                 </p>
               </>
             )}
@@ -366,32 +381,29 @@ function CreateMarketInner() {
   return (
     <main className="container max-w-2xl space-y-6 py-8">
       <div>
-        <h1 className="text-2xl font-bold">Create a prediction market</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Multi-outcome markets are grouped binary markets with automated liquidity.
-        </p>
+        <h1 className="text-2xl font-bold">{t("create.title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("create.subtitle")}</p>
       </div>
 
       <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <div>
-          <span className="font-semibold text-primary">Server-side creation:</span> submit your
-          market details and the batch processor creates the markets and provisions the
-          operator&apos;s liquidity automatically. No gas fees for you.
+          <span className="font-semibold text-primary">{t("create.serverSideLabel")}</span>{" "}
+          {t("create.serverSideBody")}
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Market details</CardTitle>
+          <CardTitle className="text-base">{t("create.marketDetails")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Question *
+              {t("create.question")} *
             </label>
             <Input
-              placeholder="Who will win the MVP in the World Series?"
+              placeholder={t("create.questionPlaceholder")}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -400,24 +412,24 @@ function CreateMarketInner() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Category *
+                {t("create.category")} *
               </label>
               <select
                 className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                <option value="">Select a category</option>
+                <option value="">{t("create.selectCategory")}</option>
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {categoryLabel(c)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Image URL (optional)
+                {t("create.imageUrlOptional")}
               </label>
               <Input
                 placeholder="https://…"
@@ -429,11 +441,11 @@ function CreateMarketInner() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Rules / description (optional)
+              {t("create.rulesOptional")}
             </label>
             <textarea
               className="min-h-20 w-full rounded-md border bg-transparent px-3 py-2 text-sm"
-              placeholder="How does this market resolve?"
+              placeholder={t("create.rulesPlaceholder")}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -441,7 +453,7 @@ function CreateMarketInner() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Initial liquidity (USDC per outcome)
+              {t("create.liquidity")}
             </label>
             <Input
               type="number"
@@ -451,9 +463,9 @@ function CreateMarketInner() {
               onChange={(e) => setLiquidity(e.target.value)}
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              1 USDC mints 1 Yes + 1 No token — the operator&apos;s opening liquidity.
-              Max 1,000 per outcome.
-              {totalFunding > 0 && ` Total: ${totalFunding.toLocaleString()} USDC.`}
+              {t("create.liquidityHint")}
+              {totalFunding > 0 &&
+                ` ${t("create.liquidityTotal", { total: totalFunding.toLocaleString(intl) })}`}
             </p>
           </div>
 
@@ -461,7 +473,7 @@ function CreateMarketInner() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Outcomes * {!binaryChecked && "(minimum 2 — exactly “Yes” and “No” makes a binary market)"}
+              {t("create.outcomes")} * {!binaryChecked && t("create.outcomesHint")}
             </label>
             <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm">
               <input
@@ -470,19 +482,23 @@ function CreateMarketInner() {
                 checked={binaryChecked}
                 onChange={(e) => toggleBinary(e.target.checked)}
               />
-              Binary market (Yes / No)
+              {t("create.binaryCheckbox")}
             </label>
             {binaryChecked ? (
               <p className="rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-                Outcomes are set to <strong>Yes</strong> and <strong>No</strong> — the labels the
-                UMA oracle option requires.
+                {/* Yes / No are the on-chain outcome labels — never localised. */}
+                {t("create.binaryNotePre")}
+                <strong>Yes</strong>
+                {t("create.binaryNoteMid")}
+                <strong>No</strong>
+                {t("create.binaryNotePost")}
               </p>
             ) : (
               <div className="space-y-2">
                 {outcomes.map((o, i) => (
                   <div key={i} className="flex gap-2">
                     <Input
-                      placeholder={`Outcome ${i + 1}…`}
+                      placeholder={t("create.outcomePlaceholder", { n: i + 1 })}
                       value={o}
                       onChange={(e) =>
                         setOutcomes((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
@@ -492,7 +508,7 @@ function CreateMarketInner() {
                       <Button
                         variant="outline"
                         size="icon"
-                        aria-label="Remove outcome"
+                        aria-label={t("create.removeOutcome")}
                         onClick={() => setOutcomes((prev) => prev.filter((_, j) => j !== i))}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -506,7 +522,7 @@ function CreateMarketInner() {
                   disabled={outcomes.length >= 12}
                   onClick={() => setOutcomes((prev) => [...prev, ""])}
                 >
-                  <Plus className="h-4 w-4" /> Add outcome
+                  <Plus className="h-4 w-4" /> {t("create.addOutcome")}
                 </Button>
               </div>
             )}
@@ -515,13 +531,13 @@ function CreateMarketInner() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Resolution date *
+                {t("create.resolutionDate")} *
               </label>
               <Input type="date" value={closesDate} onChange={(e) => setClosesDate(e.target.value)} />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Resolution time *
+                {t("create.resolutionTime")} *
               </label>
               <Input type="time" value={closesTime} onChange={(e) => setClosesTime(e.target.value)} />
             </div>
@@ -531,7 +547,7 @@ function CreateMarketInner() {
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Resolution source
+              {t("create.resolutionSource")}
             </label>
             <div className="grid gap-2 sm:grid-cols-2">
               <button
@@ -542,11 +558,10 @@ function CreateMarketInner() {
                 }`}
               >
                 <span className="flex items-center gap-1.5 text-sm font-medium">
-                  <UserCog className="h-4 w-4" /> Operator
+                  <UserCog className="h-4 w-4" /> {t("create.oracleOperator")}
                 </span>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  The platform reports the result. Instant, free, and requires trusting the
-                  operator.
+                  {t("create.oracleOperatorDesc")}
                 </span>
               </button>
               <button
@@ -558,14 +573,14 @@ function CreateMarketInner() {
                 }`}
               >
                 <span className="flex items-center gap-1.5 text-sm font-medium">
-                  <ShieldCheck className="h-4 w-4" /> UMA oracle
+                  <ShieldCheck className="h-4 w-4" /> {t("create.oracleUma")}
                 </span>
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {!umaAvailable
-                    ? "Not available in this environment — no adapter deployed."
+                    ? t("create.umaUnavailable")
                     : !isBinary
-                      ? "Binary markets only — set outcomes to exactly Yes and No."
-                      : "UMA's Optimistic Oracle decides. Anyone can finalise it, so payouts don't depend on the operator."}
+                      ? t("create.umaBinaryOnly")
+                      : t("create.oracleUmaDesc")}
                 </span>
               </button>
             </div>
@@ -575,42 +590,40 @@ function CreateMarketInner() {
                 of the market's on-chain identity. */}
             <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
               <Info className="mt-px h-3 w-3 shrink-0" />
-              Permanent once created. A market&apos;s on-chain id includes its resolver, so this
-              can never be changed afterwards — only replaced by a different market.
+              {t("create.permanentNote")}
             </p>
           </div>
 
           {umaSelected && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Resolution criteria * (sent to UMA)
+                {t("create.criteria")} * {t("create.criteriaSentToUma")}
               </label>
               <textarea
                 className="min-h-24 w-full rounded-md border bg-transparent px-3 py-2 text-sm"
-                placeholder="Resolves YES if … according to <source>, measured at <time>. Resolves NO otherwise."
+                placeholder={t("create.criteriaPlaceholder")}
                 value={resolutionCriteria}
                 onChange={(e) => setResolutionCriteria(e.target.value)}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                This is the entire text a UMA voter reads. A question without explicit rules is
-                likely to settle as <span className="font-medium">unresolvable</span>, which pays
-                both sides half.{" "}
+                {t("create.criteriaHintPre")}
+                <span className="font-medium">{t("create.criteriaUnresolvable")}</span>
+                {t("create.criteriaHintPost")}{" "}
                 {!criteriaOk && resolutionCriteria.length > 0 && (
-                  <span className="text-no">At least 20 characters.</span>
+                  <span className="text-no">{t("create.criteriaMin")}</span>
                 )}
               </p>
             </div>
           )}
 
           <Button className="w-full" size="lg" disabled={!valid || submitting} onClick={submit}>
-            {submitting ? "Submitting…" : "Start batch creation →"}
+            {submitting ? t("create.submitting") : t("create.submit")}
           </Button>
           {error && (
             <p className="rounded-md border border-no/30 bg-no/10 px-3 py-2 text-sm text-no">{error}</p>
           )}
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Created as Demo Wallet {accountIndex}. Anyone can create markets in this demo; the
-            operator funds each outcome&apos;s opening book.
+            {t("create.createdAs", { n: accountIndex })}
           </p>
         </CardContent>
       </Card>
