@@ -17,12 +17,16 @@ packages/contracts/out/
 packages/contracts/cache/
 packages/contracts/broadcast/
 
-# Environment
+# Environment — deny every .env variant, then re-allow the committed templates.
+# (Listing variants one by one let `.env.staging` slip through: real operator
+# keys sitting one `git add -A` away from a public repo.)
 .env
-.env.local
-.env.*.local
-.env.prod
+.env.*
+!.env.example
+!.env.*.example
 scripts/deploy.env
+scripts/deploy.env.*
+!scripts/deploy.env.example
 
 # Cloud SQL Auth Proxy binary (downloaded by deploy.sh)
 cloud-sql-proxy
