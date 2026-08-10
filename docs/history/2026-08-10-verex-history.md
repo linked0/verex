@@ -394,4 +394,30 @@ the UMA runbooks by environment.
   cleanly, no cutoff. `tsc --noEmit` clean. Branch `claude/fix-nav-korean-layout`
   (reused per the one-branch-per-request rule), uncommitted at time of writing. Known
   minor: English portrait phones < 414px still show a small nav overflow from the wallet
-  selector width.
+  selector width. *(Merged as PR #26 and deployed; the residual is closed by the next
+  entry.)*
+
+### Phone follow-up: compact wallet labels + category tabs wrap instead of clipping
+
+- **Cause:** jay sent a real iPhone screenshot: nav cut off after "Faucet" and the
+  category row ending in "스…". The screenshot itself turned out to be a **cached
+  pre-#26 page** (text labels + no search box — that combination no longer exists);
+  emulating an iPhone 14 Pro against live prod showed #26 working (KO overflow 0 on
+  every page). But it surfaced two real leftovers: EN phones still overflowed 37px on
+  *every* page (the wallet `<select>` — "Demo Wallet 1" is its widest option), and the
+  category tabs, an `overflow-x-auto` row with `scrollbar-none`, simply *look* cut on
+  phones — nothing signals there's more to scroll.
+- **Reasoning:** a `<select>` is as wide as its widest `<option>`, and option text
+  can't be restyled per-breakpoint — so render two selects sharing the same
+  state/handler: compact labels (`Wallet {n}` / `지갑 {n}`, new `nav.*Short` keys)
+  below `sm`, full labels above. For the tabs, wrapping beats scroll affordances
+  (fade/scrollbar): every category becomes visible with no hint needed, and desktop
+  fits one line either way so nothing changes there.
+- **Change:** `i18n.ts` — `nav.demoWalletShort` / `nav.operatorWalletShort` (en+ko);
+  `SiteNav.tsx` — dual `<select>` (`sm:hidden` / `hidden sm:block`);
+  `CategoryTabs.tsx` — `overflow-x-auto scrollbar-none` → `flex-wrap`.
+- **Result:** verified on iPhone-14-Pro emulation against the prod API before
+  deploying: overflow **0px in both locales**, all 8 categories visible (2 rows KO,
+  3 rows EN), desktop 1280px unchanged (tabs one 40px row, full wallet labels,
+  overflow 0). `tsc --noEmit` clean. Told jay the phone needs a hard refresh — the
+  old page is cached on-device.
