@@ -6,6 +6,7 @@ node_modules/
 dist/
 out/
 .next/
+.next-verify/
 cache/
 
 # Next.js auto-generated (regenerated on every build — should not be committed)

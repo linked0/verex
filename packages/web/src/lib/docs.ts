@@ -1,4 +1,5 @@
 import type { Doc, DocGroup } from "@/lib/docs-types";
+import { chain } from "@/content/docs/chain";
 import { howTo } from "@/content/docs/how-to";
 import { liquidity } from "@/content/docs/liquidity";
 import { name } from "@/content/docs/name";
@@ -7,7 +8,7 @@ import { overview } from "@/content/docs/overview";
 import { settlement } from "@/content/docs/settlement";
 
 /** Display order — this is the reading order the right-hand panel presents. */
-export const DOCS: Doc[] = [howTo, overview, liquidity, oracle, settlement, name];
+export const DOCS: Doc[] = [howTo, overview, liquidity, oracle, settlement, chain, name];
 
 export const DOC_GROUPS: DocGroup[] = ["guide", "technical", "about"];
 
