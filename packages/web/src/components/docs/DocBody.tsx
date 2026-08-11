@@ -2,13 +2,28 @@ import Image from "next/image";
 import * as React from "react";
 import type { Block, Section } from "@/lib/docs-types";
 
-// Inline markup, deliberately tiny: **bold**, `code`, *emphasis*. A full
-// markdown parser would be a dependency and a sanitisation surface for text
-// that only ever comes from this repo.
-const INLINE = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+// Inline markup, deliberately tiny: **bold**, `code`, *emphasis*, and
+// [text](url) links. A full markdown parser would be a dependency and a
+// sanitisation surface for text that only ever comes from this repo.
+const INLINE = /(\[[^\]]+\]\([^\s)]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+const LINK = /^\[([^\]]+)\]\(([^\s)]+)\)$/;
 
 function inline(text: string): React.ReactNode[] {
   return text.split(INLINE).map((part, i) => {
+    const link = part.match(LINK);
+    if (link) {
+      return (
+        <a
+          key={i}
+          href={link[2]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-primary underline underline-offset-2 hover:opacity-80"
+        >
+          {link[1]}
+        </a>
+      );
+    }
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
         <strong key={i} className="font-semibold text-foreground">
