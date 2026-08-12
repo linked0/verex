@@ -47,7 +47,7 @@ pnpm --filter @verex/api seed
 
 # Write local env files if missing (both are git-ignored).
 [ -f packages/api/.env ] || echo "DATABASE_URL=$DATABASE_URL" > packages/api/.env
-[ -f packages/web/.env.local ] || echo "NEXT_PUBLIC_API_URL=http://localhost:4000" > packages/web/.env.local
+[ -f packages/web/.env ] || echo "NEXT_PUBLIC_API_URL=http://localhost:4000" > packages/web/.env
 
 cat <<EOF
 

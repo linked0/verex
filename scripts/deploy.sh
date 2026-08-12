@@ -174,6 +174,9 @@ pnpm --filter @verex/sdk sync-abis   # generated abis must exist in the build co
 gcloud builds submit --config cloudbuild-api.yaml --substitutions "_IMAGE=$API_IMAGE" .
 
 echo "▶ Deploy $SERVICE_API"
+# --max-instances 1 (API): 데모 트래픽엔 인스턴스 1개(동시 80요청)로 충분하고, 무엇보다
+# ChainJob 워처가 인스턴스마다 하나씩 돌아서 2개 이상이면 같은 체인 이벤트를 중복 처리한다.
+# 웹은 무상태라 2로 — 하나가 재시작 중일 때의 여유분 (jay, 2026-08-12).
 API_ENV_PAIRS=()
 [ -n "$VEREX_CHAIN_ID" ] && API_ENV_PAIRS+=("VEREX_CHAIN_ID=$VEREX_CHAIN_ID")
 [ -n "$TELEGRAM_CHAT_ID" ] && API_ENV_PAIRS+=("TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID")
@@ -183,6 +186,7 @@ gcloud run deploy "$SERVICE_API" --image "$API_IMAGE" --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
   --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}${API_TELEGRAM_SECRET}" \
   "${API_ENV_ARGS[@]+"${API_ENV_ARGS[@]}"}" \
+  --max-instances 1 \
   --allow-unauthenticated
 API_URL=$(gcloud run services describe "$SERVICE_API" --region "$REGION" --format='value(status.url)')
 
@@ -195,6 +199,7 @@ WEB_SECRET_ARGS=()
 gcloud run deploy "$SERVICE_WEB" --source packages/web --region "$REGION" \
   --set-env-vars "$(IFS=,; echo "${WEB_ENV_PAIRS[*]}")" \
   "${WEB_SECRET_ARGS[@]+"${WEB_SECRET_ARGS[@]}"}" \
+  --max-instances 2 \
   --allow-unauthenticated
 WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --format='value(status.url)')
 
