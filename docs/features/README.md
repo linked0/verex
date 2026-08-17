@@ -29,6 +29,7 @@ authoritative for step-level status, and the unchecked §1.4 checkboxes below pr
 | Markets as tokens | post-S2 (exploratory) | [markets-as-tokens.md](markets-as-tokens.md) — ERC-20 wrapper for CTF outcome shares → external DeFi composability (DEX listing, lending, bots) |
 | CCIP market results | S6-adjacent (exploratory) | [ccip-market-result.md](ccip-market-result.md) — Chainlink CCIP `MarketResultReceiver` + `CCIPLocalSimulator` local test setup (Foundry/Hardhat); cross-chain resolution path for the oracle Stage-2 track |
 | Thirdweb | exploratory | [thirdweb.md](thirdweb.md) — platform bundle vs hand-rolled parts (Connect wallets/AA · Engine backend tx · browser-signing deploy); check item: review the Rabbit-side Thirdweb feature too before deciding |
+| Observability | S4-adjacent (exploratory) | [observability.md](observability.md) — OpenTelemetry-first instrumentation with a swappable export target (Cloud Trace now, Datadog later); ChainJob worker traced first since metrics structurally can't answer "which step is slow", plus a standing metric-cardinality rule |
 
 Hierarchy: **Category** (file) → **Feature** (bold item) → **to-do** (checkbox); `(you)` = needs your decision or action.
 
