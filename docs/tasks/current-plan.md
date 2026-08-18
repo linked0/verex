@@ -8,8 +8,15 @@
 > **Carry-over from jul-28:** A.4 `walletSummary` `balanceOfBatch` batching — in progress in a
 > separate session (started 2026-08-03).
 
-## Roadmap status (2026-08-03, S6/S9 re-audited 2026-08-18)
+## Roadmap status (2026-08-03; **all 10 steps re-audited 2026-08-18**)
 
+> **2026-08-18 re-audit:** every row below was re-checked against `main`. S6 and S9 had drifted
+> and are corrected with evidence; the other eight were confirmed unchanged — S2's
+> `packages/contracts/deployments.json` is present, S3's two gaps still stand (`packages/mcp-server`
+> absent, no ADR 0001), S4's `packages/api/src/db.ts` is present, S5 has no chain→DB indexer
+> (`worker.ts` runs API→chain ChainJob work, which is the opposite direction), and S7/S8/S10 have
+> no code at all (no 4337/7702/session-key or CCIP/LayerZero references under `packages/*/src`).
+>
 > Moved here from `docs/features/README.md` (jay, 2026-08-03): dated status audits are planning
 > content and belong in the rolling current-plan doc, not the long-lived feature index. Audited
 > against the code on `main`, not the commit log. The roadmap has been executed **out of order**:
