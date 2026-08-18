@@ -5,8 +5,8 @@ structure. The full **design document & roadmap** is appended below (folded in f
 `plan/` folder); this top section is the per-feature index.
 
 Status is keyed to the 10-step roadmap (**§1.4 in the design document below**):
-**S1 ✅ · S2 ✅ · S3 ✅* · S4 ✅ · S9 partial* · S5–S8, S10 planned** — the detailed per-step
-audit (2026-08-03, with evidence and known gaps) lives in
+**S1 ✅ · S2 ✅ · S3 ✅* · S4 ✅ · S6 partial* · S9 partial* · S5, S7–S8, S10 planned** — the
+detailed per-step audit (2026-08-03, with S6/S9 re-audited 2026-08-18) lives in
 [`docs/tasks/current-plan.md` → Roadmap status](../tasks/current-plan.md); that table is
 authoritative for step-level status, and the unchecked §1.4 checkboxes below predate it.
 

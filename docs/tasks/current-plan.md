@@ -8,7 +8,7 @@
 > **Carry-over from jul-28:** A.4 `walletSummary` `balanceOfBatch` batching — in progress in a
 > separate session (started 2026-08-03).
 
-## Roadmap status (2026-08-03)
+## Roadmap status (2026-08-03, S6/S9 re-audited 2026-08-18)
 
 > Moved here from `docs/features/README.md` (jay, 2026-08-03): dated status audits are planning
 > content and belong in the rolling current-plan doc, not the long-lived feature index. Audited
@@ -21,9 +21,9 @@
 | S3 Web MVP | ✅* done, 2 gaps | Polymarket-style feed + market pages live; **no `packages/mcp-server`**, no ADR 0001 |
 | S4 API + Postgres | ✅ done | Fastify `packages/api` + Cloud SQL Postgres (staging + prod) |
 | S5 Indexer | ❌ not started | no chain→DB indexer; DB written only by the API itself |
-| S6 Oracle adapters + MM v1 | ❌ not started | resolve is still Stage-1 manual (operator EOA) — audit item A5 SPOF stands |
+| S6 Oracle adapters + MM v1 | ◐ partial (re-audited 2026-08-18) | default resolve is still Stage-1 manual, operator-only (`resolve.ts` rejects any `accountIndex !== 0`) so the A5 SPOF stands — but the UMA path is no longer absent: `resolve.ts` branches on `market.oracleType === "UMA"` and defers to the adapter that owns the condition, and `uma-demo.ts` walks propose/dispute/vote/finalize with a runbook. **Against the MOCK oracle** — a live Sepolia UMA adapter is not verified here |
 | S7–S8 AA / cross-chain | ❌ not started | — |
-| S9 Deploy | ◐ partial | Cloud Run staging + prod live (2026-08-03); **Stripe ❌, CI/CD ❌** (no `.github/workflows`) |
+| S9 Deploy | ◐ partial (re-audited 2026-08-18) | Cloud Run staging + prod live (2026-08-03); **CI/CD ✅ — `.github/workflows/deploy-staging.yml` exists** (last touched 2026-08-07, `ec3f853`), which supersedes the earlier "no `.github/workflows`" gap; **Stripe ❌** (no stripe references under `packages/*/src`) |
 | S10 Final | ❌ not started | — |
 
 Structural drift from the original plan (supersedes the design doc §7's target layout): the MM is
