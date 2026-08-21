@@ -6,9 +6,13 @@ structure. The full **design document & roadmap** is appended below (folded in f
 
 Status is keyed to the 10-step roadmap (**§1.4 in the design document below**):
 **S1 ✅ · S2 ✅ · S3 ✅* · S4 ✅ · S6 partial* · S9 partial* · S5, S7–S8, S10 planned** — the
-detailed per-step audit (2026-08-03, **all 10 steps re-audited 2026-08-18**) lives in
+detailed per-step audit (2026-08-03, **all 10 steps re-audited 2026-08-18**, spot-checked again
+on the 08-21 plan reset) lives in
 [`docs/tasks/current-plan.md` → Roadmap status](../tasks/current-plan.md); that table is
 authoritative for step-level status, and the unchecked §1.4 checkboxes below predate it.
+**Plan reset 2026-08-21** (jay): the 2026-08-03 batch plan shipped waves 0–2 and was archived at
+[`docs/tasks/aug-03-plan.md`](../tasks/aug-03-plan.md); its unfinished tail and everything it
+deferred now live in [Backlog](#backlog) below.
 
 ## Categories
 | Category | Roadmap | Doc |
@@ -38,6 +42,81 @@ Hierarchy: **Category** (file) → **Feature** (bold item) → **to-do** (checkb
 - [review-checklist.md](review-checklist.md) — what to check / analyze (review of work to date)
 - [watch-list.md](watch-list.md) — external-event decision items
 - [01-phase-1-core.md](01-phase-1-core.md) — Phase-1 execution plan
+
+
+## Backlog — unfinished and deferred work from the 2026-08-03 batch <a id="backlog"></a>
+
+> **Why this section exists (2026-08-21, jay).** The batch plan
+> ([aug-03-plan.md](../tasks/aug-03-plan.md)) delivered waves 0–2 and closed all five gates, so it
+> was archived and [current-plan.md](../tasks/current-plan.md) restarted empty. What it did *not*
+> deliver, and what it consciously deferred, is listed here rather than left implied by a retired
+> plan. Nothing was deleted — the reasoning for each deferral stays verbatim in the archive, and
+> this is the status surface. Verified against `main` on 2026-08-21 (`packages/*/src`,
+> `packages/contracts/src`, `.github/workflows/`, `schema.prisma`), not against the commit log.
+
+### V1 — the batch's verification tail ⬜ **the batch is not actually finished** <a id="v1"></a>
+
+Wave 2 shipped the code and the deploy: `UmaCtfAdapter.sol` exists, staging's
+`deployments.json` carries `umaAdapter 0x1B45F820…` pointed at UMA's **real** Sepolia
+`OptimisticOracleV2 0x9f1263B8…`, `oracleType` is a first-class `Market` field fixed at creation,
+`/create` offers the choice, the market page shows the badge, `resolve.ts` branches on it, and
+`uma-demo.ts` + [../runbooks/uma-adapter.md](../runbooks/uma-adapter.md) walk
+propose → dispute → vote → finalize. **What was never run is wave 3.**
+
+| | Item | Status | Gap |
+|---|---|---|---|
+| **V1.1** | Fresh seed on staging | ⬜ not run | wave 2 changed the backbone (oracle-typed markets), so staging wants a first-run seed — **no** `SKIP_SEED` |
+| **V1.2** | ≥1 market resolved end-to-end through the live adapter, winner redeems | ⬜ not verified | this is the §1.4 milestone *and* what closes audit item **A5** (operator-SPOF). The demo path is proven against the **mock** oracle (`MockOptimisticOracleV2.sol`); live Sepolia is untested |
+| **V1.3** | The CD workflow performing that deploy itself | ⬜ not verified | `.github/workflows/deploy-staging.yml` is on `main` and `workflow_dispatch`-able, but no run has been confirmed |
+
+Until V1.2 passes, **S6 stays ◐ partial and A5 stays open** — the adapter being deployed is not
+the same claim as the adapter having resolved anything.
+
+### V2 — `ci.yml`, the half of task 2 that was never written ⬜ <a id="v2"></a>
+
+The batch plan specified two workflows. Only the CD half exists. The CI half — pnpm install
+(corepack-pinned), turbo `tsc`/build for sdk/api/web, `forge test` in `packages/contracts`,
+`prisma validate`, pnpm-store cache, **no deploy credentials** — was never built, so nothing
+type-checks a PR automatically today. *Done when:* a PR with a deliberate type error goes red and
+a clean PR goes green including forge tests.
+
+### V3 — deferred by decision, kept for the reasoning <a id="v3"></a>
+
+These were not forgotten; each was ruled out with a reason worth not re-deriving. Full argument in
+the archive.
+
+| | Item | Why it was deferred | When to revisit |
+|---|---|---|---|
+| **V3.1** | **LMSR phase B** — on-chain pool + smart routing + slo-mo fallback | G1 closed **NO** (jay, 2026-08-04): every benefit is a benefit of *not trusting the operator*, and on Sepolia with test USDC there is no adversary and nobody who can lose money | mainnet |
+| **V3.2** | **S5 indexer** | dropped 2026-08-03 — the justification did not survive reading the code; `SETTLE_MATCH` is already idempotent and `onFailed` compensates. Reframed as an **observability** tool, not a correctness one; a read-only DB-vs-chain consistency checker gets most of the value for none of the subsystem | after V1 — the adapter adds on-chain state the DB mirrors, including disputes that can change an answer days later |
+| **V3.3** | **`ChainlinkOracleAdapter`** | demoted to optional 2026-08-03 by counting the seed: **1 of 13** markets is Chainlink-answerable, **13 of 13** suit UMA's `YES_OR_NO_QUERY`. A strict subset of what UMA already covers | only to tick the "≥1 market per adapter" milestone, using `eth-above-10k-2026` |
+| **V3.4** | The **constrained admin override** inside the UMA adapter | pure UMA is the more principled default for a Sepolia demo; the override matters if mainnet is ever the goal. Note it does **not** fully close A5 — it makes the operator's lever exceptional, constrained, and visible on-chain instead of the only path | mainnet |
+
+**One open question that survives from wave 2 and is not written down anywhere else:** who pays
+adapter gas, and who funds the bond. The bond currency is settled — **Sepolia WETH**
+`0x7b79995e…98E7f9`, chosen for self-service (we wrap it ourselves) over UMA's zero-final-fee
+USDC, which we cannot mint. Bond size (0.01 WETH) is an arbitrary demo knob.
+
+### V4 — roadmap steps with no code at all ⬜ <a id="v4"></a>
+
+Re-confirmed 2026-08-21 against `packages/*/src`. These are roadmap items, not owed work; they
+are here so a cold session does not have to re-grep to learn they are empty.
+
+| Step | Status | Confirmed by |
+|---|---|---|
+| **S5** Indexer | ⬜ none | no `packages/api/src/indexer.ts`; the DB is written only by the API — see [V3.2](#v3) |
+| **S7–S8** AA / cross-chain | ⬜ none | no 4337 / 7702 / session-key references under `packages/*/src`; no CCIP or LayerZero either. Design in [account-abstraction.md](account-abstraction.md), [ccip-market-result.md](ccip-market-result.md) |
+| **S8–S9** Stripe onboarding | ⬜ none | no stripe references under `packages/*/src`. Design in [onboarding-payments.md](onboarding-payments.md) |
+| **S10** Final | ⬜ none | — |
+| **S3 gaps** | ⬜ 2 open | `packages/mcp-server` does not exist ([mcp-interface.md](mcp-interface.md)); ADR 0001 was never written (`docs/architecture/` holds only the singleton-vs-factory ADR) |
+
+### V5 — designed but not built <a id="v5"></a>
+
+| | Item | State |
+|---|---|---|
+| **V5.1** | **Market group types + probability-sum invariants** ([market-groups.md](market-groups.md), designed 2026-08-21) | ⬜ design only — `MarketGroup` exists in `schema.prisma` but there is **no `groupType` field**, so exclusive / directional-nested / independent groups are not yet distinguishable and the normalization rules have nothing to key off |
+| **V5.2** | **Observability — OTel-first, swappable backend** ([observability.md](observability.md), designed 2026-08-17) | ⬜ design only — no OpenTelemetry references under `packages/*/src`. The doc's own sequencing puts the ChainJob worker first, since metrics structurally cannot answer "which step is slow" |
+
 
 ---
 

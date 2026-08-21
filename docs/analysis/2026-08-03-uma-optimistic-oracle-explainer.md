@@ -1,7 +1,7 @@
 # How UMA's Optimistic Oracle works — and how Verex will use it
 
 > Written 2026-08-03 for jay, ahead of building `UMAOptimisticOracleAdapter.sol` (wave 2 of the
-> [batch plan](../tasks/current-plan.md)). Parameters below were read live from Sepolia, not
+> [batch plan](../tasks/aug-03-plan.md)). Parameters below were read live from Sepolia, not
 > copied from docs — see "Verified values" at the end.
 >
 > Companion to [`docs/features/oracle.md`](../features/oracle.md) (the 3-stage oracle plan) and
@@ -108,7 +108,7 @@ resolution criteria and a source.
 ## Why this fits Verex specifically
 
 Of the 13 seeded markets, **1** can be answered by a Chainlink feed and **13** by UMA — see the
-[oracle scope revision](../tasks/current-plan.md) for the per-market count. Prediction markets are
+[oracle scope revision](../tasks/aug-03-plan.md) for the per-market count. Prediction markets are
 mostly questions about the world, and UMA is built for exactly that shape of question. Chainlink
 and UMA aren't competitors here; they answer different kinds of question, and Verex's question mix
 happens to be almost entirely UMA-shaped.

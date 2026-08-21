@@ -21,3 +21,15 @@
 **Change:** 이미지 6장을 `docs/tasks/images/` + `docs/images/` → `docs/images/{kalshi,polymarket,verex-ui}/`로 이동(`git mv`). 참조 갱신 11건 — `![...]()` 이미지 문법뿐 아니라 **일반 링크와 인라인 코드로 적힌 경로까지** 포함(`jun-19-verex-design.md`의 본문 링크, `jul-28-plan.md`의 헤더 인용, `market-groups.md` Resources 줄, 전날 history 항목의 소스 링크). 링크 텍스트는 저장소 기준 경로(`docs/images/...`)로, href는 상대 경로로 분리 표기. 빈 `docs/tasks/images/` 제거. **코드 변경 없음.**
 
 **Result:** 저장소 내 마크다운의 이미지 링크 11개 전부 실제 파일로 해석됨(스크립트 검증, MISS 0). `docs/features/README.md`가 참조하는 `packages/web/public/mockups/polymarket-reference.png`는 docs 밖 자산이라 대상에서 제외. 같은 규칙을 rabbit·nostra-server에도 적용(각 저장소 history 참조).
+
+### current-plan 리셋: 2026-08-03 배치 플랜 아카이브 + 미완·보류 작업을 features 백로그로
+
+> 소스 문서: [docs/tasks/aug-03-plan.md](../tasks/aug-03-plan.md) (이번에 아카이브된 배치 플랜) · 결과물은 [docs/tasks/current-plan.md](../tasks/current-plan.md)와 [docs/features/README.md → Backlog](../features/README.md#backlog). rabbit 저장소에 같은 작업을 먼저 적용했다 — `rabbit/docs/history/2026-08-21-rabbit-history.md`.
+
+**Cause:** jay가 rabbit에 적용한 계획 리셋을 verex에도 똑같이 하라고 지시. verex의 배치 플랜(CI/CD · LMSR · UMA, 2026-08-03)은 **wave 0–2를 이미 출하하고 게이트 5개를 전부 닫은** 상태라, 살아있는 계획서라기보다 완료 기록에 가까웠다.
+
+**Reasoning:** rabbit과 상황이 달랐다 — rabbit은 **시작을 안 해서** 졸업했고, verex는 **거의 다 끝나서** 졸업한다. 그래서 아카이브 방식도 verex 자신의 관례를 따랐다: `archive/` 폴더를 새로 만들지 않고 [jul-28-plan.md](../tasks/jul-28-plan.md)처럼 **날짜 이름의 형제 파일**(`aug-03-plan.md`)로 두었다 — 같은 디렉터리라 상대 경로를 다시 쓸 일도 없다. 핵심 판단은 **"배치는 끝나지 않았다"**를 명시적으로 남긴 것이다. wave 3(스테이징 재시드 + 실 Sepolia UMA로 마켓 1건 종단 해소)이 실행된 적 없고, task 2의 CI 절반(`ci.yml`)은 명세만 있고 작성된 적이 없다. 이걸 적어두지 않으면 "게이트 다 닫혔음"만 남아 배치가 완료된 것처럼 읽힌다.
+
+**Change:** ① `docs/tasks/current-plan.md` → `aug-03-plan.md` (`git mv`, 제목을 "2026-08-03 Batch Plan … (archived)"로 바꾸고 무엇이 남았는지 밝힌 배너 추가). ② `docs/features/README.md`에 `## Backlog` 신설 — **V1** 배치의 검증 꼬리(V1.1 재시드 / V1.2 실 어댑터 종단 해소 = A5를 닫는 조건 / V1.3 CD 워크플로 실행), **V2** `ci.yml`, **V3** 결정으로 보류한 것들(LMSR phase B · 인덱서 · Chainlink · 제한적 admin override)과 그 이유, **V4** 코드가 아예 없는 로드맵 단계, **V5** 설계만 된 것(market group types · observability). ③ 새 `current-plan.md` — Roadmap status 이관 + P0 게이트 + 후보 5개(W1–W5). ④ 아카이브된 계획을 가리키던 **살아있는** 참조 4곳 정정: `runbooks/uma-adapter.md`, `analysis/…uma-…-explainer.md`, `packages/sdk/src/uma.ts`, `packages/api/prisma/seed.ts`. history 파일의 참조는 append-only 원칙에 따라 손대지 않았다.
+
+**Result:** **S6 행을 정정했다 — 이게 이번 작업에서 나온 실질적 발견이다.** 08-18 감사는 "MOCK 오라클 기준, 실 Sepolia UMA 어댑터 미검증"이라고 적었는데, `deployments.json`을 보면 스테이징 `umaAdapter 0x1B45F820…`은 UMA의 **실제** Sepolia `OptimisticOracleV2 0x9f1263B8…`에 등록되어 있다. 즉 어댑터는 실 오라클에 붙어 **배포되어 있고**, 없는 것은 그걸로 **해소된 마켓 한 건**이다. 두 문장은 결론(S6 partial, A5 열림)은 같지만 남은 일의 크기가 전혀 다르다 — 전자는 "어댑터를 만들어야 한다", 후자는 "하루짜리 검증이 남았다". 그래서 추천 후보를 **W1(wave 3 마무리)**으로 잡았다. `tsc --noEmit`(api) 통과, 수정 파일들의 상대 링크·앵커 해석됨(기존 한글 제목 앵커 2건 제외 — 이전부터 있던 것). **다음 결정은 jay의 P0 한 문장.**

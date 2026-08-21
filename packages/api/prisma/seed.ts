@@ -83,7 +83,7 @@ const DEMO_WALLET_USDC = parseUnits("1000", 6); // 1,000 USDC
 // Seeded only where deployments.json carries a `umaAdapter`. It exists so a
 // fresh environment has something to exercise the propose → wait → resolve
 // path against without anyone hand-crafting a market first — that lifecycle is
-// the "≥1 market per adapter" milestone in docs/tasks/current-plan.md.
+// the "≥1 market per adapter" milestone in docs/tasks/aug-03-plan.md.
 /// Matches src/group-create.ts's UMA_BOND. Nominal for a testnet: enough that a
 /// careless proposal costs something, nowhere near a real security parameter.
 const UMA_SEED_BOND = parseUnits("0.01", 18); // WETH, 18dp

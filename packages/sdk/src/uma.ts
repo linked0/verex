@@ -17,7 +17,7 @@ export const UMA_YES = 10n ** 18n;
 export const UMA_NO = 0n;
 export const UMA_UNRESOLVABLE = 5n * 10n ** 17n;
 
-/// Sepolia deployments, verified 2026-08-03 (docs/tasks/current-plan.md, G4).
+/// Sepolia deployments, verified 2026-08-03 (docs/tasks/aug-03-plan.md, G4).
 export const UMA_SEPOLIA = {
   optimisticOracleV2: "0x9f1263B8f0355673619168b5B8c0248f1d03e88C" as Address,
   /// Bond/reward currency. Verex's MockUSDC is NOT on UMA's AddressWhitelist;
