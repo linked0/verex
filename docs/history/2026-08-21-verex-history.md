@@ -45,3 +45,15 @@
 **Change:** ① `docs/index.md` — 사이트 랜딩(Start here / Reference 두 표). ② `docs/tasks/README.md` — tasks 디렉터리 인덱스(current-plan을 "활성"으로 표시, 나머지는 날짜 스냅샷). ③ `docs/history/index.md` — Liquid로 `docs/history/*.md`를 최신순 나열, 기존 통합 일지 `README.md`는 "combined early log"로 링크해 고아가 되지 않게 함. `index.md`가 디렉터리 인덱스를 넘겨받으므로 README는 `history/README.html`로 이동한다.
 
 **Result:** 이미 200이던 링크 4개(`features/`, `tasks/current-plan.html`, `tasks/jun-19-verex-design.html`, `history/`)에 더해 사이트 루트와 `tasks/`가 이번 푸시로 열린다. `history/index.md`의 Liquid는 **로컬에서 검증할 수 없다** — Pages가 `origin/main`에서만 빌드하기 때문 — 이므로 푸시 직후 확인이 필요하다. 렌더링되지 않으면 대안은 카드를 GitHub 디렉터리 뷰(`github.com/linked0/verex/tree/main/docs/history`, 확인 완료 200)로 바꾸는 것이고 한 줄이면 된다.
+
+### J2 "mandated trader" — verex는 커스터디를 그만두는 쪽을 맡는다 (W1 승격 + W6·W7 신설)
+
+> 소스 문서: [docs/tasks/current-plan.md](../tasks/current-plan.md) (W1·W6·W7) · 시나리오와 이음새 전체는 rabbit 저장소의 `docs/tasks/current-plan.md`. 같은 날 rabbit 이력: `rabbit/docs/history/2026-08-21-rabbit-history.md`.
+
+**Cause:** jay가 두 저장소에 걸친 시나리오를 제시 — **rabbit에서 도는 에이전트가 verex 예측시장에서 자율 거래**. 리셋 직후 열려 있던 P0(다음 작업 고르기)의 답이 이걸로 정해졌다.
+
+**Reasoning:** 설계 전에 verex API를 읽고 확인한 사실이 선택지를 갈랐다 — **외부 계정 경로가 없다.** 주문은 `accountIndex 1..9`, 즉 서버가 키를 든 데모 지갑으로만 들어온다. 그래서 가장 빠른 구현(에이전트가 데모 지갑을 원격 조종)은 만다트를 **아무것도 강제하지 못하고**, rabbit 데모가 내세우는 "안전은 신뢰가 아니라 산술" 주장을 스스로 반증한다. jay가 "에이전트 키는 서버에 두지 않는다"로 정리하면서 verex가 외부 서명 주문을 받아야 한다는 결론이 나왔다. **이건 rabbit을 위한 양보가 아니라 verex 자신의 제품 주장이다** — 커스터디를 그만두는 지점이고, 이 저장소 최초의 S7 인접 작업이다. 그리고 코드가 예상보다 가깝다: `model Order`에 `maker`(실주소)·`signedOrder`·`orderHash`가 이미 있고 `buildSignedOrder`가 대신 서명해줄 뿐이라, 외부 주문 수용은 대체로 **그 단계를 지우는 것**이다.
+
+**Change:** P0을 ✅ 닫고, **W1을 후보에서 ACTIVE(J2 phase 0)로 승격**, **W6**(외부 카운터파티 — W6.1 외부 서명 주문 + `makerIndex` nullable / W6.2 `ensureFunds`를 대신-충전에서 **읽고-거부**로 / W6.3 `/wallet/:address` / W6.4 주소 기반 상환)와 **W7**(`packages/mcp-server`, W6의 REST를 감싸는 얇은 래퍼)을 신설. 기존 W2–W5는 "메뉴"로 강등하고 번호를 4–8로 재배치. `packages/mcp-server`는 V4 "코드 없는 로드맵 단계" 목록에서 빠졌다 — 이제 W7이다.
+
+**Result:** **W1이 W6보다 먼저여야 하는 진짜 이유를 찾았고, 원래 알던 이유가 아니었다.** 뻔한 이유는 "해소 안 된 마켓에선 상환을 못 한다"인데, 실제 이유는 **fresh seed가 스테이징의 `Trade`/`PricePoint`/`Outcome`/`Market` 행을 삭제한다**는 것이다 — 에이전트가 먼저 거래하면 나중 재시드가 저널이 가리키는 행을 통째로 지운다. 문 열기 전에 재시드부터. 덤으로 W1 범위에 한 줄이 붙었다: 시드에 **짧은 만기 UMA 마켓 최소 1개** — 없으면 데모가 지켜볼 게 2026년까지 없다. 가스 비대칭도 확인 — `book.ts:694`가 `exchangeAs(0).matchOrders(...)`라 **외부 maker는 거래에 가스를 안 쓰고**(오퍼레이터가 체결 tx 전송), **상환에만** 필요하다. **다음 결정은 O1** — rabbit이 `packages/sdk`의 주문 서명 코드를 어떻게 얻느냐(퍼블리시 / 복사 / 재구현). W6은 그것과 무관하게 진행 가능.
