@@ -45,7 +45,7 @@ Per proposal a proposer posts `finalFee + bond` = **0.001 + 0.01 = 0.011 WETH**.
 **deposit, not a cost** — an honest proposer gets it back at settlement. 0.05 WETH covers
 about four concurrent proposals.
 
-Sepolia addresses, verified 2026-08-03 (`current-plan.md`, G4 result):
+Sepolia addresses, verified 2026-08-03 (`../tasks/aug-03-plan.md`, G4 result):
 
 | Contract | Address |
 |---|---|
@@ -374,5 +374,5 @@ oracle, so it proves the adapter is self-consistent, not that it matches UMA. Th
 
 - [uma-local-demo.md](uma-local-demo.md) — the dispute demo on local anvil (mock jury)
 - [deploy.md](deploy.md) — the environment deploy this hangs off (§2b links back here)
-- [current-plan.md](../tasks/current-plan.md) — G4 result, and the "≥1 market per adapter" milestone
+- [aug-03-plan.md](../tasks/aug-03-plan.md) — G4 result, and the "≥1 market per adapter" milestone
 - `packages/contracts/src/UmaCtfAdapter.sol` — the trust-model comments live at the top
