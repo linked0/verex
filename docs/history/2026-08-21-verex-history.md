@@ -33,3 +33,15 @@
 **Change:** ① `docs/tasks/current-plan.md` → `aug-03-plan.md` (`git mv`, 제목을 "2026-08-03 Batch Plan … (archived)"로 바꾸고 무엇이 남았는지 밝힌 배너 추가). ② `docs/features/README.md`에 `## Backlog` 신설 — **V1** 배치의 검증 꼬리(V1.1 재시드 / V1.2 실 어댑터 종단 해소 = A5를 닫는 조건 / V1.3 CD 워크플로 실행), **V2** `ci.yml`, **V3** 결정으로 보류한 것들(LMSR phase B · 인덱서 · Chainlink · 제한적 admin override)과 그 이유, **V4** 코드가 아예 없는 로드맵 단계, **V5** 설계만 된 것(market group types · observability). ③ 새 `current-plan.md` — Roadmap status 이관 + P0 게이트 + 후보 5개(W1–W5). ④ 아카이브된 계획을 가리키던 **살아있는** 참조 4곳 정정: `runbooks/uma-adapter.md`, `analysis/…uma-…-explainer.md`, `packages/sdk/src/uma.ts`, `packages/api/prisma/seed.ts`. history 파일의 참조는 append-only 원칙에 따라 손대지 않았다.
 
 **Result:** **S6 행을 정정했다 — 이게 이번 작업에서 나온 실질적 발견이다.** 08-18 감사는 "MOCK 오라클 기준, 실 Sepolia UMA 어댑터 미검증"이라고 적었는데, `deployments.json`을 보면 스테이징 `umaAdapter 0x1B45F820…`은 UMA의 **실제** Sepolia `OptimisticOracleV2 0x9f1263B8…`에 등록되어 있다. 즉 어댑터는 실 오라클에 붙어 **배포되어 있고**, 없는 것은 그걸로 **해소된 마켓 한 건**이다. 두 문장은 결론(S6 partial, A5 열림)은 같지만 남은 일의 크기가 전혀 다르다 — 전자는 "어댑터를 만들어야 한다", 후자는 "하루짜리 검증이 남았다". 그래서 추천 후보를 **W1(wave 3 마무리)**으로 잡았다. `tsc --noEmit`(api) 통과, 수정 파일들의 상대 링크·앵커 해석됨(기존 한글 제목 앵커 2건 제외 — 이전부터 있던 것). **다음 결정은 jay의 P0 한 문장.**
+
+### GitHub Pages 랜딩·인덱스 3종 추가 — rabbit 대시보드가 미러 대신 이 사이트를 건다
+
+> 소스 문서: 없음 — jay의 결정("rabbit 대시보드의 Verex 카드는 https://linked0.github.io/verex/ 로 링크한다"). 대응하는 rabbit 쪽 변경은 [rabbit `docs/history/2026-08-21-rabbit-history.md`](https://github.com/linked0/rabbit)의 같은 날 항목.
+
+**Cause:** rabbit이 Verex 설계 문서를 자기 저장소 안에 복사해 두고 대시보드 카드를 그 사본에 걸고 있었는데, 그 미러가 2026-08-01 스냅샷에서 멈춰 낡은 내용을 보여준 전력이 있다. jay가 사본 대신 verex의 Pages 사이트를 직접 걸기로 결정.
+
+**Reasoning:** 확인해 보니 이 저장소의 Pages는 이미 살아 있었다 — 소스 `main:/docs`, 빌드 성공. 그런데 루트 URL만 404였고 원인은 Pages 설정이 아니라 **`docs/`에 인덱스 파일이 없어서** Jekyll이 `/`에서 내놓을 게 없었던 것이다. `features/`·`history/`는 `README.md`가 디렉터리 인덱스 역할을 해 이미 200이었다. 히스토리 목록은 **손으로 쓰지 않기로** 했다 — 파일 30개를 나열한 정적 목록은 방금 제거한 미러와 똑같은 방식으로 낡는다. 대신 Jekyll이 빌드 시점에 `site.pages`를 순회하게 해서, 새 날짜 파일을 추가하고 푸시하면 목록에 저절로 나타나게 했다.
+
+**Change:** ① `docs/index.md` — 사이트 랜딩(Start here / Reference 두 표). ② `docs/tasks/README.md` — tasks 디렉터리 인덱스(current-plan을 "활성"으로 표시, 나머지는 날짜 스냅샷). ③ `docs/history/index.md` — Liquid로 `docs/history/*.md`를 최신순 나열, 기존 통합 일지 `README.md`는 "combined early log"로 링크해 고아가 되지 않게 함. `index.md`가 디렉터리 인덱스를 넘겨받으므로 README는 `history/README.html`로 이동한다.
+
+**Result:** 이미 200이던 링크 4개(`features/`, `tasks/current-plan.html`, `tasks/jun-19-verex-design.html`, `history/`)에 더해 사이트 루트와 `tasks/`가 이번 푸시로 열린다. `history/index.md`의 Liquid는 **로컬에서 검증할 수 없다** — Pages가 `origin/main`에서만 빌드하기 때문 — 이므로 푸시 직후 확인이 필요하다. 렌더링되지 않으면 대안은 카드를 GitHub 디렉터리 뷰(`github.com/linked0/verex/tree/main/docs/history`, 확인 완료 200)로 바꾸는 것이고 한 줄이면 된다.
