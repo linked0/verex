@@ -18,7 +18,7 @@ We only have binary markets but we should have multiple outcome market like who 
 - Create some seed for multipule outcome markets like who win the Homerun durbey in MLB all star day or who will world series champion or you can refer polymarket site https://polymarket.com/
 
 ### Create Market
-![create a market](./images/create-market.png)
+![create a market](../images/verex-ui/create-market.png)
 As you can see the screen shot, user can create a market with operator's fund support.
 
 - Operator's USDCs are used for creating Yes/No tokens.

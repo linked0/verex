@@ -12,7 +12,7 @@ declared field — so Verex knows when outcome probabilities *must* sum to 100%,
 
 Kalshi, *"Will the Clarity Act become law?"* — three markets under one event:
 
-![Kalshi: three "before date" markets whose YES prices sum to 137%](../images/kalshi-100percent.png)
+![Kalshi: three "before date" markets whose YES prices sum to 137%](../images/kalshi/kalshi-100percent.png)
 
 | Market | YES |
 |---|---|
@@ -144,4 +144,4 @@ is no complete set to mint or redeem. Their invariant (monotonicity) can only be
   <https://kalshi.com/markets/kxwcgroupwin/world-cup-group-winner/kxwcgroupwin-26a>
 - Polymarket Neg Risk Adapter (conversion op that enforces Σ = 1):
   <https://github.com/Polymarket/neg-risk-ctf-adapter>
-- Source screenshot: [`docs/images/kalshi-100percent.png`](../images/kalshi-100percent.png)
+- Source screenshot: [`docs/images/kalshi/kalshi-100percent.png`](../images/kalshi/kalshi-100percent.png)
