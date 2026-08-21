@@ -10,7 +10,7 @@ You already did the great thing to implemented as we planed. I want you to do th
 
 ### Basic Web UI for prediction market
 - It should be provided with an screen shot that would be Polymarket pages.
-- You can make a prediction market like this with basic like this screenshot ![homepage](./images/homepage.png)
+- You can make a prediction market like this with basic like this screenshot ![homepage](../images/verex-ui/homepage.png)
 - There should be one kind of marekt that is a categorical market.
 - Initailly It doesn't have to cooperated with smart contracts but just have all data in database
 

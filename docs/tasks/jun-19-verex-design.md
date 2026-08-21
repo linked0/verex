@@ -1,7 +1,7 @@
 # Jun-19 Verex — Design & Task Breakdown
 
 > Design doc derived from [`jun-19-verex.md`](jun-19-verex.md). Reference UI:
-> [`images/homepage.png`](images/homepage.png) (Polymarket-style). _(2026-06-23)_
+> [`docs/images/verex-ui/homepage.png`](../images/verex-ui/homepage.png) (Polymarket-style). _(2026-06-23)_
 
 ## Task map
 | # | Area | Status |
@@ -32,7 +32,7 @@
 
 Build a Polymarket-style UI driven entirely by the database (no contract integration yet).
 
-### Screens (from `images/homepage.png`)
+### Screens (from `docs/images/verex-ui/homepage.png`)
 - **Top nav:** logo, search, "How it works", Login/Sign-up (reuse Auth.js Google login).
 - **Category tabs:** Trending, Politics, Sports, Crypto, … (from `Market.category`).
 - **Featured market** (large card): title, **categorical outcomes with % (implied probability)**, a probability-over-time chart, volume, close date.
@@ -152,11 +152,11 @@ Sources: [Untitled UI — React component libraries 2026](https://www.untitledui
 ### Main page UI
 We can use this screen shots from Kalshi
 1) Main page
-![Kalshi homepage](images/kalshi-homepage.png)
+![Kalshi homepage](../images/kalshi/kalshi-homepage.png)
 
 ### Detail page UI
 We can use this screen shot from Kalshi
-![Kalshi detail page](images/kalshi-detail.png)
+![Kalshi detail page](../images/kalshi/kalshi-detail.png)
 ---
 
 ## Task 1 addendum 2 — as built (2026-07-07)

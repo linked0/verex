@@ -6,7 +6,7 @@
 
 
 > Design doc for [`jul-28-verex.md`](jul-28-verex.md). Reference UI:
-> [`images/create-market.png`](images/create-market.png). Written 2026-07-28 for jay's review —
+> [`docs/images/verex-ui/create-market.png`](../images/verex-ui/create-market.png). Written 2026-07-28 for jay's review —
 > **no implementation until approved.** One branch for everything: `claude/jul-28-features`.
 
 ## Scope (4 tasks)
