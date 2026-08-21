@@ -15,6 +15,7 @@ authoritative for step-level status, and the unchecked §1.4 checkboxes below pr
 |----------|---------|-----|
 | Markets | S2 | [markets.md](markets.md) |
 | Negative-risk (multi-outcome) | post-S2 | [negative-risk-markets.md](negative-risk-markets.md) |
+| Market groups & probability sums | post-S2 (design) | [market-groups.md](market-groups.md) — when outcome YES prices must sum to 100% and when they must **not** (exclusive · directional/nested · independent); normalization + invariant rules per group type |
 | Trading & orders | S2 | [trading-orders.md](trading-orders.md) |
 | Settlement & redeem | S2 | [settlement-redeem.md](settlement-redeem.md) |
 | Oracle (resolution) | S2 → S6 | [oracle.md](oracle.md) |

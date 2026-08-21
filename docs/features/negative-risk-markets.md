@@ -6,6 +6,11 @@
 > Builds on Verex's existing Polymarket CTF backbone — adopts Polymarket's **Neg Risk Adapter**
 > + **Neg Risk CTF Exchange** rather than re-inventing them.
 
+> **Scope note:** neg risk applies to **mutually exclusive** events only. For the wider
+> question of *which* event types force the outcome probabilities to sum to 100% — and the
+> nested / multi-winner groups where they legitimately don't — see
+> [market-groups.md](market-groups.md).
+
 ## Why
 Verex currently does **binary YES/NO** markets. For an N-outcome event (e.g. "Who wins the
 election?"), independent binary markets are capital-inefficient: buying one outcome's **No** has
