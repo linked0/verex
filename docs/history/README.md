@@ -1,3 +1,7 @@
+---
+title: History — combined early log
+---
+
 # History
 
 This file records each day's work in KST.
