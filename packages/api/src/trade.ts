@@ -23,7 +23,8 @@ export interface TradeRequest {
 }
 
 export interface WalletSummary {
-  accountIndex: number;
+  /// null for an address verex holds no key for (V-C).
+  accountIndex: number | null;
   address: string;
   usdc: number;
   positions: {
@@ -48,8 +49,17 @@ export interface WalletSummary {
 /// Index 0 (the operator) gets address + balance only — its token holdings
 /// are MM inventory across every market, not a portfolio.
 export async function walletSummary(accountIndex: number): Promise<WalletSummary> {
+  return walletSummaryByAddress(account(accountIndex).address as Address, accountIndex);
+}
+
+/// V-C: the same read for an address verex holds no key for. `accountIndex` is
+/// carried only so the response keeps its shape for demo wallets; it is null
+/// for an external maker, which is exactly the point.
+export async function walletSummaryByAddress(
+  user: Address,
+  accountIndex: number | null = null,
+): Promise<WalletSummary> {
   const chain = await loadChain();
-  const user = account(accountIndex).address as Address;
   if (chain.chainId === 0) {
     return { accountIndex, address: user, usdc: 0, positions: [] };
   }
@@ -149,7 +159,11 @@ export interface HistoryRow {
 
 /// The wallet's full activity feed (buys, sells, redemptions), newest first.
 export async function walletHistory(accountIndex: number): Promise<HistoryRow[]> {
-  const user = account(accountIndex).address as Address;
+  return walletHistoryByAddress(account(accountIndex).address as Address);
+}
+
+/// V-C: the same feed for an arbitrary address.
+export async function walletHistoryByAddress(user: Address): Promise<HistoryRow[]> {
   const trades = await prisma.trade.findMany({
     where: { user },
     orderBy: { createdAt: "desc" },
@@ -184,8 +198,19 @@ export async function walletHistory(accountIndex: number): Promise<HistoryRow[]>
 
 /// Explicit faucet (demo): mint USDC to a demo wallet.
 export async function faucet(accountIndex: number, amount = AUTO_FAUCET_USDC): Promise<{ address: string; usdc: number }> {
+  return faucetTo(account(accountIndex).address as Address, amount);
+}
+
+/// V-B: mint test USDC to an arbitrary address. Testnet convenience only —
+/// an external maker has to arrive funded, and `checkExternalFunds` rejects it
+/// otherwise; this is how it gets funded in the first place without verex
+/// holding its key. MockUSDC's mint is operator-only, which is why the server
+/// can do this at all.
+export async function faucetTo(
+  user: Address,
+  amount = AUTO_FAUCET_USDC,
+): Promise<{ address: string; usdc: number }> {
   const chain = await loadChain();
-  const user = account(accountIndex).address as Address;
   if (chain.chainId === 0) return { address: user, usdc: 0 };
   await chain.usdcAs(0).mint(user, parseUnits(String(amount), 6));
   const bal = await chain.usdcAs(0).balanceOf(user);

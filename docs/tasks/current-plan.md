@@ -47,9 +47,11 @@ with the last full roadmap audit at [2026-08-18](../history/2026-08-18-verex-his
 wave 2 UMA work at [2026-08-05](../history/2026-08-05-verex-history.md) /
 [2026-08-06](../history/2026-08-06-verex-history.md).
 
-**Next step:** [W1](#w1) — J2's phase 0. It must land before [W6](#w6) opens the exchange to
-external makers, because W1's fresh seed wipes staging's trade rows and would take an agent's
-journal with it.
+**Next step (revised 2026-08-25):** [W6](#w6) — J2's phase 1, and it is **not** gated on W1. The
+re-seed rule says W1 before the first *staging* run, not before W6 is built; local work runs on
+`anvil` against the mock. W1 moved to J2 phase 6. Worth running W1's **smoke probe** early though —
+one `initialize` on the staging adapter with Sepolia WETH — because W1 is the only item here that
+has never worked.
 
 ## Roadmap status <a id="roadmap"></a>
 <sub>[↑ TOC](#toc)</sub>
@@ -92,17 +94,25 @@ jay picked the cross-repo **J2** track. Verex's share of it, in order: **W1 → 
 recommendation on the table had been W1 alone; J2 keeps W1 first for a **different and stronger
 reason** than the one originally given — see the sequencing note in W1 below.
 
-### 1) W1 — finish wave 3: prove UMA on live Sepolia · **ACTIVE, J2 phase 0** · ~1–2d <a id="w1"></a>
+### 1) W1 — finish wave 3: prove UMA on live Sepolia · **J2 phase 6** · ~1–2d <a id="w1"></a>
 
 **Why now:** the adapter is deployed against the real oracle and has never answered anything. Until
 one market resolves through it, S6 is partial and **A5** — the MEDIUM-severity operator-SPOF, the
 roadmap's biggest trust gain — stays open on a technicality that is one afternoon wide.
 
-**Why it must come *before* W6, not after** (found while designing J2, 2026-08-21): the obvious
-reason is that an agent cannot redeem from a market that never resolves. The real reason is the
-**fresh seed** — it deletes staging's `Trade`/`PricePoint`/`Outcome`/`Market` rows, so re-seeding
-*after* an external agent has been trading leaves its journal citing rows that no longer exist.
-Re-seed first, then open the door.
+**Why it must come before the first *staging* run — revised 2026-08-25.** The 08-21 reading was
+"W1 before W6". The constraint is narrower than that: the **fresh seed** deletes staging's
+`Trade`/`PricePoint`/`Outcome`/`Market` rows, so re-seeding *after* an external agent has traded
+**on staging** leaves its journal citing rows that no longer exist. That says nothing about local
+work. W6 and all of J2's rabbit-side phases run on `anvil` against `MockOptimisticOracleV2`, which
+resolves instantly and can be wiped by `./scripts/reset.sh` at will — so **W6 is built first and
+W1 lands immediately before staging is used for real** (J2 phase 6). Testnet testing gets redone at
+the end regardless; doing it early would be doing it twice.
+
+**Pulled forward instead — the smoke probe (minutes).** W1 is the only item here that has never
+worked, and what it depends on belongs to a contract verex did not write. One `initialize` on the
+staging adapter with Sepolia WETH answers the only question that can genuinely surprise: *does the
+live oracle accept a request from this adapter at all?* Run it early, in parallel with anything.
 
 **One addition to W1's scope, owed to J2 rather than to W1 itself:** the fresh seed should include
 **at least one short-dated UMA market** — something that can plausibly resolve inside a demo
@@ -114,11 +124,43 @@ recoverable on undisputed settlement).
 expected for staging, but it must be a conscious call. Prod is untouched. Also expect a **one-time
 price jump** on already-traded markets as LMSR centres re-derive from inventory rather than last
 print — intended, not a bug.
+**The steps, in order** (moved here from rabbit's plan 2026-08-25 — W1 is verex's item, so its
+execution detail lives here and the cross-repo plan links to it):
+
+| # | Step | Watch for |
+|---|---|---|
+| 1 | **Fund the reward token.** `deposit()` on Sepolia WETH `0x7b79995e…98E7f9`; make sure the adapter holds it / has approval for the reward | **MockUSDC will not work** — it is not on UMA's `AddressWhitelist`, and `UmaCtfAdapter`'s own `@param rewardToken` docblock says so. Whether `reward: 0` sidesteps the whitelist entirely is **unverified** — check it during the smoke probe |
+| 2 | **Fresh staging seed** including **≥1 short-dated UMA market** — pass a small `liveness` to `initialize` (`0` keeps UMA's 7200s default) | This is the step that deletes `Trade`/`PricePoint`/`Outcome`/`Market`. Nothing an external agent has done on staging survives it — hence "before the first staging run". Expect the one-time LMSR price jump noted above |
+| 3 | **Propose** an answer, posting the bond | Real UMA charges a **final fee** per currency on top of the bond (0.001 WETH here); the mock's is zero, so a bond that works on anvil can be short here |
+| 4 | **Wait out liveness** — real wall-clock time, no `evm_increaseTime` | The reason J2's R-G polls instead of awaiting inline |
+| 5 | **Settle** — the adapter's `resolve` calls `settleAndGetPrice` and copies the price onto the CTF condition | The adapter has no discretion. If the result is wrong, the oracle said so |
+| 6 | **Winner redeems** — CTF `redeemPositions`, signed by the **holder** | Needs a little Sepolia ETH on the holder. Trading costs an external maker nothing; only this leg does |
+| 7 | **Close A5** in the audit tracker, and let the CD workflow perform the staging deploy rather than doing it by hand ([V1](../features/README.md#v1)) | — |
+
+**Four ways the mock is more permissive than the live oracle** — every one of them passes on anvil
+and can fail here:
+
+| | `MockOptimisticOracleV2` | UMA on Sepolia |
+|---|---|---|
+| **Collateral** | `requestPrice` just does a `transferFrom` — no check | Reward token must be on UMA's `AddressWhitelist`. **MockUSDC is not**; Sepolia WETH `0x7b79995e…98E7f9` is. `UmaCtfAdapter`'s own docblock says so. Whether `reward: 0` sidesteps it is **unverified** |
+| **Final fee** | zero — the only stake is the bond | charged per currency on top of the bond, so locally-correct bond amounts can be wrong |
+| **Liveness** | `DEFAULT_LIVENESS` 7200s, skippable with `evm_increaseTime` | real wall-clock time. Any code that awaits settlement inline passes locally and hangs here |
+| **Disputes** | an on-chain jury: `vote` / `finalizeVote`, settles immediately | escalates to the DVM — a ~2-day staked commit/reveal round testnet does not reliably provide |
+
+**Take the undisputed path.** Following from the last row: the dispute branch is **not walkable on
+Sepolia**, which is exactly why the mock's jury exists. Propose → let liveness expire → settle. Do
+not design the demo around a dispute being resolved.
+
 **Done when:** one market resolved end-to-end by the live adapter with a winner redeeming, A5
 closed in the audit tracker, and the staging deploy performed by the CD workflow itself rather
 than by hand ([V1](../features/README.md#v1)).
 
 ### 2) W6 — accept a counterparty verex does not custody · **ACTIVE, J2 phase 1** · ~2–3d <a id="w6"></a>
+
+> **Status 2026-08-26: W6.1–W6.4 are built** on branch `claude/j2-phase-1-2` (uncommitted).
+> The consumer side landed too — rabbit's agent signs CTF orders with `@verex/sdk` and reads its
+> own wallet by address. W6.5 below is still open. Walkthrough: rabbit's
+> `docs/tasks/current-plan.md`, section *Built so far*.
 
 **Why now:** J2's agent holds its own key, by design — that was the whole point of jay's call that
 the agent key must not live on verex's server. So the exchange has to accept an order it did not
@@ -127,19 +169,37 @@ real address), `signedOrder` (Json) and a unique `orderHash`; `buildSignedOrder`
 client's behalf* with `account(index)`. Accepting an external order is mostly **removing that
 step**.
 
+> **That last sentence was wrong, and building it proved so (2026-08-25).** There are *two* signing
+> moments, not one. Resting limit orders are indeed just a deletion. But the **taker leg at
+> settlement** was signed *per fill*, for amounts that only exist after matching — a client cannot
+> pre-sign those. The fix was already in the contract: `matchOrders` takes `takerFillAmount`
+> **separately** from the order, so one client signature for the full size settles each fill
+> partially. Per-fill signing was possible only because the server held the key; the exchange never
+> required it.
+
 | | Item | Detail |
 |---|---|---|
 | **W6.1** | External signed orders | `POST /orders` and `POST /trade` accept a client-supplied `SignedOrder` with an arbitrary `maker`. Verify EIP-712 server-side and fail fast; the Exchange re-verifies at match. Migration: `Order.makerIndex` nullable |
-| **W6.2** | Funding stops being the API's job | `ensureFunds` faucets and approves *on behalf of* the maker — impossible for a key we do not hold. For external makers it **reads and rejects**: insufficient balance or allowance is a 400, not something the server silently fixes. Add an address-scoped faucet for testnet convenience |
+| **W6.2** | Funding stops being the API's job | `ensureFunds` faucets and approves *on behalf of* the maker — impossible for a key we do not hold. For external makers it **reads and rejects**: insufficient balance or allowance is a 400, not something the server silently fixes. Add an address-scoped faucet for testnet convenience. **Note (2026-08-26):** that faucet turned out to have a second consumer — rabbit funds the *owner's smart account* with it before the agent draws its mandate, so the address it funds is often not a trader at all |
 | **W6.3** | Address-scoped reads | `/wallet/:address` — balance, positions, open orders, redeems, history. Today all `/wallet/:index` |
-| **W6.4** | External redeem | `POST /redeem` by address, signed by the holder. Note the asymmetry: **trading costs an external maker no gas** (`book.ts:694` — the operator sends `matchOrders`), but **redeeming does**, since CTF `redeemPositions` must come from the position holder |
+| **W6.4** | External redeem | Verex holds no key for the holder, so it **cannot send** `redeemPositions` — the endpoint records instead of executing. The holder redeems for itself and reports the tx; verex verifies the receipt's `PayoutRedemption` (redeemer + conditionId) before writing the REDEEM row. `/config` gained `ctf` + `usdc` so the holder can build the call. Note the asymmetry: **trading costs an external maker no gas** (`book.ts:694` — the operator sends `matchOrders`), but **redeeming does** |
+
+**W6.5 — the gap W6 creates, still open (2026-08-25).** Funds are checked **at placement**.
+A demo wallet cannot betray that check because verex holds its key; an external maker can — place
+a resting limit order, withdraw the USDC, and leave a book entry that looks live and can never
+settle. Two sizes of fix: **re-check funds at match time** (cheap, inside the existing
+transaction), or let [W5](#w5) catch it after the fact. Not fixed yet — recorded so it is a
+decision rather than a surprise. Also the reason [V3.2](../features/README.md#v3)'s drop rationale
+no longer holds: *"the DB is written only by the API"* stops being true here.
 
 **Gate:** none technically. Worth deciding **O6** in the seam plan
 (`rabbit/docs/tasks/current-plan.md`) — whether the agent trades against staging or a dedicated
 environment — before external rows start landing in staging's DB.
 **Done when:** a wallet verex has never heard of funds itself, signs an order, fills against the
-operator's LMSR ladder, and reads its own position back — with **no `accountIndex` anywhere in the
-exchange path**.
+operator's LMSR ladder, and reads its own position back — with **no `accountIndex` required in the
+external-maker path**. Not "none anywhere": index 0 **is** the operator's LMSR maker, the
+counterparty an external order fills against, and `Order.makerIndex` becomes *nullable* rather than
+removed — the demo wallets keep trading unchanged. W6 is additive.
 
 ### 3) W7 — `packages/mcp-server` · **queued, J2 phase 5** · ~1–2d <a id="w7"></a>
 
@@ -180,7 +240,7 @@ now, Datadog later), so this is a config choice, not a rewrite.
 **Done when:** one settled trade produces a single trace spanning API → ChainJob → chain, and the
 metric-cardinality rule in the doc is respected.
 
-### 7) W5 — read-only DB⇄chain consistency checker · ~1d
+### 7) W5 — read-only DB⇄chain consistency checker · ~1d <a id="w5"></a>
 
 **Why now:** the reframing that killed the indexer ([V3.2](../features/README.md#v3)) said the
 real value is *observability*, cheaply had: walk recent trades, compare DB against chain, report
