@@ -4,7 +4,7 @@
 // ChainJob. The worker is strictly FIFO, so a redeem queued after a
 // resolve can never hit the chain before the payouts are reported.
 
-import { formatUnits, type Hex } from "viem";
+import { formatUnits, getAddress, parseEventLogs, type Hex } from "viem";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { account, loadChain } from "./chain";
@@ -322,6 +322,104 @@ registerHandler("RESOLVE", {
 export interface RedeemRequest {
   slug: string;
   accountIndex: number;
+}
+
+/// V-D: an external holder redeems for itself. `redeemPositions` must come
+/// from the position holder, so verex — which holds no key for `address` —
+/// cannot send it. The endpoint therefore records rather than executes: the
+/// holder reports the transaction it already sent, and verex verifies the
+/// receipt before writing anything.
+export interface ExternalRedeemRequest {
+  slug: string;
+  address: string;
+  txHash: string;
+}
+
+/// The `PayoutRedemption` event is the whole verification. It is emitted by
+/// the CTF itself, so the reporter cannot forge it, and it carries the three
+/// things that matter: who redeemed, which condition, and how much came out.
+/// The SDK's `IConditionalTokensAbi` is function-only, hence the fragment.
+const payoutRedemptionAbi = [
+  {
+    type: "event",
+    name: "PayoutRedemption",
+    inputs: [
+      { name: "redeemer", type: "address", indexed: true },
+      { name: "collateralToken", type: "address", indexed: true },
+      { name: "parentCollectionId", type: "bytes32", indexed: true },
+      { name: "conditionId", type: "bytes32", indexed: false },
+      { name: "indexSets", type: "uint256[]", indexed: false },
+      { name: "payout", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+/// Record a redemption an external holder already performed. Verifies, in
+/// order: the market resolved, the receipt succeeded, the CTF emitted a
+/// `PayoutRedemption` in it, and that event names this redeemer and this
+/// market's condition. Only then does a REDEEM row appear.
+///
+/// Idempotent on `txHash` — reporting the same transaction twice records once.
+export async function recordExternalRedeem(
+  req: ExternalRedeemRequest,
+): Promise<{ slug: string; usdcReceived: number; txHash: string; recorded: boolean }> {
+  const chain = await loadChain();
+  if (chain.chainId === 0) throw httpError("redeem is disabled in this environment", 400);
+  const holder = getAddress(req.address);
+  const txHash = req.txHash as Hex;
+
+  const market = await prisma.market.findUnique({ where: { slug: req.slug }, include: { outcomes: true } });
+  if (!market) throw httpError("market not found", 404);
+  if (market.status !== "RESOLVED") throw httpError("market is not resolved yet", 400);
+
+  const already = await prisma.trade.findFirst({
+    where: { marketId: market.id, user: holder, side: "REDEEM", txHash },
+    select: { usdcAmount: true },
+  });
+  if (already) {
+    return { slug: market.slug, usdcReceived: Number(already.usdcAmount), txHash, recorded: false };
+  }
+
+  const receipt = await chain.publicClient.getTransactionReceipt({ hash: txHash });
+  if (receipt.status !== "success") throw httpError("that transaction reverted", 400);
+
+  const events = parseEventLogs({
+    abi: payoutRedemptionAbi,
+    logs: receipt.logs.filter((l) => getAddress(l.address) === getAddress(chain.ctfAddr)),
+  });
+  const redemption = events.find(
+    (e) =>
+      getAddress(e.args.redeemer) === holder &&
+      e.args.conditionId.toLowerCase() === market.conditionId.toLowerCase(),
+  );
+  if (!redemption) {
+    throw httpError(`no PayoutRedemption by ${holder} for this market's condition in ${txHash}`, 400);
+  }
+
+  const payout = Number(formatUnits(redemption.args.payout, 6));
+  const winning = market.outcomes.find((o) => o.id === market.resolvedOutcomeId);
+  if (!winning) throw httpError("market has no resolved outcome", 400);
+
+  // One row, for the winning outcome. The demo-wallet path snapshots every
+  // held outcome *before* burning, so it can also record the losing side at
+  // payout 0. Here the burn already happened and the event carries only the
+  // total, so a losing-side holding is not reconstructable after the fact —
+  // a real difference in what the history shows, not a rounding detail.
+  await prisma.trade.create({
+    data: {
+      marketId: market.id,
+      outcomeId: winning.id,
+      user: holder,
+      side: "REDEEM",
+      usdcAmount: payout,
+      tokenAmount: payout, // winning tokens pay $1 each
+      price: 1,
+      txHash,
+      settlement: "CONFIRMED",
+    },
+  });
+
+  return { slug: market.slug, usdcReceived: payout, txHash, recorded: true };
 }
 
 export interface RedeemResult {

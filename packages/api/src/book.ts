@@ -9,10 +9,11 @@
 // later); IOC/market taker orders never rest and are signed at settlement.
 
 import { randomBytes } from "node:crypto";
-import { parseUnits, formatUnits } from "viem";
+import { parseUnits, formatUnits, getAddress } from "viem";
 import type { Prisma } from "@prisma/client";
 import {
   hashOrder,
+  recoverOrderSigner,
   signOrder,
   Side,
   SignatureType,
@@ -40,7 +41,14 @@ export interface PlaceOrderRequest {
   slug: string;
   outcome: string; // outcome label ("Yes" | "No")
   side: "BUY" | "SELL";
-  accountIndex: number;
+  /// Demo-wallet path: verex holds the key and signs on the maker's behalf.
+  /// Mutually exclusive with `signedOrder`.
+  accountIndex?: number;
+  /// External path (V-A): the client signed its own order and verex holds no
+  /// key for `maker`. **Limit orders only** — a market order would need the
+  /// client to sign worst-case terms, and choosing that bound is the client's
+  /// slippage policy, not the server's.
+  signedOrder?: SignedOrder;
   type: "market" | "limit";
   /// market BUY: USDC budget. market SELL: tokens. limit: tokens.
   amount: number;
@@ -72,7 +80,7 @@ export interface PlaceOrderResult {
 
 interface FillPlan {
   makerOrderId: string;
-  makerIndex: number;
+  makerIndex: number | null;
   maker: string;
   makerIsMM: boolean;
   price: number;
@@ -185,6 +193,120 @@ async function buildSignedOrder(args: {
   return signOrder(order, domain, makeWalletClient(args.index));
 }
 
+/// The maker/taker amounts a limit order at (`side`, `sizeE6`, `price`) must
+/// carry. One formula, used both to build verex's own orders and to check a
+/// client's — so a mismatch means the client signed *different terms* than the
+/// ones it is asking the book to record.
+function limitAmountsE6(side: "BUY" | "SELL", sizeE6: bigint, price: number) {
+  const priceE6 = parseUnits(price.toFixed(6), 6);
+  const usdcE6 = side === "BUY" ? ceilDiv(sizeE6 * priceE6, E6) : (sizeE6 * priceE6) / E6;
+  return {
+    usdcE6,
+    makerAmount: side === "BUY" ? usdcE6 : sizeE6,
+    takerAmount: side === "BUY" ? sizeE6 : usdcE6,
+  };
+}
+
+/// V-A: check a client-supplied order before it enters the book.
+///
+/// Two things are being established, and they are different. First that the
+/// signature is real — recovered from the *same* `ORDER_TYPES` the SDK signs
+/// with, never a second copy. Second that the signed terms are the terms the
+/// request describes: the Exchange re-verifies the signature at match time, but
+/// nothing on-chain would notice a book row that quietly disagreed with the
+/// order backing it.
+async function verifyExternalOrder(args: {
+  order: SignedOrder;
+  tokenId: bigint;
+  side: "BUY" | "SELL";
+  sizeE6: bigint;
+  price: number;
+  chainId: number;
+  exchangeAddr: Address;
+}): Promise<void> {
+  const o = args.order;
+  const bad = (why: string) => httpError(`signedOrder ${why}`, 400);
+
+  if (o.signatureType !== SignatureType.EOA) throw bad("must use signatureType EOA");
+  if (o.maker.toLowerCase() !== o.signer.toLowerCase()) throw bad("maker and signer must match for an EOA order");
+  if (o.taker !== "0x0000000000000000000000000000000000000000") throw bad("must not name a taker");
+  if (o.tokenId !== args.tokenId) throw bad("tokenId does not match the requested outcome");
+  if (o.side !== (args.side === "BUY" ? Side.BUY : Side.SELL)) throw bad("side does not match the request");
+  if (o.feeRateBps !== 0n) throw bad("feeRateBps must be 0");
+  if (o.expiration !== 0n && o.expiration <= BigInt(Math.floor(Date.now() / 1000))) {
+    throw bad("has already expired");
+  }
+
+  const want = limitAmountsE6(args.side, args.sizeE6, args.price);
+  if (o.makerAmount !== want.makerAmount || o.takerAmount !== want.takerAmount) {
+    throw bad(
+      `amounts do not match amount/price (signed ${o.makerAmount}/${o.takerAmount}, ` +
+        `expected ${want.makerAmount}/${want.takerAmount})`,
+    );
+  }
+
+  const recovered = await recoverOrderSigner(o, {
+    chainId: args.chainId,
+    verifyingContract: args.exchangeAddr,
+  });
+  if (recovered.toLowerCase() !== o.signer.toLowerCase()) {
+    throw bad(`signature recovers to ${recovered}, not ${o.signer}`);
+  }
+}
+
+/// V-B: the funds check for a maker verex holds no key for. `ensureFunds`
+/// faucets and approves *on behalf of* the maker, which is only possible while
+/// the server holds the key. Here the server can only look: an unfunded or
+/// unapproved external maker is a 400, not something the server silently fixes
+/// by minting into someone else's wallet.
+async function checkExternalFunds(args: {
+  user: Address;
+  side: "BUY" | "SELL";
+  usdcE6: bigint;
+  tokensE6: bigint;
+  tokenId: bigint;
+  outcomeLabel: string;
+}): Promise<void> {
+  const chain = await loadChain();
+  if (args.side === "BUY") {
+    const usdc = chain.usdcAs(0);
+    const balance = await usdc.balanceOf(args.user);
+    if (balance < args.usdcE6) {
+      throw httpError(
+        `insufficient USDC: have ${formatUnits(balance, 6)}, need ${formatUnits(args.usdcE6, 6)}. ` +
+          `Fund ${args.user} first (POST /faucet on testnet).`,
+        400,
+      );
+    }
+    const allowance = await usdc.allowance(args.user, chain.exchangeAddr);
+    if (allowance < args.usdcE6) {
+      throw httpError(
+        `insufficient USDC allowance for the exchange: have ${formatUnits(allowance, 6)}, ` +
+          `need ${formatUnits(args.usdcE6, 6)}. Approve ${chain.exchangeAddr} from ${args.user}.`,
+        400,
+      );
+    }
+  } else {
+    const bal = await chain.ctAs(0).balanceOf(args.user, args.tokenId);
+    if (bal < args.tokensE6) {
+      throw httpError(`insufficient ${args.outcomeLabel} balance (${formatUnits(bal, 6)})`, 400);
+    }
+    const approved = await chain.publicClient.readContract({
+      address: chain.ctfAddr,
+      abi: isApprovedForAllAbi,
+      functionName: "isApprovedForAll",
+      args: [args.user, chain.exchangeAddr],
+    });
+    if (!approved) {
+      throw httpError(
+        `${args.user} has not approved the exchange for CTF transfers — ` +
+          `call setApprovalForAll(${chain.exchangeAddr}, true) first.`,
+        400,
+      );
+    }
+  }
+}
+
 /// Ensure the wallet can actually settle this order later: faucet+approve
 /// for BUY notional, token balance + operator approval for SELL. Chain ops
 /// — happens BEFORE the matching transaction. Pre-warmed wallets (#1-5)
@@ -233,8 +355,25 @@ async function ensureFunds(args: {
 }
 
 export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResult> {
-  const isMM = req.accountIndex === 0;
-  if (!isMM && (req.accountIndex < 1 || req.accountIndex > 9)) {
+  // Two ways in, mutually exclusive: a demo wallet verex signs for, or an
+  // order the client already signed itself (V-A).
+  const external = req.signedOrder !== undefined;
+  if (external && req.accountIndex !== undefined) {
+    throw httpError("send accountIndex or signedOrder, not both", 400);
+  }
+  if (!external && req.accountIndex === undefined) {
+    throw httpError("accountIndex or signedOrder is required", 400);
+  }
+  if (external && req.type !== "limit") {
+    throw httpError("external orders must be limit orders — a market order would need the client to sign worst-case terms", 400);
+  }
+  // Over HTTP the order arrives as JSON, so every uint256 is a string. Parse
+  // it back through the same reader the stored form uses — one place that
+  // knows the wire shape, not two.
+  const clientOrder = external ? deserializeOrder(req.signedOrder) : null;
+  const accountIndex = external ? null : req.accountIndex!;
+  const isMM = accountIndex === 0;
+  if (!external && !isMM && (accountIndex! < 1 || accountIndex! > 9)) {
     throw httpError("accountIndex must be 1..9 (0 is the operator MM)", 400);
   }
   if (!(req.amount > 0) || req.amount > 1_000_000) throw httpError("amount must be > 0 and sane", 400);
@@ -261,7 +400,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
   const outcome = market.outcomes.find((o) => o.label === req.outcome);
   if (!outcome) throw httpError("outcome not found", 404);
   const tokenId = BigInt(outcome.tokenId);
-  const user = account(req.accountIndex).address as Address;
+  const user = external ? getAddress(clientOrder!.maker) : (account(accountIndex!).address as Address);
 
   // Worst-case notional for the funds check (market BUY: the budget itself).
   const limitPrice = req.type === "limit" ? req.price! : null;
@@ -275,16 +414,35 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
   // The operator MM is pre-approved and solvent by construction (seed mints
   // its buffer + inventory) — skipping the per-order chain reads keeps a
   // 20-order re-quote cheap.
-  const faucetMinted = isMM
-    ? false
-    : await ensureFunds({
-        index: req.accountIndex,
-        side: req.side,
-        usdcE6: budgetE6,
-        tokensE6: sizeE6,
-        tokenId,
-        outcomeLabel: outcome.label,
-      });
+  let faucetMinted = false;
+  if (external) {
+    await verifyExternalOrder({
+      order: clientOrder!,
+      tokenId,
+      side: req.side,
+      sizeE6,
+      price: limitPrice!,
+      chainId: chain.chainId,
+      exchangeAddr: chain.exchangeAddr,
+    });
+    await checkExternalFunds({
+      user,
+      side: req.side,
+      usdcE6: budgetE6,
+      tokensE6: sizeE6,
+      tokenId,
+      outcomeLabel: outcome.label,
+    });
+  } else if (!isMM) {
+    faucetMinted = await ensureFunds({
+      index: accountIndex!,
+      side: req.side,
+      usdcE6: budgetE6,
+      tokensE6: sizeE6,
+      tokenId,
+      outcomeLabel: outcome.label,
+    });
+  }
 
   // ── Match + persist, all inside one row-locked transaction ─────────────
   const result = await prisma.$transaction(async (tx) => {
@@ -397,19 +555,19 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
     let signedJson: Prisma.InputJsonObject | undefined;
     let orderHash: string | undefined;
     if (req.type === "limit") {
-      const usdcAtLimitE6 =
-        req.side === "BUY"
-          ? ceilDiv(sizeE6 * parseUnits(limitPrice!.toFixed(6), 6), E6)
-          : (sizeE6 * parseUnits(limitPrice!.toFixed(6), 6)) / E6;
-      const signed = await buildSignedOrder({
-        index: req.accountIndex,
-        tokenId,
-        side: req.side,
-        tokensE6: sizeE6,
-        usdcE6: usdcAtLimitE6,
-        chainId: chain.chainId,
-        exchangeAddr: chain.exchangeAddr,
-      });
+      // External orders arrive already signed — verified above, so the stored
+      // JSON is the client's own order, not a re-derivation of it.
+      const signed = external
+        ? clientOrder!
+        : await buildSignedOrder({
+            index: accountIndex!,
+            tokenId,
+            side: req.side,
+            tokensE6: sizeE6,
+            usdcE6: limitAmountsE6(req.side, sizeE6, limitPrice!).usdcE6,
+            chainId: chain.chainId,
+            exchangeAddr: chain.exchangeAddr,
+          });
       signedJson = serializeOrder(signed);
       orderHash = hashOrder(signed, { chainId: chain.chainId, verifyingContract: chain.exchangeAddr });
     }
@@ -419,7 +577,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
         marketId: market.id,
         outcomeId: outcome.id,
         maker: user,
-        makerIndex: req.accountIndex,
+        makerIndex: accountIndex,
         side: req.side,
         price: limitPrice ?? (fills.length ? fills[fills.length - 1]!.price : 0),
         size: takerSize || Number(formatUnits(sizeE6, 6)),
@@ -528,7 +686,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
   if (result.fills.length > 0) {
     jobId = await enqueueJob("SETTLE_MATCH", {
       takerOrderId: result.takerOrder.id,
-      takerIndex: req.accountIndex,
+      takerIndex: accountIndex,
       takerSide: req.side,
       tokenId: outcome.tokenId,
       marketId: market.id,
@@ -646,7 +804,7 @@ export async function openOrders(accountIndex: number, slug?: string) {
 
 interface SettlePayload {
   takerOrderId: string;
-  takerIndex: number;
+  takerIndex: number | null; // null = external maker; use the stored signature
   takerSide: "BUY" | "SELL";
   tokenId: string;
   marketId: string;
@@ -679,19 +837,37 @@ registerHandler("SETTLE_MATCH", {
       const makerRow = await prisma.order.findUniqueOrThrow({ where: { id: fill.makerOrderId } });
       const makerSigned = deserializeOrder(makerRow.signedOrder);
 
-      // Taker sub-order at the maker's exact price for this fill's amounts.
-      const takerSigned = await buildSignedOrder({
-        index: p.takerIndex,
-        tokenId: BigInt(p.tokenId),
-        side: p.takerSide,
-        tokensE6: BigInt(fill.tokensE6),
-        usdcE6: BigInt(fill.usdcE6),
-        chainId: chain.chainId,
-        exchangeAddr: chain.exchangeAddr,
-      });
+      // Two ways to produce the taker leg, and they differ in *why*.
+      //
+      // Demo wallet: verex holds the key, so it mints a sub-order at the
+      // maker's exact price for this fill's amounts and fills it whole.
+      //
+      // External maker (V-A): verex holds no key. The client signed one order
+      // for its full size at its own limit price, and `matchOrders` takes the
+      // fill amount separately from the order — so the same signature settles
+      // every fill it crosses, partially. `takerFillAmount` is in the taker
+      // order's makerAmount units: USDC for a BUY, tokens for a SELL.
+      let takerSigned: SignedOrder;
+      let takerFillE6: bigint;
+      if (p.takerIndex === null) {
+        const takerRow = await prisma.order.findUniqueOrThrow({ where: { id: p.takerOrderId } });
+        takerSigned = deserializeOrder(takerRow.signedOrder);
+        takerFillE6 = p.takerSide === "BUY" ? BigInt(fill.usdcE6) : BigInt(fill.tokensE6);
+      } else {
+        takerSigned = await buildSignedOrder({
+          index: p.takerIndex,
+          tokenId: BigInt(p.tokenId),
+          side: p.takerSide,
+          tokensE6: BigInt(fill.tokensE6),
+          usdcE6: BigInt(fill.usdcE6),
+          chainId: chain.chainId,
+          exchangeAddr: chain.exchangeAddr,
+        });
+        takerFillE6 = takerSigned.makerAmount;
+      }
       const txHash = await chain
         .exchangeAs(0)
-        .matchOrders(takerSigned, [makerSigned], takerSigned.makerAmount, [BigInt(fill.makerFillE6)]);
+        .matchOrders(takerSigned, [makerSigned], takerFillE6, [BigInt(fill.makerFillE6)]);
       txHashes.push(txHash);
       await prisma.trade.updateMany({
         where: { id: { in: fill.tradeIds } },

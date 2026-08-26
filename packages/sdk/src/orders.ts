@@ -1,7 +1,7 @@
-import { hashTypedData } from "viem";
+import { hashTypedData, recoverTypedDataAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Account, WalletClient } from "viem";
-import type { Hex, Order, OrderDomain } from "./types";
+import type { Address, Hex, Order, OrderDomain } from "./types";
 
 /// EIP-712 domain values fixed by Polymarket's CTFExchange constructor.
 /// `Hashing("Polymarket CTF Exchange", "1")` in CTFExchange.sol.
@@ -96,4 +96,25 @@ export async function signOrder(
   });
 
   return { ...order, signature };
+}
+
+/// Recover the address that signed an order. The counterpart to `signOrder`:
+/// the server verifying a client-supplied order has the signature but not the
+/// key, so it re-derives the signer from the same typed data and compares.
+///
+/// A mismatch means the order was signed over *different* terms than the ones
+/// presented — the failure mode that a second, drifted copy of ORDER_TYPES
+/// produces, and the reason this lives here rather than being re-implemented
+/// per consumer.
+export async function recoverOrderSigner(order: Order, domain: OrderDomain): Promise<Address> {
+  if (!order.signature || order.signature === "0x") {
+    throw new Error("recoverOrderSigner: order has no signature");
+  }
+  return recoverTypedDataAddress({
+    domain: domainOf(domain),
+    types: ORDER_TYPES,
+    primaryType: "Order",
+    message: messageOf(order),
+    signature: order.signature,
+  });
 }

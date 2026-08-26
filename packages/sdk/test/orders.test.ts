@@ -4,6 +4,7 @@ import { recoverTypedDataAddress } from "viem";
 
 import {
   hashOrder,
+  recoverOrderSigner,
   signOrder,
   Side,
   SignatureType,
@@ -115,5 +116,33 @@ describe("signOrder", () => {
   it("accepts a raw private-key signer", async () => {
     const signed = await signOrder(ORDER, DOMAIN, { privateKey: ANVIL_PK_0 });
     expect(signed.signature).not.toBe("0x");
+  });
+});
+
+// `recoverOrderSigner` is what the API uses to admit a client-signed order it
+// holds no key for, so these are the two cases that matter: a real signature
+// recovers to its signer, and terms altered after signing do not.
+describe("recoverOrderSigner", () => {
+  const domain: OrderDomain = { chainId: CHAIN_ID, verifyingContract: EXCHANGE_ADDRESS };
+  const key = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as const;
+  const account = privateKeyToAccount(key);
+
+  it("recovers the address that signed the order", async () => {
+    const signed = await signOrder({ ...ORDER, maker: account.address, signer: account.address }, domain, account);
+    const recovered = await recoverOrderSigner(signed, domain);
+    expect(recovered.toLowerCase()).toBe(account.address.toLowerCase());
+  });
+
+  it("does not recover the signer once the terms are altered", async () => {
+    const signed = await signOrder({ ...ORDER, maker: account.address, signer: account.address }, domain, account);
+    // A taker paying less than was signed for — the tamper the server must
+    // catch, and the one a drifted second copy of ORDER_TYPES would produce.
+    const tampered = { ...signed, makerAmount: signed.makerAmount - 1n };
+    const recovered = await recoverOrderSigner(tampered, domain);
+    expect(recovered.toLowerCase()).not.toBe(account.address.toLowerCase());
+  });
+
+  it("rejects an unsigned order rather than recovering nonsense", async () => {
+    await expect(recoverOrderSigner({ ...ORDER, signature: "0x" }, domain)).rejects.toThrow(/no signature/);
   });
 });

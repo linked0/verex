@@ -17,7 +17,7 @@ export * from "./chain";
 
 // Off-chain primitives
 export { getConditionId } from "./conditions";
-export { signOrder, hashOrder } from "./orders";
+export { signOrder, hashOrder, recoverOrderSigner } from "./orders";
 
 // Contract-call helpers
 export * as ct from "./ct";

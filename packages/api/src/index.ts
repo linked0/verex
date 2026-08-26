@@ -2,8 +2,25 @@ import "dotenv/config"; // load packages/api/.env into process.env (DATABASE_URL
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
-import { walletSummary, walletHistory, faucet, type TradeRequest } from "./trade";
-import { resolveMarket, resolveMarketFromUma, resolveGroup, redeemPosition, pendingRedeems } from "./resolve";
+import { isAddress, getAddress } from "viem";
+import type { Address } from "@verex/sdk";
+import {
+  walletSummary,
+  walletSummaryByAddress,
+  walletHistory,
+  walletHistoryByAddress,
+  faucet,
+  faucetTo,
+  type TradeRequest,
+} from "./trade";
+import {
+  resolveMarket,
+  resolveMarketFromUma,
+  resolveGroup,
+  redeemPosition,
+  recordExternalRedeem,
+  pendingRedeems,
+} from "./resolve";
 import { umaLifecycle, umaPropose, umaDispute, umaVote, umaFinalize, type UmaAnswer } from "./uma-demo";
 import { startWorker } from "./worker";
 import {
@@ -34,6 +51,15 @@ app.get("/config", async () => {
     const chain = await loadChain();
     return {
       chainId: chain.chainId,
+      // The EIP-712 `verifyingContract` for order signing. An external maker
+      // cannot build the domain without it, and a local `reset.sh` deploys a
+      // fresh backbone — so this has to be read, never hardcoded.
+      exchange: chain.exchangeAddr,
+      // V-D: an external holder redeems for itself, and `redeemPositions`
+      // wants the CTF and the collateral. `conditionId` it already has from
+      // the market; the index sets for a binary condition are always [1, 2].
+      ctf: chain.ctfAddr,
+      usdc: chain.usdcAddr,
       tradingEnabled: chain.chainId !== 0,
       umaAvailable: Boolean(chain.umaAdapterAddr),
       umaAdapter: chain.umaAdapterAddr,
@@ -43,7 +69,16 @@ app.get("/config", async () => {
     };
   } catch {
     // No ChainConfig row yet (un-seeded DB) — browse-only, nothing on offer.
-    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null, umaOracleMock: false };
+    return {
+      chainId: 0,
+      exchange: null,
+      ctf: null,
+      usdc: null,
+      tradingEnabled: false,
+      umaAvailable: false,
+      umaAdapter: null,
+      umaOracleMock: false,
+    };
   }
 });
 
@@ -519,6 +554,17 @@ app.post("/markets/:slug/uma-finalize", async (req, reply) => {
 // Redeem a position in a resolved market (winner gets $1/token; one call clears both sides).
 app.post("/redeem", async (req, reply) => {
   try {
+    const body = (req.body ?? {}) as { slug?: string; accountIndex?: number; address?: string; txHash?: string };
+    // V-D: an external holder sends its own redeemPositions — verex holds no
+    // key for it — and then reports the transaction here. Same route, two
+    // meanings: "do it for me" for a demo wallet, "I did it, here is the
+    // proof" for an address verex does not custody.
+    if (body.address !== undefined || body.txHash !== undefined) {
+      if (!body.slug || !body.address || !body.txHash) {
+        return reply.status(400).send({ error: "external redeem needs slug, address and txHash" });
+      }
+      return await recordExternalRedeem({ slug: body.slug, address: body.address, txHash: body.txHash });
+    }
     return await redeemPosition(req.body as { slug: string; accountIndex: number });
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -534,9 +580,14 @@ app.post("/redeem", async (req, reply) => {
 // operator) returns address + balance only — identity display, no
 // portfolio.
 app.get("/wallet/:index", async (req, reply) => {
-  const index = Number((req.params as { index: string }).index);
+  const raw = (req.params as { index: string }).index;
+  // V-C: the same path serves a demo-wallet index and a bare address. Two
+  // registered routes would collide — `:index` and `:address` are the same
+  // shape to the router, and whichever registered first would swallow both.
+  if (isAddress(raw)) return walletSummaryByAddress(getAddress(raw));
+  const index = Number(raw);
   if (!Number.isInteger(index) || index < 0 || index > 9) {
-    return reply.status(400).send({ error: "index must be 0..9" });
+    return reply.status(400).send({ error: "expected a demo-wallet index 0..9 or a 0x address" });
   }
   return walletSummary(index);
 });
@@ -553,9 +604,11 @@ app.get("/wallet/:index/redeems", async (req, reply) => {
 
 // Demo wallet: trade + redemption history (newest first), with realized P&L on redeems.
 app.get("/wallet/:index/history", async (req, reply) => {
-  const index = Number((req.params as { index: string }).index);
+  const raw = (req.params as { index: string }).index;
+  if (isAddress(raw)) return { history: await walletHistoryByAddress(getAddress(raw)) };
+  const index = Number(raw);
   if (!Number.isInteger(index) || index < 1 || index > 9) {
-    return reply.status(400).send({ error: "index must be 1..9" });
+    return reply.status(400).send({ error: "expected a demo-wallet index 1..9 or a 0x address" });
   }
   return { history: await walletHistory(index) };
 });
@@ -573,9 +626,19 @@ app.get("/jobs/:id", async (req, reply) => {
 
 // Demo faucet: mint test USDC to a demo wallet.
 app.post("/faucet", async (req, reply) => {
-  const { accountIndex } = (req.body ?? {}) as { accountIndex?: number };
+  const { accountIndex, address } = (req.body ?? {}) as { accountIndex?: number; address?: string };
+  // V-B: an external maker has to arrive already funded — `checkExternalFunds`
+  // will not mint into a wallet on its behalf mid-order. This is how it gets
+  // funded in the first place, and it is testnet-only by construction: mint is
+  // operator-gated on MockUSDC.
+  if (address !== undefined) {
+    if (!isAddress(address)) return reply.status(400).send({ error: "address is not a valid 0x address" });
+    const r = await faucetTo(getAddress(address) as Address);
+    notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.usdc.toFixed(2)} USDC`);
+    return r;
+  }
   if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
-    return reply.status(400).send({ error: "accountIndex must be 1..9" });
+    return reply.status(400).send({ error: "accountIndex must be 1..9, or send an address" });
   }
   const r = await faucet(accountIndex!);
   notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);

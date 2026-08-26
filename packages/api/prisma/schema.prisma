@@ -239,7 +239,7 @@ model Order {
   outcomeId   String
   outcome     Outcome     @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
   maker       String // wallet address
-  makerIndex  Int // demo wallet index (0 = operator MM)
+  makerIndex  Int? // demo wallet index (0 = operator MM); null for an external maker verex holds no key for
   side        OrderSide
   price       Decimal     @db.Decimal(10, 6) // USDC per share, 0.01..0.99
   size        Decimal     @db.Decimal(20, 6) // outcome tokens
