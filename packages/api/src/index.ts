@@ -629,20 +629,31 @@ app.post("/faucet", async (req, reply) => {
   const { accountIndex, address } = (req.body ?? {}) as { accountIndex?: number; address?: string };
   // V-B: an external maker has to arrive already funded — `checkExternalFunds`
   // will not mint into a wallet on its behalf mid-order. This is how it gets
-  // funded in the first place, and it is testnet-only by construction: mint is
-  // operator-gated on MockUSDC.
-  if (address !== undefined) {
-    if (!isAddress(address)) return reply.status(400).send({ error: "address is not a valid 0x address" });
-    const r = await faucetTo(getAddress(address) as Address);
-    notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.usdc.toFixed(2)} USDC`);
+  // funded in the first place, and it is testnet-only by construction: the
+  // token is MockUSDC, whose `mint` anyone can call.
+  //
+  // The arbitrary-address form is also how the J2 agent EOA — a wallet verex
+  // holds no key for — gets its starting balance (2026-08-27, jay).
+  //
+  // The try/catch is not decoration: `faucetTo` throws a diagnosis when the
+  // signer cannot pay gas, and a Fastify 500 would replace that sentence with
+  // "Internal Server Error" exactly when it is the only useful thing to read.
+  try {
+    if (address !== undefined) {
+      if (!isAddress(address)) return reply.status(400).send({ error: "address is not a valid 0x address" });
+      const r = await faucetTo(getAddress(address) as Address);
+      notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.usdc.toFixed(2)} USDC`);
+      return r;
+    }
+    if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
+      return reply.status(400).send({ error: "accountIndex must be 1..9, or send an address" });
+    }
+    const r = await faucet(accountIndex!);
+    notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
     return r;
+  } catch (e) {
+    return reply.status(503).send({ error: e instanceof Error ? e.message : String(e) });
   }
-  if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
-    return reply.status(400).send({ error: "accountIndex must be 1..9, or send an address" });
-  }
-  const r = await faucet(accountIndex!);
-  notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
-  return r;
 });
 
 const start = async () => {

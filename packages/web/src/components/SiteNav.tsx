@@ -2,36 +2,27 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Wallet, Droplets, BriefcaseBusiness, PlusCircle, BookText } from "lucide-react";
+import { Search, Wallet, BriefcaseBusiness, PlusCircle, BookText } from "lucide-react";
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocaleToggle } from "@/components/LocaleToggle";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
 import { VerexMark } from "@/components/VerexMark";
-import { postFaucet } from "@/lib/api";
+import { FaucetButton } from "@/components/FaucetButton";
 
 export function SiteNav() {
   const router = useRouter();
   const params = useSearchParams();
-  const { accountIndex, setAccountIndex, summary, refresh, isAdmin } = useWallet();
+  const { accountIndex, setAccountIndex, summary, isAdmin } = useWallet();
   const { t, intl } = useLocale();
-  const [minting, setMinting] = React.useState(false);
 
   const onSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const q = new FormData(e.currentTarget).get("q") as string;
     router.push(q ? `/?q=${encodeURIComponent(q)}` : "/");
-  };
-
-  const onFaucet = async () => {
-    setMinting(true);
-    await postFaucet(accountIndex);
-    await refresh();
-    setMinting(false);
   };
 
   return (
@@ -74,19 +65,7 @@ export function SiteNav() {
             <BriefcaseBusiness className="h-4 w-4 shrink-0" />
             <span className="hidden lg:inline">{t("nav.portfolio")}</span>
           </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onFaucet}
-            disabled={minting || isAdmin}
-            title={t("nav.faucetTitle")}
-            aria-label={t("nav.faucet")}
-          >
-            <Droplets className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden lg:inline">
-              {minting ? t("nav.faucetMinting") : t("nav.faucet")}
-            </span>
-          </Button>
+          <FaucetButton />
           <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
             <Wallet className="h-4 w-4 shrink-0 text-primary" />
             {/* A <select> is as wide as its widest <option>, and option text

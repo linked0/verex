@@ -49,6 +49,24 @@ pnpm --filter @verex/api seed
 [ -f packages/api/.env ] || echo "DATABASE_URL=$DATABASE_URL" > packages/api/.env
 [ -f packages/web/.env ] || echo "NEXT_PUBLIC_API_URL=http://localhost:4000" > packages/web/.env
 
+# The seed just ran as $VEREX_OPERATOR_KEY (exported above), but the API dev
+# server is started in a *different* terminal that never saw that export — it
+# reads packages/api/.env instead, and dotenv never overrides. If that file
+# pins a different key, the API signs as an account that never touched this
+# chain, holds no gas, and every operator action dies as "Insufficient funds
+# for gas * price + value" (2026-08-27, jay: the faucet). Warn rather than
+# rewrite — this file is hand-maintained and may hold a key on purpose.
+if [ -f packages/api/.env ] && grep -q '^VEREX_OPERATOR_KEY=' packages/api/.env; then
+  env_key=$(grep '^VEREX_OPERATOR_KEY=' packages/api/.env | tail -1 | cut -d= -f2- | tr -d '"'"'"' \r')
+  if [ "$env_key" != "$VEREX_OPERATOR_KEY" ]; then
+    echo
+    echo "⚠️  packages/api/.env pins a VEREX_OPERATOR_KEY that differs from the one"
+    echo "    this seed used. The API will sign as an account with no gas on this"
+    echo "    chain and every operator action (faucet, MM, resolution) will fail."
+    echo "    Comment that line out — unset derives the seeded operator."
+  fi
+fi
+
 cat <<EOF
 
 ✅ Local DB ready (10 markets seeded).

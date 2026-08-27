@@ -5,7 +5,7 @@
 import { parseUnits, formatUnits } from "viem";
 import type { Address } from "@verex/sdk";
 import { prisma } from "./db";
-import { loadChain, account } from "./chain";
+import { loadChain, account, accountAddress, sameAddress } from "./chain";
 
 /// Demo faucet: top up a user below this balance during a trade.
 const AUTO_FAUCET_USDC = 1_000;
@@ -204,15 +204,42 @@ export async function faucet(accountIndex: number, amount = AUTO_FAUCET_USDC): P
 /// V-B: mint test USDC to an arbitrary address. Testnet convenience only —
 /// an external maker has to arrive funded, and `checkExternalFunds` rejects it
 /// otherwise; this is how it gets funded in the first place without verex
-/// holding its key. MockUSDC's mint is operator-only, which is why the server
-/// can do this at all.
+/// holding its key.
+///
+/// MockUSDC's `mint` is deliberately **unpermissioned** (see MockUSDC.sol) —
+/// the server does not need to be anyone special to call it, it only needs an
+/// account with gas. That is the whole reason this is testnet-only: on a real
+/// chain there is no such token.
 export async function faucetTo(
   user: Address,
   amount = AUTO_FAUCET_USDC,
 ): Promise<{ address: string; usdc: number }> {
   const chain = await loadChain();
   if (chain.chainId === 0) return { address: user, usdc: 0 };
+  await assertSignerCanPayGas(chain);
   await chain.usdcAs(0).mint(user, parseUnits(String(amount), 6));
   const bal = await chain.usdcAs(0).balanceOf(user);
   return { address: user, usdc: Number(formatUnits(bal, 6)) };
+}
+
+/// The faucet signs as account 0. If that account holds no native token the
+/// send fails inside the RPC layer as `Insufficient funds for gas * price +
+/// value` over a raw tx blob — an error that names neither the sender nor the
+/// reason, and sent jay on a long hunt (2026-08-27). Checking first costs one
+/// `eth_getBalance` and lets the message say which address is empty and why it
+/// is probably the wrong address in the first place.
+async function assertSignerCanPayGas(chain: Awaited<ReturnType<typeof loadChain>>): Promise<void> {
+  const signer = accountAddress(0);
+  const balance = await chain.publicClient.getBalance({ address: signer });
+  if (balance > 0n) return;
+  const wrongKey = !sameAddress(signer, chain.operator);
+  throw new Error(
+    `faucet signer ${signer} holds no native token on chain ${chain.chainId}, ` +
+      "so it cannot pay gas to mint. " +
+      (wrongKey
+        ? `This chain was seeded by ${chain.operator} instead — VEREX_OPERATOR_KEY ` +
+          "in packages/api/.env points at an account that never touched it. On " +
+          "anvil, unset it: the default mnemonic derives the seeded operator."
+        : "Fund it, or restart anvil and re-run the seed."),
+  );
 }
