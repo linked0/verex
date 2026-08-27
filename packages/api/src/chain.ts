@@ -85,6 +85,12 @@ export function accountAddress(index: number): Address {
   return sdkAccountAddress(chainAccounts(), index);
 }
 
+/// Case-insensitive address compare — DB rows and viem-derived addresses are
+/// both checksummed today, but only one of them is guaranteed to be.
+export function sameAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 export function makePublicClient(): PublicClient {
   return sdkMakePublicClient(chainAccounts());
 }
@@ -158,6 +164,24 @@ export async function loadChain(): Promise<ChainCtx> {
           "at the right network.",
       );
     }
+  }
+  // The operator recorded at seed time vs the one this process actually signs
+  // as. They diverge silently and the symptom is unrecognisable: an operator
+  // that never touched this chain has no ETH, so every operator-signed tx dies
+  // as `Insufficient funds for gas * price + value` — which reads like a
+  // funding problem, not a wrong-key problem (2026-08-27, jay: the faucet).
+  //
+  // Warn rather than throw: browsing markets never signs anything, and taking
+  // the whole API down over a key that only matters for faucet/MM/resolution
+  // would turn a broken demo button into a broken site.
+  if (cfg.chainId !== 0 && !sameAddress(accountAddress(0), cfg.operator as Address)) {
+    console.warn(
+      `⚠️  Operator mismatch: this process signs as ${accountAddress(0)}, but ` +
+        `ChainConfig was seeded by ${cfg.operator}. Operator-signed actions ` +
+        "(faucet, MM inventory, resolution) will fail. Check VEREX_OPERATOR_KEY " +
+        "in packages/api/.env — on anvil, leaving it unset derives the seeded " +
+        "operator from the default mnemonic.",
+    );
   }
   const ctx: ChainCtx = {
     chainId: cfg.chainId,

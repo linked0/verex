@@ -450,6 +450,10 @@ export type ApiConfig = {
   umaAdapter: string | null;
   /// True when the oracle is the demo mock — dispute/vote controls exist only then.
   umaOracleMock?: boolean;
+  /// The MockUSDC the faucet mints. Re-deployed on every local reset, so it is
+  /// read here rather than written down anywhere (2026-08-27, jay) — the faucet
+  /// panel shows it so a wallet can be pointed at the right token.
+  usdc?: string | null;
 };
 
 export async function getConfig(): Promise<ApiConfig> {
@@ -459,7 +463,14 @@ export async function getConfig(): Promise<ApiConfig> {
     return await res.json();
   } catch {
     // An unreachable API is not a reason to offer an oracle we can't verify.
-    return { chainId: 0, tradingEnabled: false, umaAvailable: false, umaAdapter: null, umaOracleMock: false };
+    return {
+      chainId: 0,
+      tradingEnabled: false,
+      umaAvailable: false,
+      umaAdapter: null,
+      umaOracleMock: false,
+      usdc: null,
+    };
   }
 }
 
@@ -541,17 +552,30 @@ export async function getJob(jobId: string): Promise<JobInfo | null> {
   }
 }
 
-export async function postFaucet(accountIndex: number): Promise<{ usdc: number } | null> {
+/// Faucet target: a demo wallet verex holds the key for, or any address at all
+/// (the J2 agent EOA, an external maker) — the API takes both.
+export type FaucetTarget = { accountIndex: number } | { address: string };
+
+export type FaucetResult = { address: string; usdc: number } | { error: string };
+
+/// Returns the server's message on failure instead of null. The faucet is the
+/// one button whose failures are always environmental — wrong operator key, no
+/// gas, no chain — and a silent no-op turns a one-line diagnosis into an
+/// afternoon (2026-08-27).
+export async function postFaucet(target: FaucetTarget): Promise<FaucetResult> {
   try {
     const res = await fetch(`${BROWSER_API}/faucet`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ accountIndex }),
+      body: JSON.stringify(target),
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
+    const body = (await res.json().catch(() => null)) as
+      | { address?: string; usdc?: number; error?: string }
+      | null;
+    if (!res.ok) return { error: body?.error ?? `faucet failed (HTTP ${res.status})` };
+    return { address: body?.address ?? "", usdc: Number(body?.usdc ?? 0) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "faucet is unreachable" };
   }
 }
 
