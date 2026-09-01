@@ -48,6 +48,27 @@ export const RPC_URL = process.env.VEREX_RPC_URL ?? "http://127.0.0.1:8545";
 export const CHAIN_ID = Number(process.env.VEREX_CHAIN_ID ?? 31337);
 const CHAIN = CHAINS[CHAIN_ID] ?? CHAINS[31337]!;
 
+/// RPC 가 이 컴퓨터를 가리키는가.
+///
+/// **왜 chainId 로는 안 되나.** Sepolia 포크(`anvil --fork-url … --chain-id 11155111`)는
+/// 남의 체인 id 를 그대로 보고한다 — 그게 지갑과 표준 컨트랙트 주소를 쓰기 위한
+/// 전제이기도 하다. 그래서 "31337 이 아니면 실 네트워크"라는 판정은 포크에서 거짓이 된다.
+///
+/// **왜 RPC 주소로는 되나.** 127.0.0.1 뒤에 있는 것은 무엇을 주장하든 이 컴퓨터다.
+/// 아래 가드들이 지키려는 것은 "체인 이름"이 아니라 **적대자가 존재하는가**이고,
+/// loopback 노드에는 없다. 파싱 실패는 remote 로 본다 — 애매하면 닫는 쪽.
+export function isLoopbackRpc(url: string): boolean {
+  try {
+    const h = new URL(url).hostname;
+    return h === "127.0.0.1" || h === "localhost" || h === "::1" || h === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+/// 이 프로세스가 붙은 노드가 로컬인가. 포크도 포함된다.
+export const IS_LOCAL_NODE = isLoopbackRpc(RPC_URL);
+
 // Lazy on purpose: throwing here (rather than at module import) means a
 // deploy that never actually calls account(1..9) — e.g. browse-only/
 // DB-only mode — still boots. An import-time throw would take down the
@@ -55,10 +76,26 @@ const CHAIN = CHAINS[CHAIN_ID] ?? CHAINS[31337]!;
 // a demo-wallet account. Passed to the SDK as a thunk (not called here) for
 // the same reason — building an operator-key-only config must not force
 // this check for calls that never end up needing a mnemonic.
+let warnedAnvilMnemonic = false;
+
 function demoMnemonic(): string {
   const mnemonic = process.env.VEREX_DEMO_MNEMONIC;
   if (mnemonic) return mnemonic;
   if (CHAIN_ID !== 31337) {
+    // 포크(loopback + 남의 chainId)는 이 가드가 막으려는 상황이 아니다: 키를 도출할
+    // 수 있는 상대가 없고, 잔고도 이 프로세스와 함께 사라진다. 다만 **조용히 넘어가지
+    // 않는다** — 가드가 안 걸린다고 배우면 진짜 걸려야 할 때 놓친다.
+    if (IS_LOCAL_NODE) {
+      if (!warnedAnvilMnemonic) {
+        warnedAnvilMnemonic = true;
+        console.warn(
+          `⚠ VEREX_DEMO_MNEMONIC is unset and VEREX_CHAIN_ID=${CHAIN_ID} is not anvil, ` +
+            `but ${RPC_URL} is loopback — using anvil's public mnemonic for the demo wallets. ` +
+            `Set VEREX_DEMO_MNEMONIC before pointing this at a remote RPC.`,
+        );
+      }
+      return ANVIL_MNEMONIC;
+    }
     throw new Error(
       "VEREX_DEMO_MNEMONIC must be set when VEREX_CHAIN_ID points at a real " +
         "chain — anvil's default mnemonic is public, so anyone could derive " +
@@ -179,8 +216,8 @@ export async function loadChain(): Promise<ChainCtx> {
       `⚠️  Operator mismatch: this process signs as ${accountAddress(0)}, but ` +
         `ChainConfig was seeded by ${cfg.operator}. Operator-signed actions ` +
         "(faucet, MM inventory, resolution) will fail. Check VEREX_OPERATOR_KEY " +
-        "in packages/api/.env — on anvil, leaving it unset derives the seeded " +
-        "operator from the default mnemonic.",
+        "in <repo>/.env — it must be the key that ran the last reset.sh; on anvil, " +
+        "leaving it unset derives the operator from the default mnemonic.",
     );
   }
   const ctx: ChainCtx = {
