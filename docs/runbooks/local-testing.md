@@ -23,6 +23,17 @@ points a fresh-backbone deploy at **real Sepolia**, with the real operator key t
 exported alongside it. The anvil reachability check passes, because Alchemy answers
 `eth_chainId` perfectly well.
 
+> **Where the chain now lives** (2026-08-31). `VEREX_RPC_URL` and `VEREX_CHAIN_ID` moved to
+> the repo-root `.env`, and since 2026-09-01 so does `VEREX_OPERATOR_KEY` (PoC: one file beats
+> two). The API and the seed read the root file **first** and dotenv never overrides an existing
+> key, so the precedence is **shell → `<repo>/.env` → `packages/api/.env`**. `reset.sh` exports
+> every root-`.env` key it finds, so the key there is the local deployer/operator; if it is
+> absent, anvil #0 is used. For manual `forge`/`cast` work, source the one file:
+>
+> ```bash
+> set -a; source .env; set +a
+> ```
+
 ```bash
 env | grep VEREX      # must print nothing
 ```

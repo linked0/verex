@@ -16,12 +16,12 @@
 //   anvil &
 //   pnpm --filter @verex/api db:reset   (migrate reset --force + this seed)
 
-import { config as loadEnv } from "dotenv";
+import { loadLayer, logEnv } from "../src/env";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { keccak256, toHex, parseUnits } from "viem";
+import { keccak256, toHex, parseUnits, encodeFunctionData, zeroAddress } from "viem";
 import {
   createCTClient,
   createExchangeClient,
@@ -38,6 +38,8 @@ import {
   makeWalletClient,
   RPC_URL,
   CHAIN_ID,
+  isLoopbackRpc,
+  IS_LOCAL_NODE,
 } from "../src/chain";
 import { createBinaryMarketOnChain } from "../src/market-create";
 import { postLadders } from "../src/mm";
@@ -45,14 +47,17 @@ import { postLadders } from "../src/mm";
 const CONTRACTS_DIR = pathResolve(__dirname, "../../contracts");
 const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 
-loadEnv(); // packages/api/.env
+
+// 로딩 순서와 **출처 기록**은 ../src/env.ts 한 곳에 있다. import 하는 것만으로
+// <repo>/.env → packages/api/.env 두 겹이 이미 얹힌다(우선순위는 그 파일 참고).
+// 여기서는 배포 산출 주소를 위해 contracts 를 한 겹 더 얹는다.
 // USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
 // (one-time deploy outputs, not persistent API config — see docs/runbooks/
 // deploy.md §5) — but if they're saved in packages/contracts/.env
 // after a deploy, pick them up from there too. dotenv never overrides a key
 // that's already set, so anything already in packages/api/.env or the shell
 // environment still wins over this.
-loadEnv({ path: pathResolve(CONTRACTS_DIR, ".env") });
+loadLayer("packages/contracts/.env", pathResolve(CONTRACTS_DIR, ".env"));
 
 // Which deployed backbone to seed against. 'local' (the default) keeps the
 // anvil flow: env addresses or a fresh forge deploy. 'staging'/'prod' read the
@@ -544,6 +549,18 @@ async function mainDbOnly() {
 }
 
 async function main() {
+  // 시드는 컨트랙트를 **배포한다**. 어느 체인에 배포하는지가 틀리면 되돌릴 수 없으니
+  // (runbook 0번 경고: 셸에 남은 Sepolia 세션), 시작 전에 출처와 함께 찍는다.
+  logEnv("seed env", [
+    "VEREX_RPC_URL",
+    "VEREX_CHAIN_ID",
+    "VEREX_DEPLOY_TARGET",
+    "VEREX_OPERATOR_KEY",
+    "USDC_ADDR",
+    "CTF_ADDR",
+    "EXCHANGE_ADDR",
+    "SEED_DB_ONLY",
+  ]);
   if (process.env.SEED_DB_ONLY === "1") return mainDbOnly();
 
   // One nonce per seed RUN, folded into every question key. Without it the
@@ -610,9 +627,33 @@ async function main() {
   // of every conditionId it prepares, and the seed recreates those markets.
   if (DEPLOY_TARGET === "local") {
     console.log("[1b] deploying mock oracle + adapter via forge...");
+    // 가드를 넘길 때는 **넘긴다고 말한다.** 조용한 우회는 다음 사람에게 "이 가드는
+    // 원래 안 걸린다"고 착각하게 만들고, 그때가 진짜로 걸려야 할 순간일 수 있다.
+    if (isLoopbackRpc(RPC_URL) && CHAIN_ID !== 31337) {
+      console.log(
+        `     ⚠ chain ${CHAIN_ID} is not anvil, but ${RPC_URL} is loopback — ` +
+          `treating it as a local fork and passing ALLOW_REAL_CHAIN=1.`,
+      );
+    }
     const out = execSync(
       `forge script script/DeployMockOracle.s.sol --rpc-url ${RPC_URL} --broadcast`,
-      { cwd: CONTRACTS_DIR, env: { ...process.env, PATH: FOUNDRY_PATH, CTF_ADDR: backbone.ctf } },
+      {
+        cwd: CONTRACTS_DIR,
+        env: {
+          ...process.env,
+          PATH: FOUNDRY_PATH,
+          CTF_ADDR: backbone.ctf,
+          // DeployMockOracle.s.sol 은 `block.chainid == 31337` 이 아니면 거절한다 —
+          // 목 오라클을 실 네트워크에 올리지 않기 위한 가드다. 그런데 Sepolia **포크**는
+          // chainid 로 11155111 을 보고하므로 Solidity 안에서는 진짜 Sepolia 와
+          // 구별할 방법이 없다(MetaMask 도 같은 이유로 구별하지 못한다).
+          //
+          // 여기서는 구별할 수 있다: **RPC 가 loopback 이면 실 네트워크일 수 없다.**
+          // 체인 id 가 무엇을 주장하든 127.0.0.1 뒤에 있는 것은 이 컴퓨터다. 그래서
+          // 그 경우에만 가드를 넘긴다 — 원격 RPC 에서는 그대로 살아 있다.
+          ...(isLoopbackRpc(RPC_URL) ? { ALLOW_REAL_CHAIN: "1" } : {}),
+        },
+      },
     ).toString();
     const grab = (label: string) => {
       const m = out.match(new RegExp(`${label}:\\s*(0x[a-fA-F0-9]{40})`));
@@ -645,6 +686,74 @@ async function main() {
     : null;
 
   // 2. One-time exchange setup for the operator
+  // 포크에서만: 우리가 쓰는 계정에 붙어 있는 **EIP-7702 위임 코드**를 벗긴다.
+  //
+  // anvil 의 기본 계정들은 공개된 니모닉에서 나오고, 그 주소들은 실제 Sepolia 에서
+  // 수만 번 쓰였다 — 그중 누군가가 7702 로 스마트 계정 구현체를 붙여 놓았다. 포크는
+  // 그 코드를 그대로 물려받는다. 그러면 ERC-1155 는 `to.code.length > 0` 을 보고
+  // "컨트랙트다"라고 판단해 `onERC1155BatchReceived` 를 호출하고, 그 구현체에는 그
+  // 함수가 없어서 **이유 없는 revert** 가 난다. splitPosition 이 정확히 그렇게 죽었다.
+  //
+  // `to.code.length > 0` 은 "컨트랙트인가"의 완벽한 대용이었지만 7702 가 그 전제를
+  // 깼다 — chainId 가 "로컬인가"의 대용이었다가 포크에 깨진 것과 같은 모양이다.
+  //
+  // **코드가 있다고 다 벗기지는 않는다** (jay, 2026-09-01). 진짜 질문은 "코드가 있나"가
+  // 아니라 "수신 훅에 제대로 답하나"다. MetaMask 의 EIP7702StatelessDeleGator 는 답하고,
+  // 그 코드는 지갑 소유자가 ERC-7715 위임자로 쓰이려면 **있어야** 한다 — operator 키가
+  // 루트 .env 로 옮겨져 jay 의 MetaMask 계정이 account #0 이 된 순간, 무조건 벗기면
+  // 그 계정의 mandate 경로가 깨진다. 그래서 훅을 실제로 호출해 보고 답하는 것은 둔다.
+  if (IS_LOCAL_NODE && CHAIN_ID !== 31337) {
+    const used = [accountAddress(0), ...[1, 2, 3, 4, 5].map((i) => accountAddress(i))];
+    const stripped: Address[] = [];
+    const kept: Address[] = [];
+    const RECEIVER_ABI = [
+      {
+        type: "function",
+        name: "onERC1155Received",
+        stateMutability: "nonpayable",
+        inputs: [
+          { name: "operator", type: "address" },
+          { name: "from", type: "address" },
+          { name: "id", type: "uint256" },
+          { name: "value", type: "uint256" },
+          { name: "data", type: "bytes" },
+        ],
+        outputs: [{ type: "bytes4" }],
+      },
+    ] as const;
+    const probe = encodeFunctionData({
+      abi: RECEIVER_ABI,
+      functionName: "onERC1155Received",
+      args: [zeroAddress, zeroAddress, 0n, 0n, "0x"],
+    });
+    const ON_ERC1155_RECEIVED = "0xf23a6e61"; // bytes4(keccak256("onERC1155Received(address,address,uint256,uint256,bytes)"))
+    for (const a of used) {
+      const code = await pc.getCode({ address: a });
+      if (!code || code === "0x") continue;
+      const answers = await pc
+        .call({ to: a, data: probe })
+        .then((r) => Boolean(r.data?.startsWith(ON_ERC1155_RECEIVED)))
+        .catch(() => false);
+      if (answers) {
+        kept.push(a);
+        continue;
+      }
+      await (pc as any).request({ method: "anvil_setCode", params: [a, "0x"] });
+      stripped.push(a);
+    }
+    if (kept.length > 0) {
+      console.log(
+        `     · kept EIP-7702 code on ${kept.length} fork account(s) — it answers onERC1155Received: ${kept.join(", ")}`,
+      );
+    }
+    if (stripped.length > 0) {
+      console.log(
+        `     ⚠ stripped inherited EIP-7702 delegation code from ${stripped.length} fork account(s) ` +
+          `so ERC-1155 mints do not hit a broken receiver hook: ${stripped.join(", ")}`,
+      );
+    }
+  }
+
   console.log("[2] operator setup (allowlist + approvals + USDC buffer)...");
   await exchange.addOperator(operator);
   await ct.setApprovalForAll(backbone.exchange, true); // exchange pulls YES/NO on fills
@@ -880,7 +989,21 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error("seed failed:", e?.shortMessage ?? e?.message ?? e);
+    // viem 의 `shortMessage` 는 "…reverted." 까지만 말한다. **진짜 이유** — revert
+    // reason, 호출한 컨트랙트 주소, 넘긴 인자 — 는 `metaMessages` 와 cause 사슬에
+    // 들어 있다. 그걸 버리면 "splitPosition reverted" 한 줄만 남아서, 참이지만
+    // 아무 곳도 가리키지 않는 메시지가 된다(이 저장소가 이번 주에만 세 번 겪었다).
+    const parts: string[] = [e?.shortMessage ?? e?.message ?? String(e)];
+    for (const m of e?.metaMessages ?? []) parts.push(String(m));
+    let cause: any = e?.cause;
+    for (let depth = 0; cause && depth < 5; depth++) {
+      const cs = cause?.shortMessage ?? cause?.message;
+      if (cs && !parts.includes(cs)) parts.push(`caused by: ${cs}`);
+      for (const m of cause?.metaMessages ?? []) parts.push(`  ${m}`);
+      cause = cause?.cause;
+    }
+    console.error("seed failed:\n  " + parts.join("\n  "));
+    if (e?.stack) console.error("\n(stack)\n" + e.stack);
     process.exit(1);
   })
   .finally(async () => {

@@ -1,4 +1,4 @@
-import "dotenv/config"; // load packages/api/.env into process.env (DATABASE_URL) before Prisma
+import { logEnv } from "./env"; // <repo>/.env then packages/api/.env — see env.ts
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { prisma } from "./db";
@@ -657,6 +657,15 @@ app.post("/faucet", async (req, reply) => {
 });
 
 const start = async () => {
+  // 부팅 로그의 첫 줄이 "지금 어느 체인인가"여야 한다. 이 값이 틀리면 그 뒤의
+  // 모든 것이 조용히 틀리고, 그때 알고 싶은 건 값보다 **출처**다.
+  logEnv("env", [
+    "VEREX_RPC_URL",
+    "VEREX_CHAIN_ID",
+    "VEREX_DEPLOY_TARGET",
+    "DATABASE_URL",
+    "PORT",
+  ]);
   startWorker();
   await app.listen({ port: Number(process.env.PORT ?? 4000), host: "0.0.0.0" });
 };
