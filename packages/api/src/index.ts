@@ -60,6 +60,9 @@ app.get("/config", async () => {
       // the market; the index sets for a binary condition are always [1, 2].
       ctf: chain.ctfAddr,
       usdc: chain.usdcAddr,
+      // 참여자 패널(rabbit 콘솔)이 operator 잔고를 보여주려면 주소가 필요하다
+      // (jay, 2026-09-02). 주소는 비밀이 아니다 — 모든 시드 tx 의 서명자로 이미 공개다.
+      operator: chain.operator,
       tradingEnabled: chain.chainId !== 0,
       umaAvailable: Boolean(chain.umaAdapterAddr),
       umaAdapter: chain.umaAdapterAddr,
@@ -74,6 +77,7 @@ app.get("/config", async () => {
       exchange: null,
       ctf: null,
       usdc: null,
+      operator: null,
       tradingEnabled: false,
       umaAvailable: false,
       umaAdapter: null,
