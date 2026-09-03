@@ -15,6 +15,7 @@ authoritative for step-level status, and the unchecked §1.4 checkboxes below pr
 deferred now live in [Backlog](#backlog) below.
 
 ## Categories
+
 | Category | Roadmap | Doc |
 |----------|---------|-----|
 | Markets | S2 | [markets.md](markets.md) |
