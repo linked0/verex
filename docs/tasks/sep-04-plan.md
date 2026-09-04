@@ -1,5 +1,13 @@
 # Verex — Current Plan (rolling)
 
+> **Archived 2026-09-04 (KST) as a snapshot, mid-flight** — same convention as
+> [aug-03-plan.md](aug-03-plan.md) and [jul-28-plan.md](jul-28-plan.md), except this one is
+> frozen because `current-plan.md` is being handed over to the **Jayverse implementation plan**
+> (rabbit `docs/tasks/09-02-jayverse.md`), not because the work finished. State at freeze: W6
+> done and proven (W6.5 open), W7 and W1 queued, W2–W5 a menu. Links below were written for the
+> live file; read them as paths.
+
+
 > **Reset 2026-08-21 (jay).** The 2026-08-03 batch plan — CI/CD · LMSR · UMA — is archived at
 > [aug-03-plan.md](aug-03-plan.md), the same way [jul-28-plan.md](jul-28-plan.md) was before it.
 > **Waves 0–2 shipped and all five gates closed.** What did not happen is wave 3's verification
