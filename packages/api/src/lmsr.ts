@@ -69,6 +69,25 @@ export function lmsrPrices(outcomes: LmsrOutcome[], b: number): Map<string, numb
 }
 
 /**
+ * Seeded-LMSR cost C(q) − C(0): the net USDC the maker has collected by
+ * moving the book from its opening state to `q` along the curve. With the
+ * opening probabilities folded in, C(q) = b·ln(Σ p⁰ᵢ·e^(qᵢ/b)) and C(0) = 0
+ * because Σ p⁰ = 1. Used by /admin/mm for the worst-loss estimate:
+ * if outcome i wins the maker owes qᵢ and has collected C(q), so the loss is
+ * maxᵢ(qᵢ) − C(q) — an estimate, since real fills happen on the ladder, a
+ * cent or two off the curve.
+ */
+export function lmsrCost(outcomes: LmsrOutcome[], b: number): number {
+  if (outcomes.length === 0) return 0;
+  if (!(b > 0)) throw new Error(`LMSR b must be positive, got ${b}`);
+  // Same log-sum-exp shift as lmsrPrices — exp() of a few hundred overflows.
+  const logits = outcomes.map((o) => Math.log(clampOpening(o.openingPrice)) + o.netSold / b);
+  const maxLogit = Math.max(...logits);
+  const sum = logits.reduce((a, l) => a + Math.exp(l - maxLogit), 0);
+  return b * (maxLogit + Math.log(sum));
+}
+
+/**
  * Worst-case subsidy the maker can lose across a book of `n` outcomes: `b·ln(n)`.
  * This is the number that makes LMSR fundable — the operator decides up front
  * what liquidity costs, and the formula cannot exceed it.

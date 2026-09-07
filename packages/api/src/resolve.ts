@@ -9,6 +9,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { account, loadChain } from "./chain";
 import { enqueueJob, registerHandler } from "./worker";
+import { applyFundingDelta } from "./funding";
 import type { Address } from "@verex/sdk";
 
 function httpError(message: string, statusCode: number): Error {
@@ -550,6 +551,14 @@ registerHandler("REDEEM", {
         settlement: "CONFIRMED" as const,
       })),
     });
+
+    // Funding leg: a Stripe-onboarded wallet gets the payout as USDCX too —
+    // the ledger's REDEEM row closes the loop its DEPOSIT row opened. No-op
+    // for wallets without a funding account.
+    const payout = Number(held.reduce((a, h) => a + h.tokens * h.payout, 0).toFixed(6));
+    if (payout > 0) {
+      await prisma.$transaction((tx) => applyFundingDelta(tx, user, "REDEEM", payout, market.slug));
+    }
 
     return { txHashes: [txHash], usdcReceived: Number(formatUnits(after - before, 6)) };
   },

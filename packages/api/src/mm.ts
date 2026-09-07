@@ -38,9 +38,19 @@ const CENTER_MIN = 0.02;
 const CENTER_MAX = 0.98;
 const PRICE_FLOOR = 0.01;
 const PRICE_CEIL = 0.99;
+/// Hard bound for the /admin/mm spread control (bps of $1 → 500 = 5¢ total).
+/// Deliberately a constant, not config: the bound itself is not editable live.
+export const MAX_SPREAD_BPS = 500;
 
 const clampCenter = (p: number) => Math.min(CENTER_MAX, Math.max(CENTER_MIN, Number(p.toFixed(4))));
 const roundPrice = (p: number) => Number(p.toFixed(2)); // ladders quote whole cents
+
+/// Global MM switches (/admin/mm). Missing row = the defaults — the seed
+/// never has to know this table exists.
+export async function getMmConfig(): Promise<{ paused: boolean; spreadBps: number }> {
+  const row = await prisma.mmConfig.findUnique({ where: { id: 1 } });
+  return { paused: row?.paused ?? false, spreadBps: row?.spreadBps ?? 0 };
+}
 
 /// Re-post the operator's ladders for one market around `centerYes`.
 /// Cancels the previous MM orders first. DB + local signing only, plus one
@@ -58,10 +68,21 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
   // no book — that is the state, not an error to propagate to the caller.
   if (market.closesAt && market.closesAt.getTime() <= Date.now()) return;
 
+  const config = await getMmConfig();
+
   await prisma.order.updateMany({
     where: { marketId, isMM: true, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
     data: { status: "CANCELLED" },
   });
+
+  // /admin/mm kill switch, global or per market. The cancel above has
+  // already cleared the old ladder — paused means no NEW quotes, so stop
+  // here. Third-party resting orders are untouched either way.
+  if (config.paused || market.mmPaused) return;
+
+  // Optional extra spread around the mid: half on each side, on top of the
+  // first ladder step. In bps of $1, so 100 bps pushes each side 0.5¢ out.
+  const halfSpread = config.spreadBps / 10_000 / 2;
 
   const unsettled = await unsettledOperatorSold(marketId);
 
@@ -81,8 +102,8 @@ export async function postLadders(marketId: string, centerYes: number): Promise<
     for (let i = 1; i <= LADDER_LEVELS; i++) {
       const size = Number(((ladderTotal * LADDER_WEIGHTS[i - 1]!) / weightSum).toFixed(2));
       if (size < 0.01) continue;
-      const bid = roundPrice(center - LADDER_STEP * i);
-      const ask = roundPrice(center + LADDER_STEP * i);
+      const bid = roundPrice(center - halfSpread - LADDER_STEP * i);
+      const ask = roundPrice(center + halfSpread + LADDER_STEP * i);
       if (bid > PRICE_FLOOR) {
         await placeOrder({
           slug: market.slug,
@@ -143,7 +164,7 @@ async function unsettledOperatorSold(marketId: string): Promise<Map<string, numb
 /// Only fills whose MAKER was the operator count. A trade between two demo
 /// wallets moves no operator inventory and must not move the operator's quote.
 /// A user BUY means the operator sold; a user SELL means it bought back.
-async function operatorNetSold(marketIds: string[]): Promise<Map<string, number>> {
+export async function operatorNetSold(marketIds: string[]): Promise<Map<string, number>> {
   if (marketIds.length === 0) return new Map();
   const rows = await prisma.$queryRaw<{ outcomeId: string; netSold: number }[]>`
     SELECT t."outcomeId" AS "outcomeId",

@@ -31,8 +31,16 @@ import {
   type PlaceOrderRequest,
 } from "./book";
 import "./mm"; // wires the after-fill re-quote hook into the book
+import {
+  createCheckout,
+  fundingLedger,
+  fundingSummary,
+  handleStripeWebhook,
+  resolveFundingUser,
+} from "./funding";
+import { mmStatus, mmConfigWrite, type MmConfigWrite } from "./mm-admin";
 import { createMarketGroup, type CreateGroupRequest } from "./group-create";
-import { loadChain } from "./chain";
+import { loadChain, accountAddress } from "./chain";
 import { notifyTelegram } from "./telegram-notify";
 
 const app = Fastify({ logger: true });
@@ -657,6 +665,124 @@ app.post("/faucet", async (req, reply) => {
     return r;
   } catch (e) {
     return reply.status(503).send({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// ── Funding (Stripe test mode → internal USDCX ledger) ─────────────────────
+// The USDCX balance is an internal test-ledger credit, not redeemable
+// crypto; see src/funding.ts. Test keys only — the module refuses live ones.
+
+// Create a Checkout Session and return its hosted URL. The balance is NOT
+// credited here — only the webhook credits, after Stripe confirms payment.
+app.post("/funding/checkout", async (req, reply) => {
+  try {
+    const body = (req.body ?? {}) as { accountIndex?: number; address?: string; amount?: number };
+    const r = await createCheckout({
+      accountIndex: body.accountIndex,
+      address: body.address,
+      amount: Number(body.amount),
+    });
+    return { url: r.url, sessionId: r.sessionId };
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "checkout failed" });
+  }
+});
+
+// Stripe webhook. The signature covers the RAW body, so this route lives in
+// its own plugin scope whose JSON parser hands over an unparsed buffer —
+// Fastify content-type parsers are encapsulated, so every other route keeps
+// the default JSON parsing.
+app.register(async (scope) => {
+  scope.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    (_req, body, done) => done(null, body),
+  );
+  scope.post("/webhooks/stripe", async (req, reply) => {
+    try {
+      const r = await handleStripeWebhook(
+        req.body as Buffer,
+        req.headers["stripe-signature"] as string | undefined,
+      );
+      if (r.credited) {
+        notifyTelegram(
+          `🔮 💳 Verex — funded: ${r.credited.userId} +$${r.credited.amount.toFixed(2)} USDCX (Stripe test mode)`,
+        );
+      }
+      return r;
+    } catch (e: any) {
+      req.log.error(e);
+      return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "webhook failed" });
+    }
+  });
+});
+
+// USDCX balance for the header chip. Same dual identity as /wallet/:index —
+// a demo-wallet index or a bare 0x address.
+app.get("/funding/balance/:user", async (req, reply) => {
+  try {
+    const raw = (req.params as { user: string }).user;
+    const user = isAddress(raw)
+      ? getAddress(raw)
+      : resolveFundingUser({ accountIndex: Number(raw) });
+    return await fundingSummary(user);
+  } catch (e: any) {
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "balance failed" });
+  }
+});
+
+// The mini ledger: deposits, trade debits/credits, redemption payouts.
+app.get("/funding/ledger/:user", async (req, reply) => {
+  try {
+    const raw = (req.params as { user: string }).user;
+    const user = isAddress(raw)
+      ? getAddress(raw)
+      : resolveFundingUser({ accountIndex: Number(raw) });
+    return { entries: await fundingLedger(user) };
+  } catch (e: any) {
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "ledger failed" });
+  }
+});
+
+// ── /admin/mm — operator window + switches on the MM ───────────────────────
+// Same demo-grade owner gate as market edits/resolution: the caller claims
+// accountIndex 0. Config writes are validated server-side and audited
+// (MmAuditLog) in src/mm-admin.ts.
+
+app.get("/admin/mm", async (req, reply) => {
+  const { accountIndex } = req.query as { accountIndex?: string };
+  if (Number(accountIndex) !== 0) {
+    return reply.status(403).send({ error: "only the operator (#0) may view the MM console" });
+  }
+  try {
+    return await mmStatus();
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "mm status failed" });
+  }
+});
+
+app.post("/admin/mm/config", async (req, reply) => {
+  const body = (req.body ?? {}) as Partial<MmConfigWrite> & { accountIndex?: number };
+  if (body.accountIndex !== 0) {
+    return reply.status(403).send({ error: "only the operator (#0) may change MM config" });
+  }
+  try {
+    const r = await mmConfigWrite(accountAddress(0), {
+      action: body.action as MmConfigWrite["action"],
+      slug: body.slug,
+      spreadBps: body.spreadBps,
+    });
+    notifyTelegram(
+      `🔮 🎛️ Verex — MM config: ${body.action}${body.slug ? ` (${body.slug})` : ""}${
+        body.spreadBps !== undefined ? ` → ${body.spreadBps} bps` : ""
+      }`,
+    );
+    return r;
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "mm config failed" });
   }
 });
 
