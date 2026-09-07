@@ -24,6 +24,7 @@ import {
 import { prisma } from "./db";
 import { loadChain, account, makeWalletClient } from "./chain";
 import { enqueueJob, registerHandler } from "./worker";
+import { applyFundingDelta, checkFundingBalance } from "./funding";
 
 export const ORDER_PRICE_MIN = 0.01;
 export const ORDER_PRICE_MAX = 0.99;
@@ -443,6 +444,14 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       outcomeLabel: outcome.label,
     });
   }
+  // Funding leg (USDCX): a wallet that onboarded through Stripe also spends
+  // its internal ledger. Read-and-refuse against the worst-case notional —
+  // the USDCX mirror of checkExternalFunds — with the actual debit applied
+  // on fill, inside the matching transaction below. Wallets with no funding
+  // account skip this entirely (the guard stands down inside).
+  if (!isMM && req.side === "BUY") {
+    await checkFundingBalance(user, Number(formatUnits(budgetE6, 6)));
+  }
 
   // ── Match + persist, all inside one row-locked transaction ─────────────
   const result = await prisma.$transaction(async (tx) => {
@@ -589,6 +598,19 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       },
     });
 
+    // USDCX ledger: the taker's fill total, debited for a BUY and credited
+    // for a SELL, atomically with the fills themselves. No-op for wallets
+    // that never onboarded through Stripe.
+    if (!isMM && totalUsdc > 0) {
+      await applyFundingDelta(
+        tx,
+        user,
+        "TRADE",
+        req.side === "BUY" ? -totalUsdc : totalUsdc,
+        takerOrder.id,
+      );
+    }
+
     // Apply fills to makers + write the trade feed.
     const tradeIdsByFill: string[][] = [];
     for (const f of fills) {
@@ -633,6 +655,15 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
           },
         });
         ids.push(makerTrade.id);
+        // A resting maker with a funding account moves USDCX too — the
+        // opposite sign of the taker (taker BUY = maker sold, maker credits).
+        await applyFundingDelta(
+          tx,
+          f.maker,
+          "TRADE",
+          req.side === "BUY" ? Number(formatUnits(f.usdcE6, 6)) : -Number(formatUnits(f.usdcE6, 6)),
+          f.makerOrderId,
+        );
       }
       tradeIdsByFill.push(ids);
     }
@@ -742,6 +773,9 @@ export async function cancelOpenOrder(orderId: string, accountIndex: number): Pr
 export interface BookLevel {
   price: number;
   size: number;
+  /// True when any of this level's size is the operator MM's ladder — the
+  /// web tags it so users can see which liquidity is operator-provided.
+  mm: boolean;
 }
 
 export interface BookSnapshot {
@@ -763,19 +797,22 @@ export async function getBook(slug: string, outcomeLabel: string, depth = 10): P
 
   const open = await prisma.order.findMany({
     where: { outcomeId: outcome.id, status: { in: ["OPEN", "PARTIALLY_FILLED"] } },
-    select: { side: true, price: true, size: true, sizeFilled: true },
+    select: { side: true, price: true, size: true, sizeFilled: true, isMM: true },
   });
   const levels = (side: "BUY" | "SELL") => {
-    const byPrice = new Map<number, number>();
+    const byPrice = new Map<number, { size: number; mm: boolean }>();
     for (const o of open) {
       if (o.side !== side) continue;
       const remaining = Number(o.size) - Number(o.sizeFilled);
       if (remaining <= 0) continue;
       const p = Number(o.price);
-      byPrice.set(p, (byPrice.get(p) ?? 0) + remaining);
+      const level = byPrice.get(p) ?? { size: 0, mm: false };
+      level.size += remaining;
+      level.mm ||= o.isMM;
+      byPrice.set(p, level);
     }
     const sorted = [...byPrice.entries()]
-      .map(([price, size]) => ({ price, size: Number(size.toFixed(2)) }))
+      .map(([price, l]) => ({ price, size: Number(l.size.toFixed(2)), mm: l.mm }))
       .sort((a, b) => (side === "BUY" ? b.price - a.price : a.price - b.price));
     return sorted.slice(0, depth);
   };

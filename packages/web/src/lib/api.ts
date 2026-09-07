@@ -54,7 +54,7 @@ export type GroupSeries = {
   points: PricePoint[];
 };
 
-export type BookLevel = { price: number; size: number };
+export type BookLevel = { price: number; size: number; mm?: boolean };
 export type BookSnapshot = {
   outcome: string;
   bids: BookLevel[];
@@ -577,6 +577,122 @@ export async function postFaucet(target: FaucetTarget): Promise<FaucetResult> {
   } catch (e) {
     return { error: e instanceof Error ? e.message : "faucet is unreachable" };
   }
+}
+
+// ── Funding (Stripe test mode → internal USDCX ledger) ─────────────────────
+// USDCX is an internal test-ledger credit, not redeemable crypto — the UI
+// says so on every surface that shows it.
+
+export type FundingBalance = {
+  userId: string;
+  currency: string;
+  amount: number;
+  /// False = this wallet never onboarded through Stripe (no ledger account).
+  funded: boolean;
+};
+
+export type LedgerRow = {
+  id: string;
+  kind: "DEPOSIT" | "TRADE" | "REDEEM";
+  delta: number;
+  ref: string | null;
+  createdAt: string;
+};
+
+export async function getFundingBalance(index: number): Promise<FundingBalance | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/funding/balance/${index}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as FundingBalance;
+  } catch {
+    return null;
+  }
+}
+
+export async function getFundingLedger(index: number): Promise<LedgerRow[]> {
+  try {
+    const res = await fetch(`${BROWSER_API}/funding/ledger/${index}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { entries: LedgerRow[] };
+    return data.entries ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/// Create a Stripe Checkout Session (test mode) — the caller redirects the
+/// browser to the returned URL. The balance is credited by the webhook, not
+/// by anything the browser does.
+export async function postFundingCheckout(body: {
+  accountIndex: number;
+  amount: number;
+}): Promise<{ url: string }> {
+  const res = await fetch(`${BROWSER_API}/funding/checkout`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "checkout failed");
+  return data as { url: string };
+}
+
+// ── /admin/mm (operator-only) ──────────────────────────────────────────────
+
+export type MmMarketStatus = {
+  slug: string;
+  title: string;
+  groupSlug: string | null;
+  groupLabel: string | null;
+  b: number;
+  mmPaused: boolean;
+  quoting: boolean;
+  centerYes: number;
+  inventory: { yes: number; no: number };
+  netSold: { yes: number; no: number };
+  quotes: { bid: number | null; ask: number | null };
+  maxLossCapUsd: number;
+  worstLossUsd: number;
+  headroomUsd: number;
+  pnlUsd: number;
+};
+
+export type MmStatus = {
+  config: { paused: boolean; spreadBps: number; maxSpreadBps: number };
+  global: { operator: string; treasuryUsd: number; committedUsd: number; pnlUsd: number };
+  markets: MmMarketStatus[];
+};
+
+export async function getMmStatus(accountIndex: number): Promise<MmStatus | null> {
+  try {
+    const res = await fetch(`${BROWSER_API}/admin/mm?accountIndex=${accountIndex}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as MmStatus;
+  } catch {
+    return null;
+  }
+}
+
+export type MmConfigAction =
+  | { action: "pause" }
+  | { action: "resume" }
+  | { action: "market-pause"; slug: string }
+  | { action: "market-resume"; slug: string }
+  | { action: "spread"; spreadBps: number };
+
+/// Apply one MM config write (operator #0 only). Returns the fresh status so
+/// the page repaints from what the server actually did.
+export async function postMmConfig(body: MmConfigAction & { accountIndex: number }): Promise<MmStatus> {
+  const res = await fetch(`${BROWSER_API}/admin/mm/config`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error ?? "config write failed");
+  return data as MmStatus;
 }
 
 export const pct = (price: string | number) => Math.round(Number(price) * 100);

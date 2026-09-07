@@ -11,6 +11,20 @@ import { cents, getBookSnapshot, type BookSnapshot } from "@/lib/api";
 
 const LEVELS = 5;
 
+/// Marks a level whose liquidity is (at least partly) the operator maker's
+/// ladder — screen C's "MM" tag from the onboarding+MM design.
+function MmTag() {
+  const { t } = useLocale();
+  return (
+    <span
+      title={t("market.mmTagTitle")}
+      className="rounded-sm border px-1 text-[9px] font-semibold uppercase leading-3 text-muted-foreground"
+    >
+      {t("market.mmTag")}
+    </span>
+  );
+}
+
 export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) {
   const { t } = useLocale();
   const [book, setBook] = React.useState<BookSnapshot | null>(null);
@@ -57,7 +71,10 @@ export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) 
               className="absolute inset-y-0 right-0 rounded-sm bg-no/10"
               style={{ width: `${(l.size / maxSize) * 100}%` }}
             />
-            <span className="relative font-medium text-no">{cents(l.price)}</span>
+            <span className="relative flex items-center gap-1 font-medium text-no">
+              {cents(l.price)}
+              {l.mm && <MmTag />}
+            </span>
             <span className="relative tabular-nums text-muted-foreground">{l.size.toLocaleString()}</span>
           </div>
         ))}
@@ -72,7 +89,10 @@ export function BookPanel({ slug, outcome }: { slug: string; outcome: string }) 
               className="absolute inset-y-0 right-0 rounded-sm bg-yes/10"
               style={{ width: `${(l.size / maxSize) * 100}%` }}
             />
-            <span className="relative font-medium text-yes">{cents(l.price)}</span>
+            <span className="relative flex items-center gap-1 font-medium text-yes">
+              {cents(l.price)}
+              {l.mm && <MmTag />}
+            </span>
             <span className="relative tabular-nums text-muted-foreground">{l.size.toLocaleString()}</span>
           </div>
         ))}

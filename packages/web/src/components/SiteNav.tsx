@@ -12,6 +12,7 @@ import { useLocale } from "@/components/LocaleProvider";
 import { useWallet } from "@/components/WalletProvider";
 import { VerexMark } from "@/components/VerexMark";
 import { FaucetButton } from "@/components/FaucetButton";
+import { FundingChip } from "@/components/FundingChip";
 
 export function SiteNav() {
   const router = useRouter();
@@ -65,7 +66,17 @@ export function SiteNav() {
             <BriefcaseBusiness className="h-4 w-4 shrink-0" />
             <span className="hidden lg:inline">{t("nav.portfolio")}</span>
           </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/mm"
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              <span className="hidden lg:inline">{t("admin.mm.title")}</span>
+              <span className="lg:hidden">MM</span>
+            </Link>
+          )}
           <FaucetButton />
+          <FundingChip />
           <div className="flex shrink-0 items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
             <Wallet className="h-4 w-4 shrink-0 text-primary" />
             {/* A <select> is as wide as its widest <option>, and option text

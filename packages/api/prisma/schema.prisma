@@ -135,6 +135,11 @@ model Market {
   /// quotes, bought with a larger worst-case subsidy (bounded at `b·ln n`).
   lmsrB Decimal @default(250) @db.Decimal(20, 6)
 
+  /// Per-market MM kill switch (/admin/mm). True = the operator posts no
+  /// ladder here; existing MM quotes are cancelled when it flips. Third-party
+  /// resting orders are untouched — pausing the maker never cancels users.
+  mmPaused Boolean @default(false)
+
   // ── Resolution source. Fixed at creation; see the OracleType comment.
   oracleType OracleType @default(OPERATOR)
 
@@ -300,4 +305,69 @@ model PricePoint {
   at       DateTime @default(now())
 
   @@index([marketId, at])
+}
+
+// ── Funding leg (Stripe test mode → internal USDCX ledger) ─────────────────
+// Design: rabbit docs/features/jayverse-onboarding-mm.md §6. A Stripe
+// Checkout (TEST mode) payment credits an internal "USDCX" balance the user
+// bets with. This is a ledger row, NOT redeemable crypto and NOT an on-chain
+// USDC holding — the chain leg keeps settling in MockUSDC exactly as before;
+// this ledger sits in front of it as the newcomer-facing spendable balance.
+
+enum LedgerKind {
+  DEPOSIT // Stripe Checkout credit (webhook-driven, test mode)
+  TRADE // book fill: BUY debits, SELL credits
+  REDEEM // post-resolution payout credit
+}
+
+/// A user's internal USDCX balance. Keyed by wallet address — the same
+/// string shape as Trade.user / Order.maker. No row = the user never
+/// onboarded through Stripe, and the order path skips the USDCX guard.
+model Balance {
+  userId    String   @id // wallet address
+  currency  String   @default("USDCX")
+  amount    Decimal  @default(0) @db.Decimal(20, 6)
+  updatedAt DateTime @updatedAt
+}
+
+/// One signed row per balance movement — what the mini-ledger UI reads.
+model LedgerEntry {
+  id        String     @id @default(cuid())
+  userId    String
+  kind      LedgerKind
+  delta     Decimal    @db.Decimal(20, 6) // signed: deposit +, BUY fill −, …
+  ref       String? // Stripe session id / taker order id / market slug
+  createdAt DateTime   @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Processed Stripe checkout sessions — webhook idempotency. A retried or
+/// replayed webhook finds its event/session here and credits nothing twice.
+model StripeEvent {
+  id        String   @id // Stripe event id (evt_…)
+  sessionId String   @unique // Checkout session id (cs_test_…)
+  createdAt DateTime @default(now())
+}
+
+// ── Operator MM controls (/admin/mm) ───────────────────────────────────────
+
+/// Global MM switches — the SAFE live controls only (v1). The liquidity
+/// parameter b and the collateral cap define the operator's max loss, so
+/// they stay deploy-time values (per-market lmsrB, set at creation) and the
+/// admin page shows them read-only.
+model MmConfig {
+  id        Int      @id @default(1)
+  paused    Boolean  @default(false) // global kill switch — no quotes anywhere
+  spreadBps Int      @default(0) // extra spread around the LMSR mid, bps of $1; API-enforced hard bound
+  updatedAt DateTime @updatedAt
+}
+
+/// Who changed what on /admin/mm, and when — every config write lands here.
+model MmAuditLog {
+  id        String   @id @default(cuid())
+  actor     String // operator address the write was made as
+  action    String // "pause" | "resume" | "market-pause" | "market-resume" | "spread"
+  detail    Json
+  createdAt DateTime @default(now())
 }
