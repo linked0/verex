@@ -190,7 +190,9 @@ export default async function MarketPage({ params }: { params: { slug: string } 
                         @{cents(tr.price)}
                       </span>
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {new Date(tr.createdAt).toLocaleTimeString(intl, {
+                        {new Date(tr.createdAt).toLocaleString(intl, {
+                          month: "short",
+                          day: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
