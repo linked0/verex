@@ -69,6 +69,19 @@ export function isLoopbackRpc(url: string): boolean {
 /// 이 프로세스가 붙은 노드가 로컬인가. 포크도 포함된다.
 export const IS_LOCAL_NODE = isLoopbackRpc(RPC_URL);
 
+/// Jayverse devnet(313370)인가.
+///
+/// 이 가드가 지키려는 것은 "적대자가 존재하는가"이고, devnet 은 애매한 중간에 있다:
+/// **원격이고 공개**라 loopback 가드는 통과하지 못하지만, 동시에 **우리가 매시간
+/// 날려버릴 수 있는 일회용 체인**이고 ETH 는 faucet 이 공짜로 나눠준다. 훔칠 가치가
+/// 있는 것이 없으므로 demo wallet 에 anvil 의 공개 mnemonic 을 쓰는 것은 허용한다 —
+/// devnet 의 seed 가 funding 하는 계정들이 바로 그 mnemonic 에서 나온다.
+///
+/// 남는 위험은 도난이 아니라 **방해**다: 누구나 그 demo wallet 으로 거래를 낼 수 있다.
+/// 그래서 operator(index 0, 시장을 resolve 하는 계정)는 예외로 두지 않는다 —
+/// VEREX_OPERATOR_KEY 는 devnet 에서도 따로 지정해야 한다.
+export const IS_JAYVERSE_DEVNET = CHAIN_ID === 313370;
+
 // Lazy on purpose: throwing here (rather than at module import) means a
 // deploy that never actually calls account(1..9) — e.g. browse-only/
 // DB-only mode — still boots. An import-time throw would take down the
@@ -85,13 +98,18 @@ function demoMnemonic(): string {
     // 포크(loopback + 남의 chainId)는 이 가드가 막으려는 상황이 아니다: 키를 도출할
     // 수 있는 상대가 없고, 잔고도 이 프로세스와 함께 사라진다. 다만 **조용히 넘어가지
     // 않는다** — 가드가 안 걸린다고 배우면 진짜 걸려야 할 때 놓친다.
-    if (IS_LOCAL_NODE) {
+    if (IS_LOCAL_NODE || IS_JAYVERSE_DEVNET) {
       if (!warnedAnvilMnemonic) {
         warnedAnvilMnemonic = true;
+        const why = IS_LOCAL_NODE
+          ? `${RPC_URL} is loopback`
+          : `chain ${CHAIN_ID} is the Jayverse devnet — disposable, faucet-funded, resettable`;
         console.warn(
           `⚠ VEREX_DEMO_MNEMONIC is unset and VEREX_CHAIN_ID=${CHAIN_ID} is not anvil, ` +
-            `but ${RPC_URL} is loopback — using anvil's public mnemonic for the demo wallets. ` +
-            `Set VEREX_DEMO_MNEMONIC before pointing this at a remote RPC.`,
+            `but ${why} — using anvil's public mnemonic for the demo wallets. ` +
+            `On the devnet this is deliberate (the devnet seed funds these exact ` +
+            `accounts), but anyone can trade as them: grief risk, not theft risk. ` +
+            `Set VEREX_DEMO_MNEMONIC before pointing this at a real chain.`,
         );
       }
       return ANVIL_MNEMONIC;

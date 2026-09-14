@@ -2,7 +2,7 @@
 //
 // What it does (run after `prisma migrate reset` for a clean slate):
 //   1. Resolves the CTF backbone and stores its addresses in ChainConfig:
-//      VEREX_DEPLOY_TARGET=staging|prod reads the committed entry in
+//      VEREX_DEPLOY_TARGET=staging|prod|devnet reads the committed entry in
 //      packages/contracts/deployments.json (after an on-chain code preflight);
 //      local (the default) deploys fresh via forge, or reuses USDC_ADDR/
 //      CTF_ADDR/EXCHANGE_ADDR from the shell env / packages/contracts/.env.
@@ -67,8 +67,10 @@ const DEPLOY_TARGET = process.env.VEREX_DEPLOY_TARGET ?? "local";
 if (DEPLOY_TARGET === "test") {
   throw new Error("VEREX_DEPLOY_TARGET 'test' was renamed to 'staging' (2026-07-28)");
 }
-if (!["local", "staging", "prod"].includes(DEPLOY_TARGET)) {
-  throw new Error(`VEREX_DEPLOY_TARGET must be local|staging|prod, got '${DEPLOY_TARGET}'`);
+// "devnet" is the Jayverse devnet (chain 313370) — its own backbone entry in
+// deployments.json, deployed by us, separate from the Sepolia ones.
+if (!["local", "staging", "prod", "devnet"].includes(DEPLOY_TARGET)) {
+  throw new Error(`VEREX_DEPLOY_TARGET must be local|staging|prod|devnet, got '${DEPLOY_TARGET}'`);
 }
 
 const prisma = new PrismaClient();

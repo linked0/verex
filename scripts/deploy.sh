@@ -36,7 +36,7 @@ SKIP_SEED=${SKIP_SEED:-}                 # set to skip seed.ts entirely (schema 
 VEREX_CHAIN_ID=${VEREX_CHAIN_ID:-}       # unset = today's DB-only/trading-disabled deploy;
                                           # 11155111 = Ethereum Sepolia, 84532 = Base
                                           # Sepolia — requires the 3 secrets below
-DEPLOY_TARGET=${DEPLOY_TARGET:-}         # test|prod — which committed backbone entry in
+DEPLOY_TARGET=${DEPLOY_TARGET:-}         # staging|prod|devnet — which committed backbone entry in
                                           # packages/contracts/deployments.json seed.ts
                                           # uses; required whenever VEREX_CHAIN_ID is set
 TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}   # unset = Telegram trade/faucet/resolve notifications
@@ -88,9 +88,9 @@ SEED_CHAIN_ENV=()
 API_CHAIN_SECRETS=""
 if [ -n "$VEREX_CHAIN_ID" ]; then
   case "$DEPLOY_TARGET" in
-    staging|prod) ;;
+    staging|prod|devnet) ;;
     test) echo "❌ DEPLOY_TARGET 'test' was renamed to 'staging' (2026-07-28) — update $ENV_FILE"; exit 1;;
-    *) echo "❌ DEPLOY_TARGET must be 'staging' or 'prod' in $ENV_FILE (picks the deployments.json backbone)"; exit 1;;
+    *) echo "❌ DEPLOY_TARGET must be 'staging', 'prod' or 'devnet' in $ENV_FILE (picks the deployments.json backbone)"; exit 1;;
   esac
   echo "▶ Chain secrets (chain id $VEREX_CHAIN_ID)"
   RPC_SECRET="verex-rpc-url-${DB_NAME}"

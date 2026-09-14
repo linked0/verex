@@ -8,6 +8,7 @@ import {
 } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { foundry, sepolia, baseSepolia } from "viem/chains";
+import { jayverseDevnet, JAYVERSE_DEVNET_ID } from "./jayverse-devnet";
 import type { Address, Hex } from "./types";
 
 /// Anvil's well-known default mnemonic — the accounts it derives are public
@@ -19,10 +20,13 @@ export const ANVIL_MNEMONIC =
 /// Supported chains, switched purely via VEREX_CHAIN_ID — add an entry here
 /// (plus an import from viem/chains) to support another one.
 export const CHAINS: Record<number, Chain> = {
+  [JAYVERSE_DEVNET_ID]: jayverseDevnet, // Jayverse devnet — the primary target
   31337: foundry, // local anvil
-  11155111: sepolia, // Ethereum Sepolia
+  11155111: sepolia, // Ethereum Sepolia — oracle tests and MetaMask 7715 only
   84532: baseSepolia, // Base Sepolia
 };
+
+export { jayverseDevnet, JAYVERSE_DEVNET_ID };
 
 /// Everything needed to resolve accounts and build viem clients, supplied
 /// explicitly by the caller rather than read from `process.env` here — each
