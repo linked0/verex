@@ -5,19 +5,19 @@
 //   pnpm --filter @verex/api exec tsx scripts/sim-amm-slippage.ts
 //
 // Comparable setups:
-// - CPMM & StableSwap pools hold POOL_VALUE USDC of total value at each spot.
+// - CPMM & StableSwap pools hold POOL_VALUE jUSD of total value at each spot.
 // - LMSR's b is chosen so its marginal depth at $0.50 equals the CPMM's
 //   (dp/dq: CPMM 2p/y = 5e-4 at $0.50 → LMSR p(1-p)/b = 0.25/b → b = 500).
 //   Note the capital asymmetry: LMSR's worst-case loss is b·ln2 ≈ $347,
 //   while the pools lock up the full $2,000.
 
-const POOL_VALUE = 2_000; // USDC of total pool value (both sides)
+const POOL_VALUE = 2_000; // jUSD of total pool value (both sides)
 const AMP = 10; // StableSwap amplification
 const B = 500; // LMSR liquidity parameter (depth-matched, see header)
 const SPOTS = [0.5, 0.9, 0.95, 0.99];
-const ORDER_SIZES = [10, 50, 100, 250]; // USDC spent buying YES
+const ORDER_SIZES = [10, 50, 100, 250]; // jUSD spent buying YES
 
-/// CPMM YES↔USDC pool: y·c = k. At spot p the pool holds c = V/2 USDC and
+/// CPMM YES↔jUSD pool: y·c = k. At spot p the pool holds c = V/2 jUSD and
 /// y = c/p YES. Spending S: shares out Δy = y·S/(c+S) (closed form).
 function cpmm(p: number, S: number) {
   const c = POOL_VALUE / 2;
@@ -27,7 +27,7 @@ function cpmm(p: number, S: number) {
 }
 
 /// StableSwap (Curve, n=2) on value-normalized reserves: both sides start at
-/// V/2 "value units" (1 unit = 1 USDC of value at the current spot), so the
+/// V/2 "value units" (1 unit = 1 jUSD of value at the current spot), so the
 /// flat region sits at the pool's current price. Newton solvers per Curve.
 function ssGetD(x: number, y: number, A: number): number {
   const S = x + y;
@@ -57,7 +57,7 @@ function ssGetY(x: number, D: number, A: number): number {
 function stableswap(p: number, S: number) {
   const half = POOL_VALUE / 2; // value units per side
   const D = ssGetD(half, half, AMP);
-  const xAfter = half + S; // S USDC in = S value units in
+  const xAfter = half + S; // S jUSD in = S value units in
   const yAfter = ssGetY(xAfter, D, AMP);
   const outValue = half - yAfter; // value units of YES out
   const shares = outValue / p;
@@ -65,7 +65,7 @@ function stableswap(p: number, S: number) {
 }
 
 /// LMSR: cost of moving from spot p by buying δ YES = b·ln(p·e^{δ/b}+1−p).
-/// Invert for a USDC spend S: δ = b·ln((e^{S/b} − (1−p)) / p).
+/// Invert for a jUSD spend S: δ = b·ln((e^{S/b} − (1−p)) / p).
 function lmsr(p: number, S: number) {
   const shares = B * Math.log((Math.exp(S / B) - (1 - p)) / p);
   const grown = p * Math.exp(shares / B);
@@ -74,7 +74,7 @@ function lmsr(p: number, S: number) {
 
 const fmt = (x: number) => (x >= 10 ? x.toFixed(1) : x.toFixed(4));
 console.log(`pool value $${POOL_VALUE} · StableSwap A=${AMP} · LMSR b=${B} (max loss $${(B * Math.LN2).toFixed(0)})\n`);
-console.log("| Spot | Order (USDC) | CPMM exec | StableSwap exec | LMSR exec | LMSR new spot |");
+console.log("| Spot | Order (jUSD) | CPMM exec | StableSwap exec | LMSR exec | LMSR new spot |");
 console.log("|------|-------------|-----------|-----------------|-----------|---------------|");
 for (const p of SPOTS) {
   for (const S of ORDER_SIZES) {

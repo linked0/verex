@@ -83,7 +83,7 @@ Verex should adopt:
 
 The neg-risk stack ([negative-risk-markets.md](negative-risk-markets.md)) makes it an
 *arbitrage* fact, not a convention. Converting NO shares over a set `S` of `k` outcomes
-yields 1 YES for every outcome **not** in `S`, plus **(k−1) USDC**. Both directions close:
+yields 1 YES for every outcome **not** in `S`, plus **(k−1) jUSD**. Both directions close:
 
 - **Σ YES ask < 1** → buy one YES of every outcome for less than $1; exactly one resolves →
   $1 guaranteed. Free money, so the asks get lifted back up to 1.

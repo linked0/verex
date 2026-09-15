@@ -71,7 +71,7 @@ function addr(name: string): string {
 
 const entry: Record<string, unknown> = {
   chainId,
-  usdc: addr("usdc"),
+  jusd: addr("jusd"),
   ctf: addr("ctf"),
   exchange: addr("exchange"),
 };

@@ -1,6 +1,6 @@
 "use client";
 
-// Portfolio: the active demo wallet's USDC balance and on-chain positions
+// Portfolio: the active demo wallet's jUSD balance and on-chain positions
 // with cost basis / P&L, plus one-click redemption for resolved markets.
 // All numbers come from /wallet/:index (chain reads + Trade-table cost basis).
 
@@ -58,7 +58,7 @@ export default function PortfolioClient() {
   /// Held as structured data, not a rendered sentence: the "redeeming →
   /// redeemed" transition used to be a string .replace(), which only works in
   /// English. The message is composed from `t()` at render time instead.
-  const [toast, setToast] = React.useState<{ slug: string; usdc: number; done: boolean } | null>(
+  const [toast, setToast] = React.useState<{ slug: string; jusd: number; done: boolean } | null>(
     null,
   );
   const [error, setError] = React.useState<string | null>(null);
@@ -118,7 +118,7 @@ export default function PortfolioClient() {
     setToast(null);
     try {
       const r = await postRedeem({ slug: p.slug, accountIndex });
-      setToast({ slug: p.slug, usdc: r.expectedUsdc, done: false });
+      setToast({ slug: p.slug, jusd: r.expectedJusd, done: false });
       setRedeemJobs((m) => ({ ...m, [p.slug]: r.jobId })); // row chip polls; balances refresh on settle
     } catch (e: any) {
       setError(e?.message ?? t("portfolio.redeemError"));
@@ -170,7 +170,7 @@ export default function PortfolioClient() {
         <p className="text-sm text-muted-foreground">
           {t("portfolio.operatorNote", {
             treasury: summary
-              ? t("portfolio.operatorTreasury", { amount: money(summary.usdc) })
+              ? t("portfolio.operatorTreasury", { amount: money(summary.jusd) })
               : "",
           })}
         </p>
@@ -214,7 +214,7 @@ export default function PortfolioClient() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold tabular-nums">
-            {summary ? money(summary.usdc) : <Skeleton className="h-8 w-32" />}
+            {summary ? money(summary.jusd) : <Skeleton className="h-8 w-32" />}
           </CardContent>
         </Card>
         <Card>
@@ -263,7 +263,7 @@ export default function PortfolioClient() {
         <p className="rounded-md bg-yes/10 px-3 py-2 text-sm text-yes">
           {t(toast.done ? "portfolio.toastRedeemed" : "portfolio.toastRedeeming", {
             slug: toast.slug,
-            amount: money(toast.usdc),
+            amount: money(toast.jusd),
           })}
         </p>
       )}
@@ -444,7 +444,7 @@ export default function PortfolioClient() {
                     </Badge>
                   )}
                   <span className="w-20 text-right tabular-nums">
-                    {h.side === "BUY" ? `−${money(h.usdcAmount)}` : `+${money(h.usdcAmount)}`}
+                    {h.side === "BUY" ? `−${money(h.jusdAmount)}` : `+${money(h.jusdAmount)}`}
                   </span>
                   {h.side === "REDEEM" && h.realizedPnl !== undefined && (
                     <span
@@ -510,12 +510,12 @@ export default function PortfolioClient() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{t("portfolio.costBasis")}</span>
                 <span className="tabular-nums">
-                  {money(pnlDetails.usdcAmount - pnlDetails.realizedPnl)}
+                  {money(pnlDetails.jusdAmount - pnlDetails.realizedPnl)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{t("portfolio.redeemedFor")}</span>
-                <span className="tabular-nums">{money(pnlDetails.usdcAmount)}</span>
+                <span className="tabular-nums">{money(pnlDetails.jusdAmount)}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between font-semibold">
@@ -531,8 +531,8 @@ export default function PortfolioClient() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {t("portfolio.pnlFormula", {
-                  redeemed: money(pnlDetails.usdcAmount),
-                  cost: money(pnlDetails.usdcAmount - pnlDetails.realizedPnl),
+                  redeemed: money(pnlDetails.jusdAmount),
+                  cost: money(pnlDetails.jusdAmount - pnlDetails.realizedPnl),
                   pnl: signedMoney(pnlDetails.realizedPnl),
                 })}
               </p>
@@ -540,7 +540,7 @@ export default function PortfolioClient() {
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">{t("portfolio.walletBalanceNow")}</span>
                 <span className="font-semibold tabular-nums">
-                  {summary ? money(summary.usdc) : <Skeleton className="h-8 w-32" />}
+                  {summary ? money(summary.jusd) : <Skeleton className="h-8 w-32" />}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">

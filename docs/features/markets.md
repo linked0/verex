@@ -7,7 +7,7 @@ S2 (current). Backbone deploys on anvil; CTF condition + binary YES/NO tokens wo
 
 ## Design
 - A market = a Gnosis **condition** (`prepareCondition`) with binary YES/NO outcomes,
-  collateralized by **MockUSDC**, traded as ERC-1155 position tokens.
+  collateralized by **JUSD**, traded as ERC-1155 position tokens.
 - The operator creates the condition and registers the YES/NO pair on the CTFExchange.
 
 ## Open questions
@@ -20,4 +20,4 @@ S2 (current). Backbone deploys on anvil; CTF condition + binary YES/NO tokens wo
   - [ ] Register the YES/NO token pair on the exchange
   - [ ] (you) Decide the `questionId` convention
 - [ ] **Collateral**
-  - [x] MockUSDC mint/approve/split flow on anvil (S2)
+  - [x] JUSD mint/approve/split flow on anvil (S2)

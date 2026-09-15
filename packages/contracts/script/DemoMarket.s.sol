@@ -6,10 +6,10 @@ import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {IConditionalTokens} from "ctf-exchange/exchange/interfaces/IConditionalTokens.sol";
 import {CTFExchange} from "ctf-exchange/exchange/CTFExchange.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 
 /// @notice Demo-market lifecycle scripts for the anvil v2 stack
-///         (MockUSDC + ConditionalTokens + CTFExchange — deployed by
+///         (JUSD + ConditionalTokens + CTFExchange — deployed by
 ///         DeployCTF.s.sol first).
 ///
 ///         The Stage-1 manual oracle is the operator EOA itself: the same key
@@ -30,7 +30,7 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///             --sig "resolve(uint256,uint256)" 1 0 \
 ///             --rpc-url http://localhost:8545 --broadcast
 ///
-///         Required env: USDC_ADDR, CTF_ADDR, EXCHANGE_ADDR (from DeployCTF
+///         Required env: JUSD_ADDR, CTF_ADDR, EXCHANGE_ADDR (from DeployCTF
 ///         broadcast output). QUESTION_ID is optional — defaults to a fixed
 ///         keccak so setup/resolve target the same condition by default.
 contract DemoMarket is Script {
@@ -41,11 +41,11 @@ contract DemoMarket is Script {
 
     // ─────────────────────────────────────────────────────────────────────
     // setup() — prepare condition, register on Exchange, add operator,
-    //           pre-split USDC into CT inventory for the operator
+    //           pre-split JUSD into CT inventory for the operator
     // ─────────────────────────────────────────────────────────────────────
 
     function setup() external {
-        (MockUSDC usdc, IConditionalTokens ctf, CTFExchange exchange) = _readAddrs();
+        (JUSD jusd, IConditionalTokens ctf, CTFExchange exchange) = _readAddrs();
         uint256 operatorKey = _operatorKey();
         address operator = vm.addr(operatorKey);
         bytes32 questionId = _questionId();
@@ -57,10 +57,10 @@ contract DemoMarket is Script {
 
         bytes32 conditionId = keccak256(abi.encodePacked(operator, questionId, uint256(2)));
         uint256 yesId = ctf.getPositionId(
-            IERC20(address(usdc)), ctf.getCollectionId(bytes32(0), conditionId, 1)
+            IERC20(address(jusd)), ctf.getCollectionId(bytes32(0), conditionId, 1)
         );
         uint256 noId = ctf.getPositionId(
-            IERC20(address(usdc)), ctf.getCollectionId(bytes32(0), conditionId, 2)
+            IERC20(address(jusd)), ctf.getCollectionId(bytes32(0), conditionId, 2)
         );
 
         // Register YES/NO pair on the Exchange. Required before fillOrder.
@@ -70,14 +70,14 @@ contract DemoMarket is Script {
         // because DeployCTF used the same key as deployer).
         exchange.addOperator(operator);
 
-        // Mint + split 1000 USDC so the operator has 1000 YES + 1000 NO of
+        // Mint + split 1000 JUSD so the operator has 1000 YES + 1000 NO of
         // inventory to settle BUY orders against.
-        usdc.mint(operator, 1000e6);
-        usdc.approve(address(ctf), 1000e6);
+        jusd.mint(operator, 1000e6);
+        jusd.approve(address(ctf), 1000e6);
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1;
         partition[1] = 2;
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), conditionId, partition, 1000e6);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), conditionId, partition, 1000e6);
 
         // Operator must let the Exchange pull its CT to settle BUY fills.
         (bool ok,) = address(ctf).call(
@@ -130,9 +130,9 @@ contract DemoMarket is Script {
     function _readAddrs()
         internal
         view
-        returns (MockUSDC usdc, IConditionalTokens ctf, CTFExchange exchange)
+        returns (JUSD jusd, IConditionalTokens ctf, CTFExchange exchange)
     {
-        usdc = MockUSDC(vm.envAddress("USDC_ADDR"));
+        jusd = JUSD(vm.envAddress("JUSD_ADDR"));
         ctf = IConditionalTokens(vm.envAddress("CTF_ADDR"));
         exchange = CTFExchange(vm.envAddress("EXCHANGE_ADDR"));
     }

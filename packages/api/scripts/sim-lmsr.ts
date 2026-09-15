@@ -88,7 +88,7 @@ for (const q of [1e5, 1e6, -1e6]) {
 console.log("\n8. Bounded loss");
 for (const n of [2, 5]) {
   const loss = lmsrMaxLoss(DEFAULT_LMSR_B, n);
-  console.log(`  b=${DEFAULT_LMSR_B}, n=${n} -> max subsidy ${loss.toFixed(2)} USDC`);
+  console.log(`  b=${DEFAULT_LMSR_B}, n=${n} -> max subsidy ${loss.toFixed(2)} jUSD`);
 }
 check("binary max loss is b·ln2", Math.abs(lmsrMaxLoss(DEFAULT_LMSR_B, 2) - DEFAULT_LMSR_B * Math.LN2) < 1e-9);
 

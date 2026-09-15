@@ -20,7 +20,7 @@ export const UMA_UNRESOLVABLE = 5n * 10n ** 17n;
 /// Sepolia deployments, verified 2026-08-03 (docs/tasks/aug-03-plan.md, G4).
 export const UMA_SEPOLIA = {
   optimisticOracleV2: "0x9f1263B8f0355673619168b5B8c0248f1d03e88C" as Address,
-  /// Bond/reward currency. Verex's MockUSDC is NOT on UMA's AddressWhitelist;
+  /// Bond/reward currency. Verex's JUSD is NOT on UMA's AddressWhitelist;
   /// WETH is, and is self-service via deposit().
   weth: "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9" as Address,
 } as const;

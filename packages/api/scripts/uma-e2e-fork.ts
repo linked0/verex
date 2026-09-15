@@ -87,7 +87,7 @@ async function main() {
       id: 1,
       chainId: 11155111,
       rpcUrl: RPC,
-      usdcAddr: bb.usdc,
+      jusdAddr: bb.jusd,
       ctfAddr: bb.ctf,
       exchangeAddr: bb.exchange,
       operator: account.address,

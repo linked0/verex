@@ -1,9 +1,9 @@
 import type { PublicClient, WalletClient } from "viem";
-import { MockUSDCAbi } from "./abis";
+import { JUSDAbi } from "./abis";
 import type { Address, Hex } from "./types";
 
-/// Minimal ERC-20 surface re-derived from MockUSDC; in prod we'd swap the
-/// ABI for the real USDC ABI on Polygon. Same function signatures, so the
+/// Minimal ERC-20 surface re-derived from JUSD; in prod we'd swap the
+/// ABI for the real jUSD ABI on Polygon. Same function signatures, so the
 /// helpers below work either way.
 
 function requireAccount(wc: WalletClient) {
@@ -18,7 +18,7 @@ export async function getBalance(
 ): Promise<bigint> {
   return publicClient.readContract({
     address: token,
-    abi: MockUSDCAbi,
+    abi: JUSDAbi,
     functionName: "balanceOf",
     args: [account],
   });
@@ -32,13 +32,13 @@ export async function getAllowance(
 ): Promise<bigint> {
   return publicClient.readContract({
     address: token,
-    abi: MockUSDCAbi,
+    abi: JUSDAbi,
     functionName: "allowance",
     args: [owner, spender],
   });
 }
 
-/// MockUSDC has an open `mint(address,uint256)`. Real USDC does not — this
+/// JUSD has an open `mint(address,uint256)`. Real jUSD does not — this
 /// is for anvil / dev only.
 export async function mint(
   publicClient: PublicClient,
@@ -50,7 +50,7 @@ export async function mint(
   const account = requireAccount(walletClient);
   const { request } = await publicClient.simulateContract({
     address: token,
-    abi: MockUSDCAbi,
+    abi: JUSDAbi,
     functionName: "mint",
     args: [to, amount],
     account,
@@ -70,7 +70,7 @@ export async function approve(
   const account = requireAccount(walletClient);
   const { request } = await publicClient.simulateContract({
     address: token,
-    abi: MockUSDCAbi,
+    abi: JUSDAbi,
     functionName: "approve",
     args: [spender, amount],
     account,

@@ -130,6 +130,40 @@ if [ -n "$TELEGRAM_CHAT_ID" ]; then
   WEB_TELEGRAM_SECRET="TELEGRAM_BOT_TOKEN=${TG_SECRET}:latest"
 fi
 
+# --- Stripe funding secrets (optional; absent = funding endpoints answer 503) ---
+# Opt-in per environment, and deliberately NOT fatal when missing: the funding
+# leg is one feature, and an environment without it should still deploy. Unlike
+# the chain secrets above, these are looked up by presence rather than required.
+# Create with (TEST keys only — the API refuses sk_live_ by prefix):
+#   printf '%s' 'sk_test_…' | gcloud secrets create verex-stripe-secret-key-${DB_NAME} \
+#       --replication-policy=automatic --data-file=-
+#   printf '%s' 'whsec_…'   | gcloud secrets create verex-stripe-webhook-secret-${DB_NAME} \
+#       --replication-policy=automatic --data-file=-
+# Then register https://<api url>/webhooks/stripe in the Stripe dashboard for
+# the checkout.session.completed event, and re-run this script.
+API_STRIPE_SECRETS=""
+STRIPE_KEY_SECRET="verex-stripe-secret-key-${DB_NAME}"
+STRIPE_HOOK_SECRET="verex-stripe-webhook-secret-${DB_NAME}"
+if gcloud secrets describe "$STRIPE_KEY_SECRET" >/dev/null 2>&1; then
+  if gcloud secrets describe "$STRIPE_HOOK_SECRET" >/dev/null 2>&1; then
+    for s in "$STRIPE_KEY_SECRET" "$STRIPE_HOOK_SECRET"; do
+      gcloud secrets add-iam-policy-binding "$s" \
+        --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
+    done
+    API_STRIPE_SECRETS=",STRIPE_SECRET_KEY=${STRIPE_KEY_SECRET}:latest,STRIPE_WEBHOOK_SECRET=${STRIPE_HOOK_SECRET}:latest"
+    echo "▶ Stripe funding: enabled (card payments mint jUSD)"
+  else
+    # Half-configured is worse than off: checkout would create sessions the
+    # webhook can never verify, so the user pays and nothing is ever minted.
+    echo "❌ $STRIPE_KEY_SECRET exists but $STRIPE_HOOK_SECRET does not."
+    echo "   Create the webhook secret too, or delete the key secret — a"
+    echo "   checkout with no verifiable webhook takes payment and mints nothing."
+    exit 1
+  fi
+else
+  echo "▶ Stripe funding: off (no $STRIPE_KEY_SECRET — /funding answers 503)"
+fi
+
 # --- Migrate + seed via the Cloud SQL Auth Proxy (local TCP tunnel on :5433) ---
 echo "▶ Migrate + seed (Cloud SQL Auth Proxy)"
 PROXY=./cloud-sql-proxy
@@ -180,11 +214,19 @@ echo "▶ Deploy $SERVICE_API"
 API_ENV_PAIRS=()
 [ -n "$VEREX_CHAIN_ID" ] && API_ENV_PAIRS+=("VEREX_CHAIN_ID=$VEREX_CHAIN_ID")
 [ -n "$TELEGRAM_CHAT_ID" ] && API_ENV_PAIRS+=("TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID")
+# VEREX_WEB_URL — where Stripe sends the browser back after Checkout. Its
+# default is http://localhost:3000, which on Cloud Run would bounce a paying
+# user to their own machine, so it must be set explicitly whenever funding is
+# on. DOMAIN if there is one; otherwise the web service's own run.app URL,
+# resolved below once that service exists.
+if [ -n "$API_STRIPE_SECRETS" ] && [ -n "$DOMAIN" ]; then
+  API_ENV_PAIRS+=("VEREX_WEB_URL=https://$DOMAIN")
+fi
 API_ENV_ARGS=()
 [ ${#API_ENV_PAIRS[@]} -gt 0 ] && API_ENV_ARGS=(--set-env-vars "$(IFS=,; echo "${API_ENV_PAIRS[*]}")")
 gcloud run deploy "$SERVICE_API" --image "$API_IMAGE" --region "$REGION" \
   --add-cloudsql-instances "$CONN_NAME" \
-  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}${API_TELEGRAM_SECRET}" \
+  --set-secrets "DATABASE_URL=${SECRET_NAME}:latest${API_CHAIN_SECRETS}${API_TELEGRAM_SECRET}${API_STRIPE_SECRETS}" \
   "${API_ENV_ARGS[@]+"${API_ENV_ARGS[@]}"}" \
   --max-instances 1 \
   --allow-unauthenticated
@@ -202,6 +244,15 @@ gcloud run deploy "$SERVICE_WEB" --source packages/web --region "$REGION" \
   --max-instances 2 \
   --allow-unauthenticated
 WEB_URL=$(gcloud run services describe "$SERVICE_WEB" --region "$REGION" --format='value(status.url)')
+
+# With no custom DOMAIN the web origin is only knowable after the web service
+# exists, so backfill it now. Without this the API would keep its localhost
+# default and Stripe would return a paying user to their own machine.
+if [ -n "$API_STRIPE_SECRETS" ] && [ -z "$DOMAIN" ]; then
+  echo "▶ Point Stripe's Checkout return at $WEB_URL"
+  gcloud run services update "$SERVICE_API" --region "$REGION" \
+    --update-env-vars "VEREX_WEB_URL=$WEB_URL" >/dev/null
+fi
 
 echo
 echo "✅ API: $API_URL   (health: curl $API_URL/health)"

@@ -92,7 +92,7 @@ export const overview: Doc = {
               },
             },
             {
-              note: "Verex runs on the **Sepolia** testnet with test USDC. No real funds are at risk anywhere in the system.",
+              note: "Verex runs on the **Sepolia** testnet with test jUSD. No real funds are at risk anywhere in the system.",
             },
           ],
         },
@@ -185,7 +185,7 @@ export const overview: Doc = {
               },
             },
             {
-              note: "Verex는 **Sepolia** 테스트넷에서 테스트 USDC로 동작합니다. 시스템 어디에도 실제 자금은 걸려 있지 않습니다.",
+              note: "Verex는 **Sepolia** 테스트넷에서 테스트 jUSD로 동작합니다. 시스템 어디에도 실제 자금은 걸려 있지 않습니다.",
             },
           ],
         },

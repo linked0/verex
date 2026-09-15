@@ -13,7 +13,7 @@
 //      already holds these addresses; warns if the broadcast is >60 min old.
 //   3. on-chain liveness + wiring — all three addresses hold code on
 //      $VEREX_RPC_URL, the RPC's chain id matches $VEREX_CHAIN_ID,
-//      exchange.getCollateral()/getCtf() point at the recorded usdc/ctf, and
+//      exchange.getCollateral()/getCtf() point at the recorded jusd/ctf, and
 //      the deployer is isAdmin + isOperator on the exchange.
 //
 // Loads packages/api/.env itself (same as the other helpers here); shell env
@@ -85,7 +85,7 @@ async function main() {
   }
   const returns = run.returns ?? {};
   const candidate: Record<string, Address> = {};
-  for (const name of ["usdc", "ctf", "exchange"] as const) {
+  for (const name of ["jusd", "ctf", "exchange"] as const) {
     const v = returns[name]?.value;
     if (!v || !/^0x[0-9a-fA-F]{40}$/.test(v)) {
       console.error(`Broadcast has no '${name}' address in its returns — not a DeployCTF run?`);
@@ -95,7 +95,7 @@ async function main() {
   }
 
   console.log(`Checking pending '${target}' deployment (chain ${chainId}):`);
-  for (const name of ["usdc", "ctf", "exchange"] as const) {
+  for (const name of ["jusd", "ctf", "exchange"] as const) {
     console.log(`    ${name}: ${candidate[name]}`);
   }
 
@@ -153,7 +153,7 @@ async function main() {
   } else {
     ok(`RPC chain id matches (${chainId})`);
   }
-  for (const name of ["usdc", "ctf", "exchange"] as const) {
+  for (const name of ["jusd", "ctf", "exchange"] as const) {
     const code = await pc.getCode({ address: candidate[name] });
     if (!code || code === "0x") fail(`no contract code at ${name} ${candidate[name]}`);
     else ok(`code present at ${name}`);
@@ -165,10 +165,10 @@ async function main() {
     pc.readContract({ ...exch, functionName: "isAdmin", args: [operator] }),
     pc.readContract({ ...exch, functionName: "isOperator", args: [operator] }),
   ]);
-  if (collateral.toLowerCase() !== candidate.usdc.toLowerCase()) {
-    fail(`exchange.getCollateral() = ${collateral}, expected the recorded usdc`);
+  if (collateral.toLowerCase() !== candidate.jusd.toLowerCase()) {
+    fail(`exchange.getCollateral() = ${collateral}, expected the recorded jusd`);
   } else {
-    ok("exchange collateral wiring matches usdc");
+    ok("exchange collateral wiring matches jusd");
   }
   if (ctf.toLowerCase() !== candidate.ctf.toLowerCase()) {
     fail(`exchange.getCtf() = ${ctf}, expected the recorded ctf`);

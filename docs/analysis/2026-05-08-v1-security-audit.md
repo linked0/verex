@@ -226,7 +226,7 @@ payout = (userShares * totalPool) / winningPool;
 
 ## 5. v2 handoff 매핑
 
-| v1 사항 | v2 (CTF Exchange + UMA + USDC)에서 |
+| v1 사항 | v2 (CTF Exchange + UMA + jUSD)에서 |
 |---------|-------------------------------------|
 | 1.1 `block.timestamp` 4 warning | 사라짐 — UMA가 외부 attestation으로 시간 의존 대체 |
 | 2.1 단일 owner SPOF | 사라짐 — UMA optimistic oracle, 분쟁 가능 |

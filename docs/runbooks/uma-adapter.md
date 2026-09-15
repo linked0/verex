@@ -32,7 +32,7 @@ you. Its point is that payouts stop depending on the operator being present or h
 | foundry | `forge`, `cast` on PATH |
 
 **WETH is the one that catches people.** UMA only accepts bond currencies on its
-`AddressWhitelist`, and **Verex's MockUSDC is not on it**. Sepolia WETH is, and is
+`AddressWhitelist`, and **Verex's JUSD is not on it**. Sepolia WETH is, and is
 self-service:
 
 ```bash
@@ -257,7 +257,7 @@ link out to it rather than rebuilding dispute flows in-app.
 Section 4b's limitation — the DVM verdict can't be simulated — is real only
 against the *real* oracle. Local environments deploy a **MockOptimisticOracleV2**
 whose DVM is a jury of the demo wallets, so all three dispute endings (defeated /
-upheld / dead end) can be walked in a browser, with 10 USDC bonds and 5-minute
+upheld / dead end) can be walked in a browser, with 10 jUSD bonds and 5-minute
 liveness. The full walkthrough lives in its own runbook:
 **[uma-local-demo.md](uma-local-demo.md)**.
 
@@ -362,7 +362,7 @@ oracle, so it proves the adapter is self-consistent, not that it matches UMA. Th
 |---|---|
 | `initialize` reverts `AlreadyInitialized` | questionId is `keccak256(ancillaryData)`, so identical question text = the same on-chain question. The slug is folded into the ancillary data to prevent this — a collision means two markets share a slug *and* text |
 | `initialize` reverts on transfer | `reward > 0` and the **adapter** doesn't hold the reward token — `requestPrice` pulls from the caller, and the caller is the adapter, not you |
-| `requestPrice` reverts on currency | reward token isn't on UMA's `AddressWhitelist` — MockUSDC never is |
+| `requestPrice` reverts on currency | reward token isn't on UMA's `AddressWhitelist` — JUSD never is |
 | `uma-resolve` returns **409** | no proposal yet, or liveness hasn't expired. Check `isSettleable` |
 | `resolve` reverts `UnsupportedPrice` | UMA settled something other than 1e18 / 0 / 0.5e18. Deliberate: coercing it would resolve a market on a value nobody voted for |
 | Market settles "unresolvable" (both sides get half) | the ancillary data gave voters no basis to decide. This is a question-writing failure, not a bug |

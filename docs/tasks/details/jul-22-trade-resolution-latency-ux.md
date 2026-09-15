@@ -19,8 +19,8 @@ Traced both flows in the current code rather than guessing:
 
 - **Trade (`executeTrade`, [trade.ts:71-216](../../../packages/api/src/trade.ts#L71-L216))**
   is one HTTP request that can chain up to **three sequential on-chain confirmations**
-  before it returns: conditional `usdc.mint` (if the demo wallet is under-funded) →
-  conditional `usdc.approve` (first trade only) → `exchange.fillOrder` (always). Each
+  before it returns: conditional `jusd.mint` (if the demo wallet is under-funded) →
+  conditional `jusd.approve` (first trade only) → `exchange.fillOrder` (always). Each
   `await`s a real receipt — nothing is parallelized or decoupled.
 - **Resolve (`ResolvePanel` → `POST /resolve` → `ct.reportPayouts`)** is a single
   confirmation — smaller problem, same UX pattern.
@@ -38,8 +38,8 @@ Traced both flows in the current code rather than guessing:
 Mint + approve don't need to happen inside the trade request at all. Demo wallet indices
 are known in advance and both operations are idempotent (already conditionally skipped
 once satisfied — see `trade.ts:124-132`). Extend the seed flow to also pre-approve each
-demo wallet for the exchange (USDC) and the CT contract (`setApprovalForAll`), the same
-place `seed.ts` already tops up their USDC balance
+demo wallet for the exchange (jUSD) and the CT contract (`setApprovalForAll`), the same
+place `seed.ts` already tops up their jUSD balance
 ([seed.ts:320-328](../../../packages/api/prisma/seed.ts#L320-L328)).
 
 - **Effect:** the common-case BUY drops from *up to 3* sequential confirmations to **1**
@@ -57,7 +57,7 @@ trading-UX pattern (this is how Polymarket/every DEX front-end handles it): the 
 user clicks Buy/Sell/Resolve, update the UI to the *expected* end-state immediately,
 before the request resolves, then reconcile against the real response:
 
-- **Trade:** `TradePanel` already computes `tokensOut`/`usdcOut`/the new implied price
+- **Trade:** `TradePanel` already computes `tokensOut`/`jusdOut`/the new implied price
   client-side before submit (used for the "Est. tokens" preview). On click: immediately
   show the position/price change as **pending** (e.g. a dimmed/pulsing row or a "Pending"
   chip next to the price), disable inputs, keep the existing error path to roll back and
@@ -100,7 +100,7 @@ one opaque state for the whole chain.
 
 | # | Item | Verify |
 |---|---|---|
-| 1 | Pre-warm demo wallets (mint + approve) in `seed.ts` | ✅ **verified 2026-07-22** — ran the seed against a fresh local anvil, then `cast call` directly against the deployed contracts: wallet #1's USDC `allowance` to the exchange and `isApprovedForAll` were both already set before any trade. `POST /trade` (BUY) as wallet #1 advanced the chain by **exactly 1 block** (`fillOrder` only, `faucetMinted: false`) — vs. **3 blocks** (mint + approve + fillOrder) for wallet #6, which the seed loop doesn't cover (only 1-5, matching the UI's wallet picker) — a direct, empirical before/after comparison, not just code-reading. |
+| 1 | Pre-warm demo wallets (mint + approve) in `seed.ts` | ✅ **verified 2026-07-22** — ran the seed against a fresh local anvil, then `cast call` directly against the deployed contracts: wallet #1's jUSD `allowance` to the exchange and `isApprovedForAll` were both already set before any trade. `POST /trade` (BUY) as wallet #1 advanced the chain by **exactly 1 block** (`fillOrder` only, `faucetMinted: false`) — vs. **3 blocks** (mint + approve + fillOrder) for wallet #6, which the seed loop doesn't cover (only 1-5, matching the UI's wallet picker) — a direct, empirical before/after comparison, not just code-reading. |
 | 2 | Optimistic trade UI in `TradePanel` | `tsc --noEmit` clean; logic traced by hand (the `pending` snapshot is cleared before `setResult`/`setError` so the pending and confirmed/error boxes never render simultaneously). **Not visually verified in a browser** — no browser/screenshot tool available in this environment; jay should click through a BUY once to confirm the pending box renders as expected before considering this fully done. |
 | 3 | Optimistic resolve UI in `ResolvePanel` (optional/lower priority) | not built — deferred, jay didn't ask for this one specifically and it was flagged lower-priority in the original proposal |
 | 4 | Staged progress for the fallback (unwarmed wallet) path — **only if #1 turns out insufficient in practice** | not built — per the original recommendation, only worth doing if this turns out to matter |
@@ -128,7 +128,7 @@ since §3 below was explicitly deferred rather than built. Next actionable items
    explicitly out-of-scope concern: pre-funding via `seed.ts` only works because demo
    wallets are server-held keys with known indices. A real user (external wallet, no
    server-held key) needs an actual deposit UX — bridge/on-ramp or a direct testnet-ETH +
-   USDC transfer flow into their own address, plus the equivalent approve step happening
+   jUSD transfer flow into their own address, plus the equivalent approve step happening
    client-side (MetaMask, not server-signed). Not designed yet — belongs with the S7
    account-abstraction/session-key track mentioned in
    [jun-19-verex-design.md](../jun-19-verex-design.md), not this doc. Flagged here only so

@@ -57,7 +57,7 @@ export const oracle: Doc = {
           heading: "Bonds and the whitelist",
           blocks: [
             {
-              p: "Bonds must be posted in a currency on UMA's `AddressWhitelist`. Verex's own test USDC is not on it — that was the first real constraint discovered when wiring this up on Sepolia.",
+              p: "Bonds must be posted in a currency on UMA's `AddressWhitelist`. Verex's own test jUSD is not on it — that was the first real constraint discovered when wiring this up on Sepolia.",
             },
             {
               p: "The chosen bond currency is **Sepolia WETH**, for a practical reason: it is self-service. Anyone can obtain it by sending ETH to the WETH contract's `deposit()` function, whereas UMA's own whitelisted test USDC has no public mint. WETH carries a small final fee (0.001) where UMA's USDC has none, which is a cost worth paying for not depending on someone else to hand out tokens.",
@@ -150,7 +150,7 @@ export const oracle: Doc = {
           heading: "보증금과 화이트리스트",
           blocks: [
             {
-              p: "보증금은 UMA의 `AddressWhitelist`에 등록된 통화로만 걸 수 있습니다. Verex의 자체 테스트 USDC는 등록되어 있지 않으며, 이것이 Sepolia에서 연동을 시작하며 처음 마주한 실제 제약이었습니다.",
+              p: "보증금은 UMA의 `AddressWhitelist`에 등록된 통화로만 걸 수 있습니다. Verex의 자체 테스트 jUSD는 등록되어 있지 않으며, 이것이 Sepolia에서 연동을 시작하며 처음 마주한 실제 제약이었습니다.",
             },
             {
               p: "선택한 보증금 통화는 **Sepolia WETH**이고 이유는 실용적입니다 — 셀프서비스이기 때문입니다. WETH 컨트랙트의 `deposit()`에 ETH를 보내면 누구나 얻을 수 있는 반면, UMA가 화이트리스트에 올린 자체 테스트 USDC는 공개 발행 창구가 없습니다. WETH에는 소액의 최종 수수료(0.001)가 붙지만, 토큰을 나눠줄 누군가에게 의존하지 않는 대가로는 치를 만한 비용입니다.",

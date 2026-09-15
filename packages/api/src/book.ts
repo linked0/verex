@@ -24,7 +24,6 @@ import {
 import { prisma } from "./db";
 import { loadChain, account, makeWalletClient } from "./chain";
 import { enqueueJob, registerHandler } from "./worker";
-import { applyFundingDelta, checkFundingBalance } from "./funding";
 
 export const ORDER_PRICE_MIN = 0.01;
 export const ORDER_PRICE_MAX = 0.99;
@@ -33,7 +32,7 @@ export const ORDER_PRICE_MAX = 0.99;
 const MARKET_SLIPPAGE_CAP = 0.1;
 /// Demo faucet: top up a buyer below the order's notional (same UX as the
 /// old /trade flow).
-const AUTO_FAUCET_USDC = 1_000;
+const AUTO_FAUCET_JUSD = 1_000;
 
 const E6 = 1_000_000n;
 const ceilDiv = (a: bigint, b: bigint) => (a + b - 1n) / b;
@@ -51,16 +50,16 @@ export interface PlaceOrderRequest {
   /// slippage policy, not the server's.
   signedOrder?: SignedOrder;
   type: "market" | "limit";
-  /// market BUY: USDC budget. market SELL: tokens. limit: tokens.
+  /// market BUY: jUSD budget. market SELL: tokens. limit: tokens.
   amount: number;
-  /// limit orders only: USDC per share, 0.01..0.99
+  /// limit orders only: jUSD per share, 0.01..0.99
   price?: number;
 }
 
 export interface FillSummary {
   price: number;
   tokens: number;
-  usdc: number;
+  jusd: number;
 }
 
 export interface PlaceOrderResult {
@@ -70,7 +69,7 @@ export interface PlaceOrderResult {
   outcome: string;
   fills: FillSummary[];
   totalTokens: number;
-  totalUsdc: number;
+  totalJusd: number;
   avgPrice: number | null;
   restingSize: number; // limit remainder now resting in the book
   newYesPrice: number;
@@ -86,9 +85,9 @@ interface FillPlan {
   makerIsMM: boolean;
   price: number;
   tokensE6: bigint;
-  usdcE6: bigint;
+  jusdE6: bigint;
   /// Fill amount in the maker order's own makerAmount units (tokens for a
-  /// SELL maker, USDC for a BUY maker) — what matchOrders wants.
+  /// SELL maker, jUSD for a BUY maker) — what matchOrders wants.
   makerFillE6: bigint;
 }
 
@@ -163,14 +162,14 @@ function deserializeOrder(json: unknown): SignedOrder {
   };
 }
 
-/// Build + sign an EIP-712 order for `index`'s wallet. `tokens`/`usdc` are
+/// Build + sign an EIP-712 order for `index`'s wallet. `tokens`/`jusd` are
 /// E6 fixed-point. Local crypto only — no RPC.
 async function buildSignedOrder(args: {
   index: number;
   tokenId: bigint;
   side: "BUY" | "SELL";
   tokensE6: bigint;
-  usdcE6: bigint;
+  jusdE6: bigint;
   chainId: number;
   exchangeAddr: Address;
 }): Promise<SignedOrder> {
@@ -181,8 +180,8 @@ async function buildSignedOrder(args: {
     signer: user,
     taker: "0x0000000000000000000000000000000000000000",
     tokenId: args.tokenId,
-    makerAmount: args.side === "BUY" ? args.usdcE6 : args.tokensE6,
-    takerAmount: args.side === "BUY" ? args.tokensE6 : args.usdcE6,
+    makerAmount: args.side === "BUY" ? args.jusdE6 : args.tokensE6,
+    takerAmount: args.side === "BUY" ? args.tokensE6 : args.jusdE6,
     expiration: 0n,
     nonce: 0n,
     feeRateBps: 0n,
@@ -200,11 +199,11 @@ async function buildSignedOrder(args: {
 /// ones it is asking the book to record.
 function limitAmountsE6(side: "BUY" | "SELL", sizeE6: bigint, price: number) {
   const priceE6 = parseUnits(price.toFixed(6), 6);
-  const usdcE6 = side === "BUY" ? ceilDiv(sizeE6 * priceE6, E6) : (sizeE6 * priceE6) / E6;
+  const jusdE6 = side === "BUY" ? ceilDiv(sizeE6 * priceE6, E6) : (sizeE6 * priceE6) / E6;
   return {
-    usdcE6,
-    makerAmount: side === "BUY" ? usdcE6 : sizeE6,
-    takerAmount: side === "BUY" ? sizeE6 : usdcE6,
+    jusdE6,
+    makerAmount: side === "BUY" ? jusdE6 : sizeE6,
+    takerAmount: side === "BUY" ? sizeE6 : jusdE6,
   };
 }
 
@@ -263,27 +262,27 @@ async function verifyExternalOrder(args: {
 async function checkExternalFunds(args: {
   user: Address;
   side: "BUY" | "SELL";
-  usdcE6: bigint;
+  jusdE6: bigint;
   tokensE6: bigint;
   tokenId: bigint;
   outcomeLabel: string;
 }): Promise<void> {
   const chain = await loadChain();
   if (args.side === "BUY") {
-    const usdc = chain.usdcAs(0);
-    const balance = await usdc.balanceOf(args.user);
-    if (balance < args.usdcE6) {
+    const jusd = chain.jusdAs(0);
+    const balance = await jusd.balanceOf(args.user);
+    if (balance < args.jusdE6) {
       throw httpError(
-        `insufficient USDC: have ${formatUnits(balance, 6)}, need ${formatUnits(args.usdcE6, 6)}. ` +
+        `insufficient jUSD: have ${formatUnits(balance, 6)}, need ${formatUnits(args.jusdE6, 6)}. ` +
           `Fund ${args.user} first (POST /faucet on testnet).`,
         400,
       );
     }
-    const allowance = await usdc.allowance(args.user, chain.exchangeAddr);
-    if (allowance < args.usdcE6) {
+    const allowance = await jusd.allowance(args.user, chain.exchangeAddr);
+    if (allowance < args.jusdE6) {
       throw httpError(
-        `insufficient USDC allowance for the exchange: have ${formatUnits(allowance, 6)}, ` +
-          `need ${formatUnits(args.usdcE6, 6)}. Approve ${chain.exchangeAddr} from ${args.user}.`,
+        `insufficient jUSD allowance for the exchange: have ${formatUnits(allowance, 6)}, ` +
+          `need ${formatUnits(args.jusdE6, 6)}. Approve ${chain.exchangeAddr} from ${args.user}.`,
         400,
       );
     }
@@ -315,7 +314,7 @@ async function checkExternalFunds(args: {
 async function ensureFunds(args: {
   index: number;
   side: "BUY" | "SELL";
-  usdcE6: bigint;
+  jusdE6: bigint;
   tokensE6: bigint;
   tokenId: bigint;
   outcomeLabel: string;
@@ -324,15 +323,15 @@ async function ensureFunds(args: {
   const user = account(args.index).address as Address;
   let faucetMinted = false;
   if (args.side === "BUY") {
-    const usdc = chain.usdcAs(args.index);
-    const balance = await usdc.balanceOf(user);
-    if (balance < args.usdcE6) {
-      await chain.usdcAs(0).mint(user, args.usdcE6 + parseUnits(String(AUTO_FAUCET_USDC), 6));
+    const jusd = chain.jusdAs(args.index);
+    const balance = await jusd.balanceOf(user);
+    if (balance < args.jusdE6) {
+      await chain.jusdAs(0).mint(user, args.jusdE6 + parseUnits(String(AUTO_FAUCET_JUSD), 6));
       faucetMinted = true;
     }
-    const allowance = await usdc.allowance(user, chain.exchangeAddr);
-    if (allowance < args.usdcE6) {
-      await usdc.approve(chain.exchangeAddr, parseUnits("1000000000", 6));
+    const allowance = await jusd.allowance(user, chain.exchangeAddr);
+    if (allowance < args.jusdE6) {
+      await jusd.approve(chain.exchangeAddr, parseUnits("1000000000", 6));
     }
   } else {
     const bal = await chain.ctAs(0).balanceOf(user, args.tokenId);
@@ -429,7 +428,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
     await checkExternalFunds({
       user,
       side: req.side,
-      usdcE6: budgetE6,
+      jusdE6: budgetE6,
       tokensE6: sizeE6,
       tokenId,
       outcomeLabel: outcome.label,
@@ -438,20 +437,15 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
     faucetMinted = await ensureFunds({
       index: accountIndex!,
       side: req.side,
-      usdcE6: budgetE6,
+      jusdE6: budgetE6,
       tokensE6: sizeE6,
       tokenId,
       outcomeLabel: outcome.label,
     });
   }
-  // Funding leg (USDCX): a wallet that onboarded through Stripe also spends
-  // its internal ledger. Read-and-refuse against the worst-case notional —
-  // the USDCX mirror of checkExternalFunds — with the actual debit applied
-  // on fill, inside the matching transaction below. Wallets with no funding
-  // account skip this entirely (the guard stands down inside).
-  if (!isMM && req.side === "BUY") {
-    await checkFundingBalance(user, Number(formatUnits(budgetE6, 6)));
-  }
+  // No second funding check here any more. A Stripe payment now mints jUSD,
+  // so a funded wallet's money is on-chain and `checkExternalFunds` above
+  // already saw it — there is one balance to run out of (jay, 2026-09-15).
 
   // ── Match + persist, all inside one row-locked transaction ─────────────
   const result = await prisma.$transaction(async (tx) => {
@@ -502,7 +496,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       let fillTokensE6: bigint;
       if (tokensLeftE6 === null) {
         // Budget-driven market BUY: how many tokens does the remaining
-        // budget buy at this level (maker SELL: tokens = usdc * maker/taker)?
+        // budget buy at this level (maker SELL: tokens = jusd * maker/taker)?
         const maxTokens = (budgetLeftE6 * mMakerAmt) / mTakerAmt;
         fillTokensE6 = maxTokens < availE6 ? maxTokens : availE6;
       } else {
@@ -510,20 +504,20 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       }
       if (fillTokensE6 <= 0n) break;
 
-      let usdcE6: bigint;
+      let jusdE6: bigint;
       let makerFillE6: bigint;
       if (req.side === "BUY") {
         // Maker is SELL (makerAmount = tokens): taker pays ceil at the
         // maker's ratio so the on-chain crossing check passes.
-        usdcE6 = ceilDiv(fillTokensE6 * mTakerAmt, mMakerAmt);
+        jusdE6 = ceilDiv(fillTokensE6 * mTakerAmt, mMakerAmt);
         makerFillE6 = fillTokensE6;
       } else {
-        // Maker is BUY (makerAmount = USDC): taker receives floor at the
+        // Maker is BUY (makerAmount = jUSD): taker receives floor at the
         // maker's ratio — never demand more than the maker signed for.
-        usdcE6 = (fillTokensE6 * mMakerAmt) / mTakerAmt;
-        makerFillE6 = usdcE6;
+        jusdE6 = (fillTokensE6 * mMakerAmt) / mTakerAmt;
+        makerFillE6 = jusdE6;
       }
-      if (usdcE6 <= 0n) break;
+      if (jusdE6 <= 0n) break;
 
       fills.push({
         makerOrderId: m.id,
@@ -532,19 +526,19 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
         makerIsMM: m.isMM,
         price: mPrice,
         tokensE6: fillTokensE6,
-        usdcE6,
+        jusdE6,
         makerFillE6,
       });
-      if (tokensLeftE6 === null) budgetLeftE6 -= usdcE6;
+      if (tokensLeftE6 === null) budgetLeftE6 -= jusdE6;
       else tokensLeftE6 -= fillTokensE6;
       if (tokensLeftE6 !== null && tokensLeftE6 <= 0n) break;
       if (tokensLeftE6 === null && budgetLeftE6 <= 0n) break;
     }
 
     const totalTokensE6 = fills.reduce((a, f) => a + f.tokensE6, 0n);
-    const totalUsdcE6 = fills.reduce((a, f) => a + f.usdcE6, 0n);
+    const totalJusdE6 = fills.reduce((a, f) => a + f.jusdE6, 0n);
     const totalTokens = Number(formatUnits(totalTokensE6, 6));
-    const totalUsdc = Number(formatUnits(totalUsdcE6, 6));
+    const totalJusd = Number(formatUnits(totalJusdE6, 6));
 
     // The taker's own order row.
     const restE6 = req.type === "limit" ? sizeE6 - totalTokensE6 : 0n;
@@ -573,7 +567,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
             tokenId,
             side: req.side,
             tokensE6: sizeE6,
-            usdcE6: limitAmountsE6(req.side, sizeE6, limitPrice!).usdcE6,
+            jusdE6: limitAmountsE6(req.side, sizeE6, limitPrice!).jusdE6,
             chainId: chain.chainId,
             exchangeAddr: chain.exchangeAddr,
           });
@@ -598,19 +592,6 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       },
     });
 
-    // USDCX ledger: the taker's fill total, debited for a BUY and credited
-    // for a SELL, atomically with the fills themselves. No-op for wallets
-    // that never onboarded through Stripe.
-    if (!isMM && totalUsdc > 0) {
-      await applyFundingDelta(
-        tx,
-        user,
-        "TRADE",
-        req.side === "BUY" ? -totalUsdc : totalUsdc,
-        takerOrder.id,
-      );
-    }
-
     // Apply fills to makers + write the trade feed.
     const tradeIdsByFill: string[][] = [];
     for (const f of fills) {
@@ -629,7 +610,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
           outcomeId: outcome.id,
           user,
           side: req.side,
-          usdcAmount: Number(formatUnits(f.usdcE6, 6)),
+          jusdAmount: Number(formatUnits(f.jusdE6, 6)),
           tokenAmount: Number(formatUnits(f.tokensE6, 6)),
           price: f.price,
           settlement: "PENDING",
@@ -646,7 +627,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
             outcomeId: outcome.id,
             user: f.maker,
             side: req.side === "BUY" ? "SELL" : "BUY",
-            usdcAmount: Number(formatUnits(f.usdcE6, 6)),
+            jusdAmount: Number(formatUnits(f.jusdE6, 6)),
             tokenAmount: Number(formatUnits(f.tokensE6, 6)),
             price: f.price,
             settlement: "PENDING",
@@ -655,15 +636,6 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
           },
         });
         ids.push(makerTrade.id);
-        // A resting maker with a funding account moves USDCX too — the
-        // opposite sign of the taker (taker BUY = maker sold, maker credits).
-        await applyFundingDelta(
-          tx,
-          f.maker,
-          "TRADE",
-          req.side === "BUY" ? Number(formatUnits(f.usdcE6, 6)) : -Number(formatUnits(f.usdcE6, 6)),
-          f.makerOrderId,
-        );
       }
       tradeIdsByFill.push(ids);
     }
@@ -679,7 +651,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       if (other) {
         await tx.outcome.update({ where: { id: other.id }, data: { price: Number((1 - lastPrice).toFixed(6)) } });
       }
-      await tx.market.update({ where: { id: market.id }, data: { volume: { increment: totalUsdc } } });
+      await tx.market.update({ where: { id: market.id }, data: { volume: { increment: totalJusd } } });
       // Deliberately NO PricePoint here. The chart is a probability series, and
       // a fill price is not this market's probability — it is one rung on the
       // operator's ladder, which a large order walks well past. The re-quote
@@ -689,7 +661,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       newYesPrice = yesPrice;
     }
 
-    return { takerOrder, fills, tradeIdsByFill, totalTokens, totalUsdc, newYesPrice };
+    return { takerOrder, fills, tradeIdsByFill, totalTokens, totalJusd, newYesPrice };
   });
 
   // Re-quote the MM around the traded price (and renormalize the group's
@@ -724,7 +696,7 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
       fills: result.fills.map((f, i) => ({
         makerOrderId: f.makerOrderId,
         tokensE6: f.tokensE6.toString(),
-        usdcE6: f.usdcE6.toString(),
+        jusdE6: f.jusdE6.toString(),
         makerFillE6: f.makerFillE6.toString(),
         tradeIds: result.tradeIdsByFill[i]!,
       })),
@@ -739,11 +711,11 @@ export async function placeOrder(req: PlaceOrderRequest): Promise<PlaceOrderResu
     fills: result.fills.map((f) => ({
       price: f.price,
       tokens: Number(formatUnits(f.tokensE6, 6)),
-      usdc: Number(formatUnits(f.usdcE6, 6)),
+      jusd: Number(formatUnits(f.jusdE6, 6)),
     })),
     totalTokens: result.totalTokens,
-    totalUsdc: result.totalUsdc,
-    avgPrice: result.totalTokens > 0 ? Number((result.totalUsdc / result.totalTokens).toFixed(4)) : null,
+    totalJusd: result.totalJusd,
+    avgPrice: result.totalTokens > 0 ? Number((result.totalJusd / result.totalTokens).toFixed(4)) : null,
     restingSize:
       result.takerOrder.status === "OPEN" || result.takerOrder.status === "PARTIALLY_FILLED"
         ? Number(result.takerOrder.size) - Number(result.takerOrder.sizeFilled)
@@ -848,7 +820,7 @@ interface SettlePayload {
   fills: {
     makerOrderId: string;
     tokensE6: string;
-    usdcE6: string;
+    jusdE6: string;
     makerFillE6: string;
     tradeIds: string[];
   }[];
@@ -883,20 +855,20 @@ registerHandler("SETTLE_MATCH", {
       // for its full size at its own limit price, and `matchOrders` takes the
       // fill amount separately from the order — so the same signature settles
       // every fill it crosses, partially. `takerFillAmount` is in the taker
-      // order's makerAmount units: USDC for a BUY, tokens for a SELL.
+      // order's makerAmount units: jUSD for a BUY, tokens for a SELL.
       let takerSigned: SignedOrder;
       let takerFillE6: bigint;
       if (p.takerIndex === null) {
         const takerRow = await prisma.order.findUniqueOrThrow({ where: { id: p.takerOrderId } });
         takerSigned = deserializeOrder(takerRow.signedOrder);
-        takerFillE6 = p.takerSide === "BUY" ? BigInt(fill.usdcE6) : BigInt(fill.tokensE6);
+        takerFillE6 = p.takerSide === "BUY" ? BigInt(fill.jusdE6) : BigInt(fill.tokensE6);
       } else {
         takerSigned = await buildSignedOrder({
           index: p.takerIndex,
           tokenId: BigInt(p.tokenId),
           side: p.takerSide,
           tokensE6: BigInt(fill.tokensE6),
-          usdcE6: BigInt(fill.usdcE6),
+          jusdE6: BigInt(fill.jusdE6),
           chainId: chain.chainId,
           exchangeAddr: chain.exchangeAddr,
         });
@@ -924,7 +896,7 @@ registerHandler("SETTLE_MATCH", {
       });
       if (trades.length === 0) continue; // this fill settled before the failure
       const tokens = Number(formatUnits(BigInt(fill.tokensE6), 6));
-      const usdc = Number(formatUnits(BigInt(fill.usdcE6), 6));
+      const jusd = Number(formatUnits(BigInt(fill.jusdE6), 6));
       await prisma.$transaction([
         prisma.trade.updateMany({
           where: { id: { in: fill.tradeIds } },
@@ -936,7 +908,7 @@ registerHandler("SETTLE_MATCH", {
         }),
         prisma.market.update({
           where: { id: p.marketId },
-          data: { volume: { decrement: usdc } },
+          data: { volume: { decrement: jusd } },
         }),
       ]);
     }

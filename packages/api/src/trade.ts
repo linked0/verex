@@ -8,7 +8,7 @@ import { prisma } from "./db";
 import { loadChain, account, accountAddress, sameAddress } from "./chain";
 
 /// Demo faucet: top up a user below this balance during a trade.
-const AUTO_FAUCET_USDC = 1_000;
+const AUTO_FAUCET_JUSD = 1_000;
 
 /// Legacy request shape still accepted by POST /trade — adapted to a
 /// market (IOC) order against the book.
@@ -16,7 +16,7 @@ export interface TradeRequest {
   slug: string;
   outcome: "Yes" | "No";
   side: "BUY" | "SELL";
-  /// BUY: USDC to spend. SELL: outcome tokens to sell. Human units.
+  /// BUY: jUSD to spend. SELL: outcome tokens to sell. Human units.
   amount: number;
   /// Demo wallet index 1..9 (0 is the operator).
   accountIndex: number;
@@ -26,7 +26,7 @@ export interface WalletSummary {
   /// null for an address verex holds no key for (V-C).
   accountIndex: number | null;
   address: string;
-  usdc: number;
+  jusd: number;
   positions: {
     slug: string;
     title: string;
@@ -34,7 +34,7 @@ export interface WalletSummary {
     tokens: number;
     price: number;
     value: number;
-    /// Net USDC spent on this outcome (Σ BUY − Σ SELL) — cost basis for P&L.
+    /// Net jUSD spent on this outcome (Σ BUY − Σ SELL) — cost basis for P&L.
     costBasis: number;
     /// value − costBasis. For resolved markets value uses the payout price
     /// (1 or 0), so this is the final profit/loss before redemption.
@@ -61,22 +61,22 @@ export async function walletSummaryByAddress(
 ): Promise<WalletSummary> {
   const chain = await loadChain();
   if (chain.chainId === 0) {
-    return { accountIndex, address: user, usdc: 0, positions: [] };
+    return { accountIndex, address: user, jusd: 0, positions: [] };
   }
   const userCt = chain.ctAs(0); // reads only — any wallet binding works
-  const usdcBal = await chain.usdcAs(0).balanceOf(user);
+  const jusdBal = await chain.jusdAs(0).balanceOf(user);
   if (accountIndex === 0) {
-    return { accountIndex, address: user, usdc: Number(formatUnits(usdcBal, 6)), positions: [] };
+    return { accountIndex, address: user, jusd: Number(formatUnits(jusdBal, 6)), positions: [] };
   }
 
   const markets = await prisma.market.findMany({ include: { outcomes: true } });
 
-  // Cost basis per outcome: net USDC the user has put in (Σ BUY − Σ SELL).
+  // Cost basis per outcome: net jUSD the user has put in (Σ BUY − Σ SELL).
   // REDEEM rows are excluded — they close a position, not change its cost.
   // FAILED rows too: a reverted settlement moved nothing on either side.
   const userTrades = await prisma.trade.findMany({
     where: { user, side: { in: ["BUY", "SELL"] }, settlement: { not: "FAILED" } },
-    select: { outcomeId: true, side: true, usdcAmount: true, tokenAmount: true, settlement: true },
+    select: { outcomeId: true, side: true, jusdAmount: true, tokenAmount: true, settlement: true },
   });
   const netCost = new Map<string, number>();
   // PENDING fills, netted into what the chain reports. The book fills a trade
@@ -86,13 +86,13 @@ export async function walletSummaryByAddress(
   // read-your-own-writes race as the MM ladder (mm.unsettledOperatorSold), and
   // the same fix: count what is in flight. CONFIRMED is already in balanceOf.
   const pendingTokens = new Map<string, number>();
-  let pendingUsdc = 0;
+  let pendingJusd = 0;
   for (const t of userTrades) {
     const sign = t.side === "BUY" ? 1 : -1;
-    netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + sign * Number(t.usdcAmount));
+    netCost.set(t.outcomeId, (netCost.get(t.outcomeId) ?? 0) + sign * Number(t.jusdAmount));
     if (t.settlement === "PENDING") {
       pendingTokens.set(t.outcomeId, (pendingTokens.get(t.outcomeId) ?? 0) + sign * Number(t.tokenAmount));
-      pendingUsdc -= sign * Number(t.usdcAmount);
+      pendingJusd -= sign * Number(t.jusdAmount);
     }
   }
 
@@ -133,9 +133,9 @@ export async function walletSummaryByAddress(
   return {
     accountIndex,
     address: user,
-    // Same adjustment for cash: a pending BUY's USDC has left the wallet as
+    // Same adjustment for cash: a pending BUY's jUSD has left the wallet as
     // far as the user is concerned, even though the transfer settles later.
-    usdc: Math.max(0, Number(formatUnits(usdcBal, 6)) + pendingUsdc),
+    jusd: Math.max(0, Number(formatUnits(jusdBal, 6)) + pendingJusd),
     positions,
   };
 }
@@ -146,13 +146,13 @@ export interface HistoryRow {
   marketSlug: string;
   marketTitle: string;
   outcome: string;
-  usdcAmount: number;
+  jusdAmount: number;
   tokenAmount: number;
   price: number;
   txHash: string | null; // null while on-chain settlement is pending
   settlement: "PENDING" | "CONFIRMED" | "FAILED";
   createdAt: string;
-  /// REDEEM rows only: usdcAmount − net cost of the outcome (Σ BUY − Σ SELL)
+  /// REDEEM rows only: jusdAmount − net cost of the outcome (Σ BUY − Σ SELL)
   /// at redemption — the realized win/loss of the closed position.
   realizedPnl?: number;
 }
@@ -174,7 +174,7 @@ export async function walletHistoryByAddress(user: Address): Promise<HistoryRow[
   const netCost = new Map<string, number>();
   for (const t of trades) {
     if (t.side === "REDEEM") continue;
-    const signed = (t.side === "BUY" ? 1 : -1) * Number(t.usdcAmount);
+    const signed = (t.side === "BUY" ? 1 : -1) * Number(t.jusdAmount);
     netCost.set(t.outcome.id, (netCost.get(t.outcome.id) ?? 0) + signed);
   }
 
@@ -184,42 +184,42 @@ export async function walletHistoryByAddress(user: Address): Promise<HistoryRow[
     marketSlug: t.market.slug,
     marketTitle: t.market.title,
     outcome: t.outcome.label,
-    usdcAmount: Number(t.usdcAmount),
+    jusdAmount: Number(t.jusdAmount),
     tokenAmount: Number(t.tokenAmount),
     price: Number(t.price),
     txHash: t.txHash,
     settlement: t.settlement,
     createdAt: t.createdAt.toISOString(),
     ...(t.side === "REDEEM"
-      ? { realizedPnl: Number((Number(t.usdcAmount) - (netCost.get(t.outcome.id) ?? 0)).toFixed(2)) }
+      ? { realizedPnl: Number((Number(t.jusdAmount) - (netCost.get(t.outcome.id) ?? 0)).toFixed(2)) }
       : {}),
   }));
 }
 
-/// Explicit faucet (demo): mint USDC to a demo wallet.
-export async function faucet(accountIndex: number, amount = AUTO_FAUCET_USDC): Promise<{ address: string; usdc: number }> {
+/// Explicit faucet (demo): mint jUSD to a demo wallet.
+export async function faucet(accountIndex: number, amount = AUTO_FAUCET_JUSD): Promise<{ address: string; jusd: number }> {
   return faucetTo(account(accountIndex).address as Address, amount);
 }
 
-/// V-B: mint test USDC to an arbitrary address. Testnet convenience only —
+/// V-B: mint test jUSD to an arbitrary address. Testnet convenience only —
 /// an external maker has to arrive funded, and `checkExternalFunds` rejects it
 /// otherwise; this is how it gets funded in the first place without verex
 /// holding its key.
 ///
-/// MockUSDC's `mint` is deliberately **unpermissioned** (see MockUSDC.sol) —
+/// JUSD's `mint` is deliberately **unpermissioned** (see JUSD.sol) —
 /// the server does not need to be anyone special to call it, it only needs an
 /// account with gas. That is the whole reason this is testnet-only: on a real
 /// chain there is no such token.
 export async function faucetTo(
   user: Address,
-  amount = AUTO_FAUCET_USDC,
-): Promise<{ address: string; usdc: number }> {
+  amount = AUTO_FAUCET_JUSD,
+): Promise<{ address: string; jusd: number }> {
   const chain = await loadChain();
-  if (chain.chainId === 0) return { address: user, usdc: 0 };
+  if (chain.chainId === 0) return { address: user, jusd: 0 };
   await assertSignerCanPayGas(chain);
-  await chain.usdcAs(0).mint(user, parseUnits(String(amount), 6));
-  const bal = await chain.usdcAs(0).balanceOf(user);
-  return { address: user, usdc: Number(formatUnits(bal, 6)) };
+  await chain.jusdAs(0).mint(user, parseUnits(String(amount), 6));
+  const bal = await chain.jusdAs(0).balanceOf(user);
+  return { address: user, jusd: Number(formatUnits(bal, 6)) };
 }
 
 /// The faucet signs as account 0. If that account holds no native token the

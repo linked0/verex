@@ -8,7 +8,7 @@
 //   pnpm --filter @verex/cli build && pnpm --filter @verex/cli demo
 //
 // Or reuse already-deployed contracts via env:
-//   USDC_ADDR=0x... CTF_ADDR=0x... EXCHANGE_ADDR=0x... \
+//   JUSD_ADDR=0x... CTF_ADDR=0x... EXCHANGE_ADDR=0x... \
 //     pnpm --filter @verex/cli demo
 
 import { execSync } from "node:child_process";
@@ -17,7 +17,7 @@ import { keccak256, toHex } from "viem";
 import {
   createCTClient,
   createExchangeClient,
-  createUsdcClient,
+  createJusdClient,
   getConditionId,
   signOrder,
   Side,
@@ -48,7 +48,7 @@ const FORGE_ENV = {
 const QUESTION_ID: Hex = keccak256(toHex("demo: Will Brazil win the 2026 World Cup?"));
 
 interface Backbone {
-  usdc: Address;
+  jusd: Address;
   ctf: Address;
   exchange: Address;
 }
@@ -61,7 +61,7 @@ function parseDeployOutput(out: string): Backbone {
     return m[1] as Address;
   };
   return {
-    usdc: grab("MockUSDC"),
+    jusd: grab("JUSD"),
     ctf: grab("ConditionalTokens"),
     exchange: grab("CTFExchange"),
   };
@@ -75,9 +75,9 @@ async function main() {
   // ─────────────────────────────────────────────────────────────────
 
   let backbone: Backbone;
-  if (process.env.USDC_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
+  if (process.env.JUSD_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
     backbone = {
-      usdc: process.env.USDC_ADDR as Address,
+      jusd: process.env.JUSD_ADDR as Address,
       ctf: process.env.CTF_ADDR as Address,
       exchange: process.env.EXCHANGE_ADDR as Address,
     };
@@ -90,7 +90,7 @@ async function main() {
     ).toString();
     backbone = parseDeployOutput(out);
   }
-  console.log(`    USDC      ${backbone.usdc}`);
+  console.log(`    jUSD      ${backbone.jusd}`);
   console.log(`    CTF       ${backbone.ctf}`);
   console.log(`    Exchange  ${backbone.exchange}`);
 
@@ -103,14 +103,14 @@ async function main() {
 
   const ct = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: operatorWallet });
   const exchange = createExchangeClient({ address: backbone.exchange, publicClient: pc, walletClient: operatorWallet });
-  const usdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: operatorWallet });
+  const jusd = createJusdClient({ address: backbone.jusd, publicClient: pc, walletClient: operatorWallet });
 
   const conditionId = getConditionId(operator, QUESTION_ID, 2n);
   console.log(`\n[2] preparing condition...`);
   console.log(`    conditionId=${conditionId}`);
   await ct.prepareCondition(operator, QUESTION_ID, 2n);
 
-  const ids = await ct.getBinaryPositionIds(backbone.usdc, conditionId);
+  const ids = await ct.getBinaryPositionIds(backbone.jusd, conditionId);
   console.log(`    YES id=${ids.yes}`);
   console.log(`    NO  id=${ids.no}`);
 
@@ -120,35 +120,35 @@ async function main() {
   console.log(`    adding operator to exchange allowlist...`);
   await exchange.addOperator(operator);
 
-  console.log(`    minting + splitting 1000 USDC of operator inventory...`);
-  const inventory = 1_000_000_000n; // 1000 USDC at 6 decimals
-  await usdc.mint(operator, inventory);
-  await usdc.approve(backbone.ctf, inventory);
-  await ct.splitBinary(backbone.usdc, conditionId, inventory);
+  console.log(`    minting + splitting 1000 jUSD of operator inventory...`);
+  const inventory = 1_000_000_000n; // 1000 jUSD at 6 decimals
+  await jusd.mint(operator, inventory);
+  await jusd.approve(backbone.ctf, inventory);
+  await ct.splitBinary(backbone.jusd, conditionId, inventory);
 
   console.log(`    approving exchange to pull operator's YES/NO during fillOrder...`);
   await ct.setApprovalForAll(backbone.exchange, true);
 
   // ─────────────────────────────────────────────────────────────────
-  // 3. Alice (account 1) signs a BUY order: 60 USDC -> 100 YES
+  // 3. Alice (account 1) signs a BUY order: 60 jUSD -> 100 YES
   // ─────────────────────────────────────────────────────────────────
 
   const alice = accountAddress(1);
   const aliceWallet = walletClient(1);
-  const aliceUsdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: aliceWallet });
+  const aliceJusd = createJusdClient({ address: backbone.jusd, publicClient: pc, walletClient: aliceWallet });
 
   console.log(`\n[3] funding alice + approving exchange...`);
-  await aliceUsdc.mint(alice, 100_000_000n); // 100 USDC
-  await aliceUsdc.approve(backbone.exchange, 100_000_000n);
+  await aliceJusd.mint(alice, 100_000_000n); // 100 jUSD
+  await aliceJusd.approve(backbone.exchange, 100_000_000n);
 
-  console.log(`    alice signing BUY order: 60 USDC -> 100 YES (price=$0.60/YES)`);
+  console.log(`    alice signing BUY order: 60 jUSD -> 100 YES (price=$0.60/YES)`);
   const order: Order = {
     salt: BigInt(Math.floor(Math.random() * 1e15)),
     maker: alice,
     signer: alice,
     taker: "0x0000000000000000000000000000000000000000",
     tokenId: ids.yes,
-    makerAmount: 60_000_000n,   // 60 USDC
+    makerAmount: 60_000_000n,   // 60 jUSD
     takerAmount: 100_000_000n,  // 100 YES
     expiration: 0n,
     nonce: 0n,
@@ -168,12 +168,12 @@ async function main() {
   // 4. Operator fills the order
   // ─────────────────────────────────────────────────────────────────
 
-  console.log(`\n[4] operator filling alice's BUY order (full 60 USDC)...`);
+  console.log(`\n[4] operator filling alice's BUY order (full 60 jUSD)...`);
   await exchange.fillOrder(signed, 60_000_000n);
 
   const aliceYes = await ct.balanceOf(alice, ids.yes);
-  const aliceUsdcBal = await aliceUsdc.balanceOf(alice);
-  console.log(`    alice now holds: ${aliceYes} YES + ${aliceUsdcBal} USDC`);
+  const aliceJusdBal = await aliceJusd.balanceOf(alice);
+  console.log(`    alice now holds: ${aliceYes} YES + ${aliceJusdBal} jUSD`);
 
   // ─────────────────────────────────────────────────────────────────
   // 5. Operator (oracle) reports YES wins
@@ -190,10 +190,10 @@ async function main() {
 
   console.log(`\n[6] alice redeems (YES only — cheapest path)...`);
   const aliceCt = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: aliceWallet });
-  await aliceCt.redeem(backbone.usdc, conditionId, [1n]);
+  await aliceCt.redeem(backbone.jusd, conditionId, [1n]);
 
-  const aliceFinal = await aliceUsdc.balanceOf(alice);
-  console.log(`    alice final USDC: ${aliceFinal} (started with 100, spent 60 on BUY, won 100 → 140)`);
+  const aliceFinal = await aliceJusd.balanceOf(alice);
+  console.log(`    alice final jUSD: ${aliceFinal} (started with 100, spent 60 on BUY, won 100 → 140)`);
 
   console.log(`\n✓ CTF end-to-end demo complete`);
 }

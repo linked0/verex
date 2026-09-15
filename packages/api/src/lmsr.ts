@@ -69,7 +69,7 @@ export function lmsrPrices(outcomes: LmsrOutcome[], b: number): Map<string, numb
 }
 
 /**
- * Seeded-LMSR cost C(q) − C(0): the net USDC the maker has collected by
+ * Seeded-LMSR cost C(q) − C(0): the net jUSD the maker has collected by
  * moving the book from its opening state to `q` along the curve. With the
  * opening probabilities folded in, C(q) = b·ln(Σ p⁰ᵢ·e^(qᵢ/b)) and C(0) = 0
  * because Σ p⁰ = 1. Used by /admin/mm for the worst-loss estimate:

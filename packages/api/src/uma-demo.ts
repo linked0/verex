@@ -100,7 +100,7 @@ export async function umaLifecycle(slug: string) {
   const indexOf = new Map<string, number>();
   for (let i = 0; i <= 5; i++) indexOf.set(accountAddress(i).toLowerCase(), i);
 
-  const bondDecimals = chain.umaOracleMock ? 6 : 18; // USDC vs WETH
+  const bondDecimals = chain.umaOracleMock ? 6 : 18; // jUSD vs WETH
   return {
     slug,
     oracle: {
@@ -116,7 +116,7 @@ export async function umaLifecycle(slug: string) {
         : priceToAnswer(request.proposedPrice),
       verdict: state === "Resolved" || state === "Settled" ? priceToAnswer(request.resolvedPrice) : null,
       bond: Number(formatUnits(key.bond, bondDecimals)),
-      bondCurrency: chain.umaOracleMock ? "USDC" : "WETH",
+      bondCurrency: chain.umaOracleMock ? "jUSD" : "WETH",
       /// Unix seconds; 0 until proposed. The challenge window's end.
       expirationTime: Number(request.expirationTime),
       settled: request.settled,
@@ -145,7 +145,7 @@ function requireAccount(accountIndex: number, opts: { juryOnly?: boolean } = {})
   }
 }
 
-/// Propose an answer, bonding USDC. Permissionless in UMA, so any wallet. Mock only.
+/// Propose an answer, bonding jUSD. Permissionless in UMA, so any wallet. Mock only.
 export async function umaPropose(slug: string, answer: UmaAnswer, accountIndex: number) {
   requireAccount(accountIndex);
   const chain = await loadChain();
@@ -158,7 +158,7 @@ export async function umaPropose(slug: string, answer: UmaAnswer, accountIndex: 
   return { slug, proposed: answer, proposer: accountIndex, txHash };
 }
 
-/// Dispute the live proposal, bonding USDC. Mock only. Self-dispute is allowed
+/// Dispute the live proposal, bonding jUSD. Mock only. Self-dispute is allowed
 /// on purpose: on real UMA it is the only way to retract your own wrong answer.
 export async function umaDispute(slug: string, accountIndex: number) {
   requireAccount(accountIndex);

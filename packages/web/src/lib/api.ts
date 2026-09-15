@@ -68,7 +68,7 @@ export type Trade = {
   id: string;
   user: string;
   side: "BUY" | "SELL" | "REDEEM";
-  usdcAmount: string;
+  jusdAmount: string;
   tokenAmount: string;
   price: string;
   txHash: string | null;
@@ -83,7 +83,7 @@ export type HistoryRow = {
   marketSlug: string;
   marketTitle: string;
   outcome: string;
-  usdcAmount: number;
+  jusdAmount: number;
   tokenAmount: number;
   price: number;
   txHash: string | null;
@@ -100,7 +100,7 @@ export type TradeResult = {
   settlement: "PENDING" | "NONE";
   side: "BUY" | "SELL";
   outcome: "Yes" | "No";
-  usdcAmount: number;
+  jusdAmount: number;
   tokenAmount: number;
   price: number;
   newYesPrice: number;
@@ -123,7 +123,7 @@ export type Position = {
 export type WalletSummary = {
   accountIndex: number;
   address: string;
-  usdc: number;
+  jusd: number;
   positions: Position[];
 };
 
@@ -369,7 +369,7 @@ export async function getPendingRedeems(index: number): Promise<{ jobId: string;
 export async function postRedeem(body: {
   slug: string;
   accountIndex: number;
-}): Promise<{ jobId: string; expectedUsdc: number }> {
+}): Promise<{ jobId: string; expectedJusd: number }> {
   const res = await fetch(`${BROWSER_API}/redeem`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -450,10 +450,10 @@ export type ApiConfig = {
   umaAdapter: string | null;
   /// True when the oracle is the demo mock — dispute/vote controls exist only then.
   umaOracleMock?: boolean;
-  /// The MockUSDC the faucet mints. Re-deployed on every local reset, so it is
+  /// The JUSD the faucet mints. Re-deployed on every local reset, so it is
   /// read here rather than written down anywhere (2026-08-27, jay) — the faucet
   /// panel shows it so a wallet can be pointed at the right token.
-  usdc?: string | null;
+  jusd?: string | null;
 };
 
 export async function getConfig(): Promise<ApiConfig> {
@@ -469,7 +469,7 @@ export async function getConfig(): Promise<ApiConfig> {
       umaAvailable: false,
       umaAdapter: null,
       umaOracleMock: false,
-      usdc: null,
+      jusd: null,
     };
   }
 }
@@ -556,7 +556,7 @@ export async function getJob(jobId: string): Promise<JobInfo | null> {
 /// (the J2 agent EOA, an external maker) — the API takes both.
 export type FaucetTarget = { accountIndex: number } | { address: string };
 
-export type FaucetResult = { address: string; usdc: number } | { error: string };
+export type FaucetResult = { address: string; jusd: number } | { error: string };
 
 /// Returns the server's message on failure instead of null. The faucet is the
 /// one button whose failures are always environmental — wrong operator key, no
@@ -570,32 +570,38 @@ export async function postFaucet(target: FaucetTarget): Promise<FaucetResult> {
       body: JSON.stringify(target),
     });
     const body = (await res.json().catch(() => null)) as
-      | { address?: string; usdc?: number; error?: string }
+      | { address?: string; jusd?: number; error?: string }
       | null;
     if (!res.ok) return { error: body?.error ?? `faucet failed (HTTP ${res.status})` };
-    return { address: body?.address ?? "", usdc: Number(body?.usdc ?? 0) };
+    return { address: body?.address ?? "", jusd: Number(body?.jusd ?? 0) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "faucet is unreachable" };
   }
 }
 
-// ── Funding (Stripe test mode → internal USDCX ledger) ─────────────────────
-// USDCX is an internal test-ledger credit, not redeemable crypto — the UI
+// ── Funding (Stripe test mode → a jUSD mint) ───────────────────────────────
+// A card payment mints jUSD to the payer's wallet — the UI
 // says so on every surface that shows it.
 
 export type FundingBalance = {
   userId: string;
   currency: string;
+  /// The wallet's on-chain jUSD — the only balance there is.
   amount: number;
-  /// False = this wallet never onboarded through Stripe (no ledger account).
+  /// Paid for but not yet minted. Non-zero means a mint is outstanding.
+  pending: number;
+  /// False = this wallet has never paid through Stripe.
   funded: boolean;
 };
 
+/// One Stripe payment and the mint that settled it. `txHash: null` with a
+/// `settledAt` means the mint is in flight; both null means it is queued.
 export type LedgerRow = {
   id: string;
-  kind: "DEPOSIT" | "TRADE" | "REDEEM";
-  delta: number;
-  ref: string | null;
+  amount: number;
+  sessionId: string;
+  txHash: string | null;
+  settledAt: string | null;
   createdAt: string;
 };
 

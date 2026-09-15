@@ -71,7 +71,7 @@ pnpm --filter @verex/web dev      # → http://localhost:3000
 ```
 
 Open http://localhost:3000 and trade with the demo wallets (#1–5, anvil's default accounts,
-seeded with 1,000 USDC each).
+seeded with 1,000 jUSD each).
 This is where you catch **app/logic bugs** before committing.
 
 #### Daily start (after a reboot or anvil restart)
@@ -95,7 +95,7 @@ Skipping step 2 shows stale markets from the DB, and every trade fails because t
 contracts behind them no longer exist on the fresh chain.
 
 **No `.env` step for contract addresses — ever (locally).** The seed writes the fresh
-`USDC`/`CTF`/`Exchange` addresses into the DB (`ChainConfig` row), and the API re-reads that
+`jUSD`/`CTF`/`Exchange` addresses into the DB (`ChainConfig` row), and the API re-reads that
 row on every call, rebuilding its clients when the addresses change (`packages/api/src/chain.ts`,
 `loadChain`). That's exactly why a reset needs no `.env` edits and no server restarts.
 Copying the printed addresses into `.env` is not just unnecessary — it recreates the
@@ -103,7 +103,7 @@ stale-address failure in the gotcha below on the next anvil restart.
 
 #### Gotcha: seed fails with `returned no data ("0x")`
 
-The seed reuses `USDC_ADDR` / `CTF_ADDR` / `EXCHANGE_ADDR` as the local backbone whenever all
+The seed reuses `JUSD_ADDR` / `CTF_ADDR` / `EXCHANGE_ADDR` as the local backbone whenever all
 three are set — whether exported in your shell or left in `packages/contracts/.env` (they get
 saved there for `DemoMarket.s.sol` runs against Sepolia). If those addresses don't exist on
 the current anvil chain, the seed dies mid-way:
@@ -129,8 +129,8 @@ resolved test markets, junk trades, odd balances. Servers can keep running:
 
 What it does, in order:
 1. Wipes **all** DB data — markets, trades, portfolio history (`prisma migrate reset`).
-2. Deploys a **fresh** contract backbone (USDC / CTF / Exchange) on the current anvil.
-3. Reseeds 10 OPEN markets and pre-funds demo wallets #1–5 with 1,000 USDC.
+2. Deploys a **fresh** contract backbone (jUSD / CTF / Exchange) on the current anvil.
+3. Reseeds 10 OPEN markets and pre-funds demo wallets #1–5 with 1,000 jUSD.
 
 No restarts needed afterwards: the running API detects the new contract addresses
 automatically — just **refresh the web page**. On a long-lived anvil the old contracts
@@ -191,8 +191,8 @@ whitelist gotcha: [docs/runbooks/deploy.md §2b](docs/runbooks/deploy.md).
 `packages/cli` ships a one-shot demo that deploys the CTF backbone and runs a full
 market lifecycle on a local anvil chain: prepare a condition → register the YES/NO
 token pair → operator mints & splits inventory → **alice signs a BUY order
-(60 USDC → 100 YES @ $0.60)** → operator fills it → oracle reports YES wins → alice
-redeems (ends with 140 USDC).
+(60 jUSD → 100 YES @ $0.60)** → operator fills it → oracle reports YES wins → alice
+redeems (ends with 140 jUSD).
 
 > **The demo requires a running anvil node** — this is the #1 gotcha. If you see
 > `error sending request ... Connection refused (os error 61)` for
@@ -217,7 +217,7 @@ Notes:
   operator / oracle / deployer, **account 1** is "alice".
 - **Reuse an already-deployed backbone** (skip the redeploy) by passing addresses:
   ```bash
-  USDC_ADDR=0x… CTF_ADDR=0x… EXCHANGE_ADDR=0x… pnpm --filter @verex/cli demo
+  JUSD_ADDR=0x… CTF_ADDR=0x… EXCHANGE_ADDR=0x… pnpm --filter @verex/cli demo
   ```
 - Point at a different node with `VEREX_RPC_URL` (default `http://127.0.0.1:8545`).
 

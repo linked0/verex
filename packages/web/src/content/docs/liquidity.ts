@@ -111,7 +111,7 @@ export const liquidity: Doc = {
           heading: "How the two venues merge",
           blocks: [
             {
-              note: "**Phase B is deliberately deferred, so this section describes the design rather than the running system.** Every benefit an on-chain pool provides — surviving operator downtime, resisting censorship, letting anyone verify the quote — is a benefit of *not having to trust the operator*. On a testnet with test USDC there is no adversary to resist and nobody who can lose money, so those guarantees buy nothing yet. They start mattering on mainnet, and that is when this gets built.",
+              note: "**Phase B is deliberately deferred, so this section describes the design rather than the running system.** Every benefit an on-chain pool provides — surviving operator downtime, resisting censorship, letting anyone verify the quote — is a benefit of *not having to trust the operator*. On a testnet with test jUSD there is no adversary to resist and nobody who can lose money, so those guarantees buy nothing yet. They start mattering on mainnet, and that is when this gets built.",
             },
             {
               p: "Once a curve exists on-chain alongside the book, an incoming order is matched against **combined depth**. The curve is read as a set of virtual resting orders — one at each price tick — and merged into the real book. A large order is then split across whichever side is cheaper at each level.",
@@ -232,7 +232,7 @@ export const liquidity: Doc = {
           heading: "두 장(場)이 합쳐지는 방식",
           blocks: [
             {
-              note: "**B단계는 의도적으로 미뤄 두었으므로, 이 절은 현재 돌아가는 시스템이 아니라 설계를 설명합니다.** 온체인 풀이 주는 이점 — 운영자 다운타임을 견디고, 검열에 저항하고, 누구나 호가를 검증할 수 있게 하는 것 — 은 모두 *운영자를 신뢰하지 않아도 되게 하는* 이점입니다. 테스트 USDC로 도는 테스트넷에는 저항할 적대자도, 돈을 잃을 사람도 없으므로 아직 그 보장이 사주는 것이 없습니다. 메인넷에서 의미가 생기고, 그때 만들게 됩니다.",
+              note: "**B단계는 의도적으로 미뤄 두었으므로, 이 절은 현재 돌아가는 시스템이 아니라 설계를 설명합니다.** 온체인 풀이 주는 이점 — 운영자 다운타임을 견디고, 검열에 저항하고, 누구나 호가를 검증할 수 있게 하는 것 — 은 모두 *운영자를 신뢰하지 않아도 되게 하는* 이점입니다. 테스트 jUSD로 도는 테스트넷에는 저항할 적대자도, 돈을 잃을 사람도 없으므로 아직 그 보장이 사주는 것이 없습니다. 메인넷에서 의미가 생기고, 그때 만들게 됩니다.",
             },
             {
               p: "호가창 옆에 온체인 곡선이 생기면, 들어온 주문은 **합산된 잔량**에 대해 체결됩니다. 곡선은 가격 눈금마다 하나씩 걸린 가상의 지정가 주문 집합으로 읽혀 실제 호가창에 병합됩니다. 큰 주문은 각 가격대에서 더 싼 쪽으로 쪼개져 나갑니다.",

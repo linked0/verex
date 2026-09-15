@@ -5,7 +5,7 @@ import { keccak256, toHex } from "viem";
 import {
   createCTClient,
   createExchangeClient,
-  createUsdcClient,
+  createJusdClient,
   getConditionId,
   signOrder,
   Side,
@@ -66,14 +66,14 @@ program
 
 program
   .command("balance")
-  .description("Show USDC + YES + NO balances for an account")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
+  .description("Show jUSD + YES + NO balances for an account")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
   .option("--ctf <address>", "ConditionalTokens address (env: CTF_ADDR)")
   .requiredOption("--question <bytes32>", "question id", DEFAULT_QUESTION_ID)
   .requiredOption("--oracle <address>", "oracle (resolver) address")
   .option("-a, --account <index>", "anvil account index", "0")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const ctfAddr = requireAddr(opts.ctf, "CTF_ADDR");
     const pc = publicClient();
     const idx = parseInt(opts.account, 10);
@@ -81,11 +81,11 @@ program
 
     const conditionId = getConditionId(opts.oracle as Address, opts.question as Hex, 2n);
     const ct = createCTClient({ address: ctfAddr, publicClient: pc });
-    const usdc = createUsdcClient({ address: usdcAddr, publicClient: pc });
+    const jusd = createJusdClient({ address: jusdAddr, publicClient: pc });
 
-    const [usdcBal, ids] = await Promise.all([
-      usdc.balanceOf(user),
-      ct.getBinaryPositionIds(usdcAddr, conditionId),
+    const [jusdBal, ids] = await Promise.all([
+      jusd.balanceOf(user),
+      ct.getBinaryPositionIds(jusdAddr, conditionId),
     ]);
     const [yesBal, noBal] = await Promise.all([
       ct.balanceOf(user, ids.yes),
@@ -93,7 +93,7 @@ program
     ]);
 
     console.log(`user:  ${user}`);
-    console.log(`USDC:  ${usdcBal}`);
+    console.log(`jUSD:  ${jusdBal}`);
     console.log(`YES:   ${yesBal} (id=${ids.yes})`);
     console.log(`NO:    ${noBal} (id=${ids.no})`);
   });
@@ -105,14 +105,14 @@ program
 program
   .command("setup")
   .description("Full market setup: prepareCondition + register + addOperator + split + approve")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
   .option("--ctf <address>", "ConditionalTokens address (env: CTF_ADDR)")
   .option("--exchange <address>", "CTFExchange address (env: EXCHANGE_ADDR)")
   .option("--question <bytes32>", "question id", DEFAULT_QUESTION_ID)
-  .option("--mint <units>", "USDC units to mint + split into inventory", "1000000000")
+  .option("--mint <units>", "jUSD units to mint + split into inventory", "1000000000")
   .option("-a, --account <index>", "operator/oracle anvil account index", "0")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const ctfAddr = requireAddr(opts.ctf, "CTF_ADDR");
     const exchangeAddr = requireAddr(opts.exchange, "EXCHANGE_ADDR");
     const idx = parseInt(opts.account, 10);
@@ -123,7 +123,7 @@ program
 
     const ct = createCTClient({ address: ctfAddr, publicClient: pc, walletClient: wc });
     const exchange = createExchangeClient({ address: exchangeAddr, publicClient: pc, walletClient: wc });
-    const usdc = createUsdcClient({ address: usdcAddr, publicClient: pc, walletClient: wc });
+    const jusd = createJusdClient({ address: jusdAddr, publicClient: pc, walletClient: wc });
 
     // 1. prepareCondition — operator is the manual oracle.
     const conditionId = getConditionId(operator, opts.question as Hex, 2n);
@@ -131,7 +131,7 @@ program
     await ct.prepareCondition(operator, opts.question as Hex, 2n);
 
     // 2. Derive YES/NO position ids (CT computes — avoids off-chain EC math)
-    const ids = await ct.getBinaryPositionIds(usdcAddr, conditionId);
+    const ids = await ct.getBinaryPositionIds(jusdAddr, conditionId);
     console.log(`YES id: ${ids.yes}`);
     console.log(`NO id:  ${ids.no}`);
 
@@ -141,10 +141,10 @@ program
     // 4. Allowlist operator.
     await exchange.addOperator(operator);
 
-    // 5. Mint + approve + split USDC → YES + NO inventory.
-    await usdc.mint(operator, inventory);
-    await usdc.approve(ctfAddr, inventory);
-    await ct.splitBinary(usdcAddr, conditionId, inventory);
+    // 5. Mint + approve + split jUSD → YES + NO inventory.
+    await jusd.mint(operator, inventory);
+    await jusd.approve(ctfAddr, inventory);
+    await ct.splitBinary(jusdAddr, conditionId, inventory);
 
     // 6. Approve exchange to pull YES/NO from operator during fillOrder.
     await ct.setApprovalForAll(exchangeAddr, true);
@@ -178,56 +178,56 @@ program
 
 program
   .command("split")
-  .description("Split USDC into YES + NO position tokens")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
+  .description("Split jUSD into YES + NO position tokens")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
   .option("--ctf <address>", "ConditionalTokens address (env: CTF_ADDR)")
   .requiredOption("--condition <bytes32>", "conditionId")
-  .requiredOption("--amount <units>", "USDC units to split")
+  .requiredOption("--amount <units>", "jUSD units to split")
   .option("-a, --account <index>", "anvil account index", "1")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const ctfAddr = requireAddr(opts.ctf, "CTF_ADDR");
     const pc = publicClient();
     const wc = walletClient(parseInt(opts.account, 10));
     const ct = createCTClient({ address: ctfAddr, publicClient: pc, walletClient: wc });
-    const usdc = createUsdcClient({ address: usdcAddr, publicClient: pc, walletClient: wc });
+    const jusd = createJusdClient({ address: jusdAddr, publicClient: pc, walletClient: wc });
     const amount = BigInt(opts.amount);
 
-    await usdc.approve(ctfAddr, amount);
-    const tx = await ct.splitBinary(usdcAddr, opts.condition as Hex, amount);
+    await jusd.approve(ctfAddr, amount);
+    const tx = await ct.splitBinary(jusdAddr, opts.condition as Hex, amount);
     console.log(`tx: ${tx}`);
   });
 
 program
   .command("merge")
-  .description("Merge YES + NO position tokens back into USDC")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
+  .description("Merge YES + NO position tokens back into jUSD")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
   .option("--ctf <address>", "ConditionalTokens address (env: CTF_ADDR)")
   .requiredOption("--condition <bytes32>", "conditionId")
   .requiredOption("--amount <units>", "amount of each side to merge")
   .option("-a, --account <index>", "anvil account index", "1")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const ctfAddr = requireAddr(opts.ctf, "CTF_ADDR");
     const ct = createCTClient({
       address: ctfAddr,
       publicClient: publicClient(),
       walletClient: walletClient(parseInt(opts.account, 10)),
     });
-    const tx = await ct.mergeBinary(usdcAddr, opts.condition as Hex, BigInt(opts.amount));
+    const tx = await ct.mergeBinary(jusdAddr, opts.condition as Hex, BigInt(opts.amount));
     console.log(`tx: ${tx}`);
   });
 
 program
   .command("redeem")
   .description("Redeem winning side after resolution")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
   .option("--ctf <address>", "ConditionalTokens address (env: CTF_ADDR)")
   .requiredOption("--condition <bytes32>", "conditionId")
   .option("--side <yes|no|both>", "which side(s) to redeem", "both")
   .option("-a, --account <index>", "anvil account index", "1")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const ctfAddr = requireAddr(opts.ctf, "CTF_ADDR");
     const side = opts.side.toLowerCase();
     const indexSets: bigint[] =
@@ -238,27 +238,27 @@ program
       publicClient: publicClient(),
       walletClient: walletClient(parseInt(opts.account, 10)),
     });
-    const tx = await ct.redeem(usdcAddr, opts.condition as Hex, indexSets);
+    const tx = await ct.redeem(jusdAddr, opts.condition as Hex, indexSets);
     console.log(`tx: ${tx}`);
   });
 
 program
   .command("mint")
-  .description("Mint MockUSDC (anvil-only — real USDC has no open mint)")
-  .option("--usdc <address>", "MockUSDC address (env: USDC_ADDR)")
-  .requiredOption("--amount <units>", "USDC units to mint")
+  .description("Mint JUSD (anvil-only — real jUSD has no open mint)")
+  .option("--jusd <address>", "JUSD address (env: JUSD_ADDR)")
+  .requiredOption("--amount <units>", "jUSD units to mint")
   .option("--to <address>", "recipient (defaults to --account address)")
   .option("-a, --account <index>", "anvil account index", "0")
   .action(async (opts) => {
-    const usdcAddr = requireAddr(opts.usdc, "USDC_ADDR");
+    const jusdAddr = requireAddr(opts.jusd, "JUSD_ADDR");
     const idx = parseInt(opts.account, 10);
     const to = (opts.to as Address) ?? accountAddress(idx);
-    const usdc = createUsdcClient({
-      address: usdcAddr,
+    const jusd = createJusdClient({
+      address: jusdAddr,
       publicClient: publicClient(),
       walletClient: walletClient(idx),
     });
-    const tx = await usdc.mint(to, BigInt(opts.amount));
+    const tx = await jusd.mint(to, BigInt(opts.amount));
     console.log(`tx: ${tx}`);
   });
 
@@ -273,7 +273,7 @@ orderCmd
   .description("Build + sign an EIP-712 order, print JSON to stdout (or --out file)")
   .option("--exchange <address>", "CTFExchange address (env: EXCHANGE_ADDR)")
   .requiredOption("--token <id>", "position token id (YES or NO)")
-  .requiredOption("--maker-amount <units>", "what the maker offers (BUY: USDC; SELL: tokens)")
+  .requiredOption("--maker-amount <units>", "what the maker offers (BUY: jUSD; SELL: tokens)")
   .requiredOption("--taker-amount <units>", "what the maker wants in return")
   .option("--side <buy|sell>", "order side", "buy")
   .option("--nonce <n>", "nonce", "0")

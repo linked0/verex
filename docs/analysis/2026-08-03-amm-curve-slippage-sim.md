@@ -12,12 +12,12 @@
 - **LMSR**: `b = 500`, chosen so marginal depth at $0.50 matches the CPMM's (`p(1−p)/b = 2p/y`).
   Capital asymmetry worth noting: LMSR's worst-case operator loss is **`b·ln 2 ≈ $347`**, while
   the pools lock the full $2,000.
-- Buys of $10–$250 USDC of YES at spots $0.50 / $0.90 / $0.95 / $0.99 — the tails are where
+- Buys of $10–$250 jUSD of YES at spots $0.50 / $0.90 / $0.95 / $0.99 — the tails are where
   prediction markets spend most of their life as resolution nears.
 
 ## Results
 
-| Spot | Order (USDC) | CPMM exec | StableSwap exec | LMSR exec | LMSR new spot |
+| Spot | Order (jUSD) | CPMM exec | StableSwap exec | LMSR exec | LMSR new spot |
 |------|-------------|-----------|-----------------|-----------|---------------|
 | $0.50 | $10 | $0.5050 | $0.5002 | $0.5050 | $0.5099 |
 | $0.50 | $50 | $0.5250 | $0.5012 | $0.5238 | $0.5476 |

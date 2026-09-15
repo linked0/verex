@@ -17,11 +17,11 @@ export const howTo: Doc = {
           heading: "1 · Demo wallets & the faucet",
           blocks: [
             {
-              p: "The wallet selector in the top-right corner switches between **Demo Wallets #1–5** (regular traders, seeded with 1,000 test USDC each) and the **Operator Wallet** (the admin that provides liquidity and resolves markets). Everything you do — trades, positions, history — belongs to the wallet that is active.",
+              p: "The wallet selector in the top-right corner switches between **Demo Wallets #1–5** (regular traders, seeded with 1,000 test jUSD each) and the **Operator Wallet** (the admin that provides liquidity and resolves markets). Everything you do — trades, positions, history — belongs to the wallet that is active.",
             },
             { img: { src: "/how-to/faucet.png", alt: "The nav controls: Create, Portfolio, Faucet, wallet selector" } },
             {
-              p: "Need more play money? Press **Faucet** — it mints 1,000 test USDC to the active demo wallet. **Check the result** right next to the wallet selector: the balance there updates immediately (it also appears at the top of your Portfolio). Buying with an empty balance also auto-faucets as a safety net, so you can never get stuck.",
+              p: "Need more play money? Press **Faucet** — it mints 1,000 test jUSD to the active demo wallet. **Check the result** right next to the wallet selector: the balance there updates immediately (it also appears at the top of your Portfolio). Buying with an empty balance also auto-faucets as a safety net, so you can never get stuck.",
             },
           ],
         },
@@ -30,7 +30,7 @@ export const howTo: Doc = {
           heading: "2 · Trade",
           blocks: [
             {
-              p: "Open any market and use the **Trade** panel: pick Yes or No, enter a USDC amount (BUY) or a token amount (SELL), and submit. Your order fills instantly against the order book — the operator's market-making ladder keeps both sides quoted — and the matched pair settles on-chain a moment later. Watch the small *settling on-chain… → settled* chip under the fill for the transaction hash; your position appears in the Portfolio as soon as it confirms.",
+              p: "Open any market and use the **Trade** panel: pick Yes or No, enter a jUSD amount (BUY) or a token amount (SELL), and submit. Your order fills instantly against the order book — the operator's market-making ladder keeps both sides quoted — and the matched pair settles on-chain a moment later. Watch the small *settling on-chain… → settled* chip under the fill for the transaction hash; your position appears in the Portfolio as soon as it confirms.",
             },
             { img: { src: "/how-to/trade.png", alt: "Market page with trade panel and order book" } },
             {
@@ -63,7 +63,7 @@ export const howTo: Doc = {
           heading: "5 · Portfolio & redeem",
           blocks: [
             {
-              p: "**Portfolio** shows the active wallet's USDC balance, every position with cost basis and P&L, and the full activity feed. After a market you hold resolves, the position shows **WON** or **LOST** and a **Redeem** button appears — press it to burn the tokens and collect $1 per winning token. The payout lands when the settlement chip confirms, and the redemption appears in the activity feed with its realized P&L (click the REDEEM tag for the breakdown).",
+              p: "**Portfolio** shows the active wallet's jUSD balance, every position with cost basis and P&L, and the full activity feed. After a market you hold resolves, the position shows **WON** or **LOST** and a **Redeem** button appears — press it to burn the tokens and collect $1 per winning token. The payout lands when the settlement chip confirms, and the redemption appears in the activity feed with its realized P&L (click the REDEEM tag for the breakdown).",
             },
             { img: { src: "/how-to/portfolio.png", alt: "Portfolio with balances, positions and activity" } },
           ],
@@ -73,7 +73,7 @@ export const howTo: Doc = {
           heading: "6 · Create a market",
           blocks: [
             {
-              p: "Anyone can create a market from **Create** in the top menu: write the question, pick a category, list at least two outcomes (exactly “Yes” and “No” makes a simple binary market), set the resolution time, and submit. The server creates every outcome on-chain and the **operator funds the opening order books** with the liquidity you chose (up to 1,000 USDC per outcome) — no gas needed from you. A progress bar tracks the batch; when it finishes you land on your new market.",
+              p: "Anyone can create a market from **Create** in the top menu: write the question, pick a category, list at least two outcomes (exactly “Yes” and “No” makes a simple binary market), set the resolution time, and submit. The server creates every outcome on-chain and the **operator funds the opening order books** with the liquidity you chose (up to 1,000 jUSD per outcome) — no gas needed from you. A progress bar tracks the batch; when it finishes you land on your new market.",
             },
             { img: { src: "/how-to/create.png", alt: "The create-market form" } },
           ],
@@ -106,11 +106,11 @@ export const howTo: Doc = {
           heading: "1 · 데모 지갑과 Faucet",
           blocks: [
             {
-              p: "오른쪽 위 지갑 선택기로 **데모 지갑 #1–5**(각각 테스트 USDC 1,000개를 가진 일반 트레이더)와 **운영자 지갑**(유동성을 공급하고 마켓을 정산하는 관리자)을 전환합니다. 거래·포지션·기록 등 모든 활동은 현재 선택된 지갑에 귀속됩니다.",
+              p: "오른쪽 위 지갑 선택기로 **데모 지갑 #1–5**(각각 테스트 jUSD 1,000개를 가진 일반 트레이더)와 **운영자 지갑**(유동성을 공급하고 마켓을 정산하는 관리자)을 전환합니다. 거래·포지션·기록 등 모든 활동은 현재 선택된 지갑에 귀속됩니다.",
             },
             { img: { src: "/how-to/faucet.png", alt: "상단 내비게이션: 마켓 생성, 포트폴리오, Faucet, 지갑 선택기" } },
             {
-              p: "자금이 더 필요하면 **Faucet**을 누르세요. 현재 데모 지갑에 테스트 USDC 1,000개가 발행됩니다. **결과는 지갑 선택기 바로 옆에서 확인**하세요 — 잔액이 즉시 갱신되며 포트폴리오 상단에도 표시됩니다. 잔액이 0인 상태로 매수해도 자동으로 발행되므로 막히는 일은 없습니다.",
+              p: "자금이 더 필요하면 **Faucet**을 누르세요. 현재 데모 지갑에 테스트 jUSD 1,000개가 발행됩니다. **결과는 지갑 선택기 바로 옆에서 확인**하세요 — 잔액이 즉시 갱신되며 포트폴리오 상단에도 표시됩니다. 잔액이 0인 상태로 매수해도 자동으로 발행되므로 막히는 일은 없습니다.",
             },
           ],
         },
@@ -119,7 +119,7 @@ export const howTo: Doc = {
           heading: "2 · 거래",
           blocks: [
             {
-              p: "아무 마켓이나 열고 **거래(Trade)** 패널을 사용하세요. Yes 또는 No를 고르고 USDC 금액(매수) 또는 토큰 수량(매도)을 입력한 뒤 제출합니다. 주문은 호가창에서 즉시 체결되고(운영자의 마켓메이킹 사다리가 양쪽 호가를 항상 유지합니다) 잠시 후 체결된 쌍이 온체인에 정산됩니다. 체결 아래 작은 *온체인 정산 중… → 정산 완료* 칩에서 트랜잭션 해시를 확인할 수 있고, 확정되는 즉시 포트폴리오에 포지션이 나타납니다.",
+              p: "아무 마켓이나 열고 **거래(Trade)** 패널을 사용하세요. Yes 또는 No를 고르고 jUSD 금액(매수) 또는 토큰 수량(매도)을 입력한 뒤 제출합니다. 주문은 호가창에서 즉시 체결되고(운영자의 마켓메이킹 사다리가 양쪽 호가를 항상 유지합니다) 잠시 후 체결된 쌍이 온체인에 정산됩니다. 체결 아래 작은 *온체인 정산 중… → 정산 완료* 칩에서 트랜잭션 해시를 확인할 수 있고, 확정되는 즉시 포트폴리오에 포지션이 나타납니다.",
             },
             { img: { src: "/how-to/trade.png", alt: "거래 패널과 호가창이 있는 마켓 페이지" } },
             {
@@ -152,7 +152,7 @@ export const howTo: Doc = {
           heading: "5 · 포트폴리오와 상환",
           blocks: [
             {
-              p: "**포트폴리오**는 현재 지갑의 USDC 잔액, 매입 단가와 손익이 포함된 모든 포지션, 전체 활동 내역을 보여줍니다. 보유 중인 마켓이 정산되면 포지션에 **WON** 또는 **LOST**가 표시되고 **상환(Redeem)** 버튼이 나타납니다. 누르면 토큰이 소각되고 승리 토큰 1개당 $1을 받습니다. 정산 칩이 확정되면 지급이 완료되며, 상환 내역은 실현 손익과 함께 활동 피드에 표시됩니다(REDEEM 태그를 클릭하면 상세 내역).",
+              p: "**포트폴리오**는 현재 지갑의 jUSD 잔액, 매입 단가와 손익이 포함된 모든 포지션, 전체 활동 내역을 보여줍니다. 보유 중인 마켓이 정산되면 포지션에 **WON** 또는 **LOST**가 표시되고 **상환(Redeem)** 버튼이 나타납니다. 누르면 토큰이 소각되고 승리 토큰 1개당 $1을 받습니다. 정산 칩이 확정되면 지급이 완료되며, 상환 내역은 실현 손익과 함께 활동 피드에 표시됩니다(REDEEM 태그를 클릭하면 상세 내역).",
             },
             { img: { src: "/how-to/portfolio.png", alt: "잔액·포지션·활동이 있는 포트폴리오" } },
           ],
@@ -162,7 +162,7 @@ export const howTo: Doc = {
           heading: "6 · 마켓 생성",
           blocks: [
             {
-              p: "누구나 상단 메뉴의 **마켓 생성**에서 마켓을 만들 수 있습니다. 질문을 쓰고, 카테고리를 고르고, 결과를 최소 두 개 나열하고(정확히 “Yes”와 “No”면 단순 이진 마켓), 정산 시각을 정한 뒤 제출하세요. 서버가 모든 결과를 온체인에 생성하고 **운영자가 초기 호가창에 유동성을 채웁니다**(결과당 최대 1,000 USDC). 사용자가 가스를 낼 필요는 없습니다. 진행 바가 배치를 추적하고, 끝나면 새로 만든 마켓으로 이동합니다.",
+              p: "누구나 상단 메뉴의 **마켓 생성**에서 마켓을 만들 수 있습니다. 질문을 쓰고, 카테고리를 고르고, 결과를 최소 두 개 나열하고(정확히 “Yes”와 “No”면 단순 이진 마켓), 정산 시각을 정한 뒤 제출하세요. 서버가 모든 결과를 온체인에 생성하고 **운영자가 초기 호가창에 유동성을 채웁니다**(결과당 최대 1,000 jUSD). 사용자가 가스를 낼 필요는 없습니다. 진행 바가 배치를 추적하고, 끝나면 새로 만든 마켓으로 이동합니다.",
             },
             { img: { src: "/how-to/create.png", alt: "마켓 생성 폼" } },
           ],

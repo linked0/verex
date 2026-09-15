@@ -24,7 +24,7 @@
 - API 서버, DB, indexer → Phase 2
 - Oracle 자동 resolve → Phase 1은 owner 수동 resolve, Chainlink는 Phase 2
 - AA, cross-chain, Stripe → Phase 3
-- ERC-20(USDC) 결제 → Phase 1은 native ETH escrow
+- ERC-20(jUSD) 결제 → Phase 1은 native ETH escrow
 - **OpenClaw skill의 서명 필요 tool** (`buy_yes/no`, `claim`) → Phase 3 (AA + session key 위임 후)
 
 ## 작업 항목
@@ -106,8 +106,8 @@ Runs in parallel with Web MVP. MCP server work is time-boxed — if it slips, We
 
 각 phase는 별도 `02-*.md`, `03-*.md`로 확장 예정.
 
-- **Phase 2 (Week 4~6):** API + Postgres + indexer(Pub/Sub), Chainlink price feed 자동 resolve, USDC escrow 전환, **W6에 v2 백본 시작 — [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합** (§11.2 — 확정 플랜)
-- **Phase 3 (Week 7~9):** ERC-4337 AA wallet, CCIP/LayerZero cross-chain 참여, Stripe → test USDC mock UX, GCP 배포 (Cloud Run → GKE). MM Agent v1이 v2 위에서 EIP-712 order signing 기반 maker로 동작
+- **Phase 2 (Week 4~6):** API + Postgres + indexer(Pub/Sub), Chainlink price feed 자동 resolve, jUSD escrow 전환, **W6에 v2 백본 시작 — [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) 통합** (§11.2 — 확정 플랜)
+- **Phase 3 (Week 7~9):** ERC-4337 AA wallet, CCIP/LayerZero cross-chain 참여, Stripe → test jUSD mock UX, GCP 배포 (Cloud Run → GKE). MM Agent v1이 v2 위에서 EIP-712 order signing 기반 maker로 동작
 - **Phase 4 (Week 10):** ZK 검증 (optional), UI polish, demo
 
 ---

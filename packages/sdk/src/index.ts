@@ -6,10 +6,10 @@
 //     `AccountConfig` — no env-var reading here, that's each consumer's own
 //     call (see packages/api/src/chain.ts and packages/cli/src/clients.ts).
 //   - Flat helpers: `signOrder`, `hashOrder`, `getConditionId`, plus thin
-//     wrappers around CTFExchange / IConditionalTokens / MockUSDC. Useful
+//     wrappers around CTFExchange / IConditionalTokens / JUSD. Useful
 //     for one-off calls and tests.
 //   - Small clients: `createCTClient`, `createExchangeClient`,
-//     `createUsdcClient` pre-bind an address + viem clients. Useful when
+//     `createJusdClient` pre-bind an address + viem clients. Useful when
 //     the same address gets passed around (CLI, MM agent).
 
 export * from "./types";
@@ -22,23 +22,23 @@ export { signOrder, hashOrder, recoverOrderSigner } from "./orders";
 // Contract-call helpers
 export * as ct from "./ct";
 export * as exchange from "./exchange";
-export * as usdc from "./usdc";
+export * as jusd from "./jusd";
 
 // Pre-bound clients
 export {
   createCTClient,
   createExchangeClient,
-  createUsdcClient,
+  createJusdClient,
   type CTClient,
   type ExchangeClient,
-  type UsdcClient,
+  type JusdClient,
 } from "./clients";
 
 // ABIs (escape hatch for callers that need raw contract access)
 export {
   CTFExchangeAbi,
   IConditionalTokensAbi,
-  MockUSDCAbi,
+  JUSDAbi,
   UmaCtfAdapterAbi,
 } from "./abis";
 

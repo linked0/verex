@@ -1,11 +1,13 @@
 "use client";
 
-// Add-funds screen (onboarding screen A) + the mini ledger (screen B's
+// Add-funds screen (onboarding screen A) + the deposit history (screen B's
 // drill-down). Pay-with-card redirects to Stripe Checkout in TEST mode; the
-// balance is credited by the API's webhook, never by this page — the
-// ?funded=success return only refreshes what the webhook already wrote.
-// USDCX is an internal test-ledger credit, not redeemable crypto, and the
-// page says so in so many words (the design doc's custody caveat).
+// jUSD is minted by the API's webhook, never by this page — the
+// ?funded=success return only refreshes what the webhook already did.
+//
+// The balance shown is the wallet's real on-chain jUSD. It used to be an
+// internal "USDCX" credit, which meant this page showed a number that was
+// not the one trades actually spent (jay, 2026-09-15).
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -28,11 +30,8 @@ import { cn } from "@/lib/utils";
 
 const PRESETS = [10, 20, 50];
 
-const KIND_KEY = {
-  DEPOSIT: "funding.kindDeposit",
-  TRADE: "funding.kindTrade",
-  REDEEM: "funding.kindRedeem",
-} as const;
+// Deposit rows link the mint. Same explorer the rest of the app uses.
+const EXPLORER = process.env.NEXT_PUBLIC_EXPLORER_URL ?? "https://devnet.jaylabs.xyz/explorer";
 
 export default function FundingClient() {
   const { accountIndex, isAdmin } = useWallet();
@@ -143,13 +142,21 @@ export default function FundingClient() {
           ) : (
             <div className="text-3xl font-bold tabular-nums">
               {money(balance.amount)}{" "}
-              <span className="text-base font-medium text-muted-foreground">USDCX</span>
+              <span className="text-base font-medium text-muted-foreground">jUSD</span>
             </div>
           )}
           <p className="text-xs text-muted-foreground">
             {t("funding.balanceFor", { wallet: `#${accountIndex}` })}
             {balance !== null && !balance.funded && ` — ${t("funding.notFunded")}`}
           </p>
+          {/* A paid-but-unminted deposit is the one state where the balance
+              above is genuinely incomplete. Say so rather than let the
+              number look wrong. */}
+          {balance !== null && balance.pending > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("funding.pending", { amount: money(balance.pending) })}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -237,18 +244,22 @@ export default function FundingClient() {
                 <React.Fragment key={row.id}>
                   {i > 0 && <Separator />}
                   <div className="flex items-center justify-between gap-2 py-1 text-sm">
-                    <span className="w-16 shrink-0 font-medium">{t(KIND_KEY[row.kind])}</span>
-                    <span
-                      className={cn(
-                        "tabular-nums",
-                        row.delta >= 0 ? "text-yes" : "text-no",
-                      )}
-                    >
-                      {row.delta >= 0 ? "+" : "−"}
-                      {money(Math.abs(row.delta))}
-                    </span>
+                    <span className="tabular-nums text-yes">+{money(row.amount)}</span>
                     <span className="min-w-0 flex-1 truncate text-right font-mono text-xs text-muted-foreground">
-                      {row.ref ?? ""}
+                      {row.txHash ? (
+                        <a
+                          href={`${EXPLORER}/tx/${row.txHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:underline"
+                        >
+                          {row.txHash.slice(0, 10)}…
+                        </a>
+                      ) : (
+                        <span className={cn(!row.settledAt && "text-no")}>
+                          {t(row.settledAt ? "funding.minting" : "funding.mintQueued")}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {new Date(row.createdAt).toLocaleString(intl, {

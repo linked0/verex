@@ -32,27 +32,27 @@ export function FaucetButton() {
   const [open, setOpen] = React.useState(false);
   const [address, setAddress] = React.useState("");
   const [note, setNote] = React.useState<{ ok: boolean; text: string } | null>(null);
-  const [usdc, setUsdc] = React.useState<string | null>(null);
+  const [jusd, setJusd] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
   const root = React.useRef<HTMLDivElement>(null);
 
   // Fetched when the panel first opens, not on every page load: the token
   // address is only ever read here, and the nav renders on every route.
   React.useEffect(() => {
-    if (!open || usdc !== null) return;
+    if (!open || jusd !== null) return;
     let live = true;
     void getConfig().then((c) => {
-      if (live) setUsdc(c.usdc ?? "");
+      if (live) setJusd(c.jusd ?? "");
     });
     return () => {
       live = false;
     };
-  }, [open, usdc]);
+  }, [open, jusd]);
 
-  const copyUsdc = async () => {
-    if (!usdc) return;
+  const copyJusd = async () => {
+    if (!jusd) return;
     try {
-      await navigator.clipboard.writeText(usdc);
+      await navigator.clipboard.writeText(jusd);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -90,7 +90,7 @@ export function FaucetButton() {
     }
     setNote({
       ok: true,
-      text: t("nav.faucetMinted", { address: short(r.address), usdc: r.usdc.toFixed(2) }),
+      text: t("nav.faucetMinted", { address: short(r.address), jusd: r.jusd.toFixed(2) }),
     });
     // Only the demo wallets are what the header shows a balance for; minting to
     // an outside address changes nothing this session is looking at.
@@ -168,23 +168,23 @@ export function FaucetButton() {
           )}
 
           {/* Which token the 1,000 actually lands in. Worth the space because
-              MockUSDC is re-deployed on every local reset, so the address is
+              JUSD is re-deployed on every local reset, so the address is
               never the same twice and a wallet pointed at yesterday's one shows
               a balance of zero with nothing to explain it. */}
           <div className="mt-3 border-t pt-2">
             <div className="text-xs font-medium">{t("nav.faucetToken")}</div>
-            {usdc === null ? (
+            {jusd === null ? (
               <div className="mt-1 h-4 w-full animate-pulse rounded bg-muted" />
-            ) : usdc === "" ? (
+            ) : jusd === "" ? (
               <p className="mt-1 text-xs text-muted-foreground">—</p>
             ) : (
               <div className="mt-1 flex items-center gap-1">
                 <code className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
-                  {usdc}
+                  {jusd}
                 </code>
                 <button
                   type="button"
-                  onClick={() => void copyUsdc()}
+                  onClick={() => void copyJusd()}
                   title={copied ? t("nav.faucetCopied") : t("nav.faucetCopy")}
                   aria-label={copied ? t("nav.faucetCopied") : t("nav.faucetCopy")}
                   className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"

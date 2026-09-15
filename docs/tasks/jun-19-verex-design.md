@@ -170,11 +170,11 @@ Implemented on branch `claude/deploy-export-log` per jay's "working version, com
   rules + conditionId, recent activity, sticky Buy/Sell trade panel.
 - **Real contracts**: every market is an on-chain CTF condition on anvil (seed deploys the
   backbone via `DeployCTF.s.sol`, then `prepareCondition` → `registerToken` → operator splits
-  10k USDC inventory per market). Addresses live in the DB (`ChainConfig`) — no env coordination.
+  10k jUSD inventory per market). Addresses live in the DB (`ChainConfig`) — no env coordination.
 - **Trading**: every Buy/Sell is a real `CTFExchange.fillOrder` tx — the user (demo anvil
   account 1–5, keys server-side) signs the maker order, the operator (account 0) fills from its
   inventory. Auto-faucet keeps the flow one-click. DB mirrors each fill: price impact (linear,
-  L=2000 USDC), volume, trade log, chart point. Production wallet path (MetaMask → AA session
+  L=2000 jUSD), volume, trade log, chart point. Production wallet path (MetaMask → AA session
   keys) stays the S7 track.
 - **Run locally**: `anvil` → `pnpm --filter @verex/api db:reset` (migrate + deploy + seed) →
   `pnpm --filter @verex/api dev` → `pnpm --filter @verex/web dev`.

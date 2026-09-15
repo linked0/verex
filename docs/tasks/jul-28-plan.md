@@ -14,7 +14,7 @@
 | # | Task | One-line design | Status |
 |---|------|-----------------|--------|
 | A | **Multi Outcomes** | N-outcome market = N binary CTF conditions + a DB `MarketGroup`, with **group-wide price renormalization** (Σ = 1) | ✅ **Done** — one sub-item open (A.4 `balanceOfBatch`, below) |
-| B | **Create Market** | `/create` form → `POST /market-groups` returns `202 + jobId`; a background job runs the on-chain batch, funded by operator USDC | ✅ **Done** |
+| B | **Create Market** | `/create` form → `POST /market-groups` returns `202 + jobId`; a background job runs the on-chain batch, funded by operator jUSD | ✅ **Done** |
 | C | **Faster Trading / Resolution / Redeem** | DB-backed `ChainJob` queue + in-process worker; API answers from the DB immediately, chain settles asynchronously | ✅ **Done** |
 | D | **Top menu for usage** | "How to use" page (trade / resolve / portfolio / redeem / create) linked from `SiteNav`, with real screenshots | ✅ **Done** |
 | — | **Execution model — CLOB** (rev 2) | `Order` table + price-time-priority matching engine + operator MM ladders | ✅ **Done** |
@@ -25,8 +25,8 @@
 > - **A** — `MarketGroup` model + migration `20260728044451_market_groups`; A.3 renormalization at
 >   [`packages/api/src/mm.ts:110-122`](../../packages/api/src/mm.ts); `GroupCard` / `GroupChart` /
 >   `GroupView` / `GroupResolvePanel`; route `app/group/[slug]`; `GET /market-groups/:slug`.
-> - **B** — `app/create/{page,CreateClient}.tsx` (default 100 / cap 1,000 USDC per outcome, polls
->   `GET /jobs/:id`); `POST /market-groups` → `202 + jobId`; pre-flight solvency + MockUSDC
+> - **B** — `app/create/{page,CreateClient}.tsx` (default 100 / cap 1,000 jUSD per outcome, polls
+>   `GET /jobs/:id`); `POST /market-groups` → `202 + jobId`; pre-flight solvency + JUSD
 >   shortfall mint in [`packages/api/src/group-create.ts`](../../packages/api/src/group-create.ts);
 >   `CREATE_GROUP` job type.
 > - **C** — `ChainJob` model + migration `20260728044926_chain_jobs`;
@@ -78,11 +78,11 @@ Concepts were reviewed from `/Users/jay/work/nostra-server`; **no code is copied
 > below. Binary and grouped markets both trade through the book.
 
 - **`Order` table (Prisma)**: `marketId`, `outcomeId`, `maker` (wallet address), `side BUY|SELL`,
-  `price Decimal(10,6)` (USDC per share, 0.01–0.99), `size`, `sizeFilled`,
+  `price Decimal(10,6)` (jUSD per share, 0.01–0.99), `size`, `sizeFilled`,
   `status OPEN|PARTIALLY_FILLED|FILLED|CANCELLED|EXPIRED`, `expiresAt`, `signedOrder Json`
   (EIP-712 — signed server-side with the demo wallet key, exactly like today's flow), unique
   order hash.
-- **Placement — `POST /orders`**: validate funds (BUY: `price × size` USDC; SELL: token balance),
+- **Placement — `POST /orders`**: validate funds (BUY: `price × size` jUSD; SELL: token balance),
   insert, and run the matching engine inside the same DB transaction. Cancel via
   `DELETE /orders/:id` (also cancels on-chain-invalid orders lazily).
 - **Matching engine** (in-process, price-time priority): a new order crosses the best opposite
@@ -130,7 +130,7 @@ is structurally binary. Polymarket itself solves this with grouped binaries + a 
 
 Consequences we accept (same trade-off Polymarket/nostra accept):
 - No on-chain Σ=1 enforcement (we enforce it in the DB price layer instead — see A.3).
-- Operator inventory costs `L × N` USDC per group instead of `L`.
+- Operator inventory costs `L × N` jUSD per group instead of `L`.
 - Resolution = N `reportPayouts` txs (winner `[1,0]`, losers `[0,1]`) — handled by Task C's queue.
 - A future NegRisk-style adapter (convert "No on A" → "Yes on everything else") stays possible;
   out of scope now (noted in `docs/features/negative-risk-markets.md`).
@@ -179,7 +179,7 @@ which *is* the per-outcome series.)
 > operator MM's new **quote centers** after a fill (the book then produces the displayed mid).
 > The math is unchanged.
 
-Standalone markets keep a single-market version (linear impact `k = usdc/2000` shifts the
+Standalone markets keep a single-market version (linear impact `k = jusd/2000` shifts the
 quote center; No = 1 − Yes).
 
 For a market inside a group, after computing the traded member's new center `p'ᵢ`:
@@ -277,7 +277,7 @@ model ChainJob {
   id         String         @id @default(cuid())
   type       ChainJobType
   status     ChainJobStatus @default(PENDING)
-  payload    Json                       // e.g. {marketId, outcomeId, side, usdcAmount, wallet}
+  payload    Json                       // e.g. {marketId, outcomeId, side, jusdAmount, wallet}
   result     Json?                      // {txHashes[]} / error detail
   tradeId    String?                    // backlink for settlement stamping
   attempts   Int            @default(0)
@@ -335,7 +335,7 @@ Local dev (anvil) is unaffected — worker just runs in-process.
 
 New page `packages/web/src/app/create/page.tsx` with the screenshot's fields:
 question, category (existing category list), image URL *(text field — file upload needs storage
-we don't have; can add later)*, **initial liquidity per outcome** (default 100 USDC), outcomes
+we don't have; can add later)*, **initial liquidity per outcome** (default 100 jUSD), outcomes
 (min 2 rows; exactly 2 labeled "Yes/No" → creates a standalone binary market; otherwise a group),
 resolution date+time → `closesAt`.
 
@@ -346,7 +346,7 @@ POST /market-groups
 ```
 
 - **Pre-flight solvency check** (kept from the reference design — it's a good idea): read
-  operator USDC balance; if `< L × N`, on local/staging **mint the shortfall** (MockUSDC), on prod
+  operator jUSD balance; if `< L × N`, on local/staging **mint the shortfall** (JUSD), on prod
   reject with `{required, available}`.
 - The handler only writes a `ChainJob {type: CREATE_GROUP}` + a `MarketGroup` row with a new
   status `CREATING` (markets appear on the homepage only once OPEN). Everything on-chain happens
@@ -367,8 +367,8 @@ POST /market-groups
   No moderation queue (the reference had none either); can be added when real auth lands (S7).
   Jay comment: Anyone can create markets.
 
-- **Operator liquidity source:** operator's existing USDC balance (topped up by seed / MockUSDC
-  mint on test). Per-outcome `L` capped at **1,000 USDC** to stop a demo user draining the operator.
+- **Operator liquidity source:** operator's existing jUSD balance (topped up by seed / JUSD
+  mint on test). Per-outcome `L` capped at **1,000 jUSD** to stop a demo user draining the operator.
 - **No fees** for now (creation fee / redemption fee are a separate product decision — the
   reference charged 2% of redemption profit; flagging as a future option, not building it).
   Jay comment: I will set the fee policy later.
@@ -429,6 +429,6 @@ book → check group renormalized re-quotes → resolve group → redeem → cre
    centers (third-party resting orders can briefly skew displayed mids until re-quote)?
 3. **Trade UX:** OK that fills are instant in the DB book and the chain settles behind a status
    chip — including the rare auto-revert on settlement failure?
-4. **Create-market caps:** default 100 / max 1,000 USDC per outcome OK? Image as URL text field OK?
+4. **Create-market caps:** default 100 / max 1,000 jUSD per outcome OK? Image as URL text field OK?
 5. **Seed groups:** the 3 proposed groups (HR Derby, World Series, TIME PotY) OK, or different ones?
 6. **Task order:** confirm A → C(+CLOB) → B → D.

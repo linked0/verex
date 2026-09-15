@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 import {Order, Side, SignatureType} from "ctf-exchange/exchange/libraries/OrderStructs.sol";
 import {CTFExchange} from "ctf-exchange/exchange/CTFExchange.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 
 /// @notice Emits a deterministic Order digest for cross-checking the SDK's
 ///         off-chain EIP-712 reconstruction (packages/sdk).
@@ -22,8 +22,8 @@ contract EmitOrderHash is Script {
         // Deploy a minimal exchange. The CTF + factory addresses are zero
         // because `hashOrder` doesn't touch them — it only reads the
         // domain separator (set in the constructor) and the order fields.
-        MockUSDC usdc = new MockUSDC();
-        CTFExchange exchange = new CTFExchange(address(usdc), address(0), address(0), address(0));
+        JUSD jusd = new JUSD();
+        CTFExchange exchange = new CTFExchange(address(jusd), address(0), address(0), address(0));
 
         // Fixed Order. Values chosen so they're distinctive across fields
         // (catch encoding bugs that put the wrong field at the wrong slot).
@@ -33,7 +33,7 @@ contract EmitOrderHash is Script {
             signer: 0x1111111111111111111111111111111111111111,
             taker: 0x0000000000000000000000000000000000000000,
             tokenId: 0xabcdef0123456789,
-            makerAmount: 60_000_000,    // 60 USDC
+            makerAmount: 60_000_000,    // 60 JUSD
             takerAmount: 100_000_000,   // 100 outcome tokens
             expiration: 0,
             nonce: 7,

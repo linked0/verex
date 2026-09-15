@@ -1,26 +1,35 @@
-// The funding leg: Stripe Checkout (TEST mode) → internal USDCX ledger.
+// The funding leg: Stripe Checkout (TEST mode) → a jUSD mint.
 //
-// A newcomer with no wallet pays with a test card and gets a spendable
-// internal balance ("USDCX") — a ledger row, NOT redeemable crypto and NOT
-// an on-chain USDC transfer. The chain leg keeps settling in MockUSDC
-// exactly as before; this ledger sits in front of it as the user-facing
-// spendable balance. Design: rabbit docs/features/jayverse-onboarding-mm.md.
+// A newcomer with no crypto pays with a test card and receives jUSD, the
+// token the chain actually settles in. There is one balance in the system
+// and it is on-chain. Design: rabbit docs/features/jayverse-onboarding-mm.md.
 //
-// The WEBHOOK is the source of truth for crediting, never the browser
-// redirect — the user can close the tab between paying and returning. Each
-// credit is idempotent on the Stripe event/session id (StripeEvent table),
-// so a retried webhook can't double-credit.
+// This replaced an internal "USDCX" credit — a Postgres number the user spent
+// from while the chain leg was funded by an unrelated open mint. One user, two
+// balances, and the one the UI showed was the one that was not real.
+//
+// The WEBHOOK is the source of truth, never the browser redirect — the user
+// can close the tab between paying and returning. Each deposit is idempotent
+// on the Stripe event/session id (StripeEvent + Deposit.sessionId), so a
+// retried webhook cannot pay twice.
+//
+// A card charge and an on-chain mint cannot share a transaction. So the
+// webhook commits the Deposit row (what we owe) atomically with the Stripe
+// event, and SETTLES it — mints, stamps txHash — afterwards. If the mint
+// fails, the row stays unsettled and `settlePendingDeposits` retries it; the
+// money is never lost, only late. Settling twice is prevented by the same
+// row: only `settledAt IS NULL` rows are picked up, and the update is
+// conditional on it still being null.
 //
 // No stripe SDK on purpose: v1 needs one REST call (create a Checkout
 // Session) and one HMAC check (webhook signature). Two fetches and
 // node:crypto keep the dependency tree exactly where it was.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { getAddress, isAddress } from "viem";
-import type { Prisma } from "@prisma/client";
+import { getAddress, isAddress, parseUnits, formatUnits } from "viem";
 import type { Address } from "@verex/sdk";
 import { prisma } from "./db";
-import { account } from "./chain";
+import { account, loadChain } from "./chain";
 
 const STRIPE_API = "https://api.stripe.com/v1";
 export const MIN_DEPOSIT_USD = 1;
@@ -90,12 +99,12 @@ export async function createCheckout(req: {
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": String(cents),
     "line_items[0][price_data][product_data][name]":
-      "Verex USDCX credit (test mode — play money, not redeemable crypto)",
+      "Verex jUSD (test mode — a demo chain token, no real value)",
     success_url: `${webUrl}/funding?funded=success`,
     cancel_url: `${webUrl}/funding?funded=cancel`,
     // The webhook credits from THESE, not from anything the browser says.
     "metadata[userId]": userId,
-    "metadata[usdcx]": (cents / 100).toFixed(2),
+    "metadata[jusd]": (cents / 100).toFixed(2),
   });
 
   const res = await fetch(`${STRIPE_API}/checkout/sessions`, {
@@ -153,12 +162,15 @@ function verifySignature(raw: Buffer, header: string | undefined, secret: string
 export interface WebhookResult {
   received: true;
   handled: boolean;
-  /// Set when this delivery actually credited a balance (idempotent replays
+  /// Set when this delivery actually recorded a deposit (idempotent replays
   /// come back handled but not credited).
   credited?: { userId: string; amount: number; sessionId: string };
+  /// The mint, when it landed during this same delivery. Absent means the
+  /// deposit is recorded but still pending — `settlePendingDeposits` owns it.
+  txHash?: string;
 }
 
-/// POST /webhooks/stripe — verify, then credit on checkout.session.completed.
+/// POST /webhooks/stripe — verify, record the deposit, then mint.
 export async function handleStripeWebhook(
   raw: Buffer,
   signatureHeader: string | undefined,
@@ -177,7 +189,7 @@ export async function handleStripeWebhook(
         id?: string;
         payment_status?: string;
         amount_total?: number;
-        metadata?: { userId?: string; usdcx?: string };
+        metadata?: { userId?: string; jusd?: string };
       };
     };
   };
@@ -189,10 +201,10 @@ export async function handleStripeWebhook(
   // Prefer our own metadata (what /funding/checkout promised); fall back to
   // Stripe's amount_total for sessions created outside this API.
   const amount =
-    Number(session?.metadata?.usdcx) ||
+    Number(session?.metadata?.jusd) ||
     (session?.amount_total != null ? session.amount_total / 100 : NaN);
   if (!event.id || !sessionId || !userId || !isAddress(userId) || !(amount > 0)) {
-    throw httpError("checkout.session.completed is missing id/metadata — nothing to credit", 400);
+    throw httpError("checkout.session.completed is missing id/metadata — nothing to deposit", 400);
   }
   // Cards are paid synchronously; anything async (payment_status "unpaid")
   // must wait for its own completed-and-paid event.
@@ -201,98 +213,136 @@ export async function handleStripeWebhook(
   }
 
   const user = getAddress(userId);
+  let depositId: string;
   try {
-    await prisma.$transaction(async (tx) => {
+    depositId = await prisma.$transaction(async (tx) => {
       // Unique on both event id and session id — the insert IS the
-      // idempotency check, and it commits atomically with the credit.
+      // idempotency check, and it commits atomically with the record of
+      // what we now owe this user.
       await tx.stripeEvent.create({ data: { id: event.id!, sessionId } });
-      await tx.balance.upsert({
-        where: { userId: user },
-        create: { userId: user, amount },
-        update: { amount: { increment: amount } },
-      });
-      await tx.ledgerEntry.create({
-        data: { userId: user, kind: "DEPOSIT", delta: amount, ref: sessionId },
-      });
+      const row = await tx.deposit.create({ data: { userId: user, amount, sessionId } });
+      return row.id;
     });
   } catch (e) {
-    // P2002 = this event/session was already credited. Answer 200 so Stripe
-    // stops retrying — the retry did its job, which was nothing.
-    if ((e as { code?: string })?.code === "P2002") return { received: true, handled: true };
+    // P2002 = this event/session was already recorded. Answer 200 so Stripe
+    // stops retrying, but still sweep: the first delivery may have committed
+    // the row and then failed to mint.
+    if ((e as { code?: string })?.code === "P2002") {
+      await settlePendingDeposits().catch(() => {});
+      return { received: true, handled: true };
+    }
     throw e;
   }
-  return { received: true, handled: true, credited: { userId: user, amount, sessionId } };
+
+  // Mint outside the transaction. A failure here is recoverable by design:
+  // the Deposit row is committed, so the user is owed the tokens whatever
+  // happens next, and the sweeper will mint them.
+  const settled = await settleDeposit(depositId).catch(() => null);
+  return {
+    received: true,
+    handled: true,
+    credited: { userId: user, amount, sessionId },
+    txHash: settled ?? undefined,
+  };
 }
 
-// ── Reads (balance chip + mini ledger) ─────────────────────────────────────
+/// Mint one recorded deposit and stamp it settled. Returns the tx hash, or
+/// null if the row was already settled (or vanished) — never throws for that.
+/// Safe to call twice: the final update is conditional on settledAt still
+/// being null, so a duplicate caller loses the race and mints nothing.
+export async function settleDeposit(id: string): Promise<`0x${string}` | null> {
+  const row = await prisma.deposit.findUnique({ where: { id } });
+  if (!row || row.settledAt) return null;
+
+  // Claim the row BEFORE minting. Two concurrent sweepers would otherwise
+  // both see settledAt = null and both mint; this makes the second one a
+  // no-op. The cost is that a crash between claim and mint leaves a row
+  // marked settled with no txHash — which `unsettledDeposits` reports, and
+  // which is far better than minting twice.
+  const claim = await prisma.deposit.updateMany({
+    where: { id, settledAt: null },
+    data: { settledAt: new Date() },
+  });
+  if (claim.count === 0) return null;
+
+  try {
+    const chain = await loadChain();
+    const hash = await chain.jusdAs(0).mint(getAddress(row.userId) as Address, parseUnits(String(row.amount), 6));
+    await prisma.deposit.update({ where: { id }, data: { txHash: hash } });
+    return hash as `0x${string}`;
+  } catch (e) {
+    // Hand the row back so the sweeper can try again.
+    await prisma.deposit.updateMany({ where: { id, txHash: null }, data: { settledAt: null } });
+    throw e;
+  }
+}
+
+/// Mint everything that is paid for but not yet on-chain. Called after each
+/// webhook and exposed as POST /funding/settle so a stuck deposit can be
+/// retried without waiting for Stripe to redeliver anything.
+export async function settlePendingDeposits(): Promise<{ settled: number; failed: number }> {
+  const pending = await prisma.deposit.findMany({
+    where: { settledAt: null },
+    orderBy: { createdAt: "asc" },
+    take: 25,
+  });
+  let settled = 0;
+  let failed = 0;
+  for (const row of pending) {
+    try {
+      if (await settleDeposit(row.id)) settled += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+  return { settled, failed };
+}
+
+// ── Reads (balance chip + deposit history) ────────────────────────────────
 
 export interface FundingSummary {
   userId: string;
   currency: string;
+  /// The wallet's on-chain jUSD. This is the balance — there is no other.
   amount: number;
-  /// False = this wallet never onboarded through Stripe; the order path
-  /// skips the USDCX guard for it entirely.
+  /// Paid for but not yet minted. Non-zero means a settle is outstanding,
+  /// and the UI should say so rather than let the number look wrong.
+  pending: number;
+  /// True once this wallet has ever paid through Stripe. Nothing depends on
+  /// it any more; it is kept so the UI can tell "new here" from "spent it".
   funded: boolean;
 }
 
 export async function fundingSummary(userId: string): Promise<FundingSummary> {
-  const row = await prisma.balance.findUnique({ where: { userId } });
+  const user = getAddress(userId) as Address;
+  const [onChain, deposits] = await Promise.all([
+    loadChain().then((chain) => chain.jusdAs(0).balanceOf(user)),
+    prisma.deposit.findMany({ where: { userId: user }, select: { amount: true, settledAt: true } }),
+  ]);
+  const pending = deposits
+    .filter((d) => !d.settledAt)
+    .reduce((sum, d) => sum + Number(d.amount), 0);
   return {
-    userId,
-    currency: row?.currency ?? "USDCX",
-    amount: row ? Number(row.amount) : 0,
-    funded: Boolean(row),
+    userId: user,
+    currency: "jUSD",
+    amount: Number(formatUnits(onChain, 6)),
+    pending,
+    funded: deposits.length > 0,
   };
 }
 
 export async function fundingLedger(userId: string) {
-  const rows = await prisma.ledgerEntry.findMany({
-    where: { userId },
+  const rows = await prisma.deposit.findMany({
+    where: { userId: getAddress(userId) },
     orderBy: { createdAt: "desc" },
     take: 50,
   });
   return rows.map((r) => ({
     id: r.id,
-    kind: r.kind,
-    delta: Number(r.delta),
-    ref: r.ref,
+    amount: Number(r.amount),
+    sessionId: r.sessionId,
+    txHash: r.txHash,
+    settledAt: r.settledAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
   }));
-}
-
-// ── Order-path hooks (book.ts / resolve.ts) ────────────────────────────────
-
-/// The USDCX mirror of `checkExternalFunds`: read and refuse, never top up.
-/// No balance row means the wallet never onboarded through Stripe — the
-/// pre-existing chain-USDC path applies unchanged and this guard stands down.
-export async function checkFundingBalance(userId: string, usdcNeeded: number): Promise<void> {
-  const row = await prisma.balance.findUnique({ where: { userId } });
-  if (!row) return;
-  const have = Number(row.amount);
-  if (have < usdcNeeded) {
-    throw httpError(
-      `insufficient USDCX balance: have ${have.toFixed(2)}, need ${usdcNeeded.toFixed(2)}. ` +
-        `Add funds first (POST /funding/checkout).`,
-      400,
-    );
-  }
-}
-
-/// Apply one signed movement inside the caller's transaction (a fill debit/
-/// credit, or a redemption payout). No-op for wallets without a funding
-/// account — updateMany matching zero rows is the cheap way to know.
-export async function applyFundingDelta(
-  tx: Prisma.TransactionClient,
-  userId: string,
-  kind: "TRADE" | "REDEEM",
-  delta: number,
-  ref: string,
-): Promise<void> {
-  if (delta === 0) return;
-  const updated = await tx.balance.updateMany({
-    where: { userId },
-    data: { amount: { increment: delta } },
-  });
-  if (updated.count === 0) return;
-  await tx.ledgerEntry.create({ data: { userId, kind, delta, ref } });
 }

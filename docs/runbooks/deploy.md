@@ -119,8 +119,8 @@ keccak256(oracle, questionId, 2)` — the resolver is part of a market's identit
 
 - **Deploy it before creating any market that uses it.** A live market can never be
   repointed at a different oracle; pointing at one computes a different market entirely.
-- **It needs WETH, not USDC.** UMA only accepts whitelisted bond currencies and Verex's
-  MockUSDC is not one. ~0.011 WETH per market resolution, refundable.
+- **It needs WETH, not jUSD.** UMA only accepts whitelisted bond currencies and Verex's
+  JUSD is not one. ~0.011 WETH per market resolution, refundable.
 
 Then re-seed so the environment gets its UMA-resolved market:
 
@@ -175,6 +175,56 @@ always safe) and round-trip-verifies all three without printing anything sensiti
 Expect: `✓ all three '<target>' secrets are set and verified`. `deploy.sh` only ever
 *reads* these — this script is the single writer.
 
+## 4b. Optional: Stripe funding (card payment → jUSD mint)
+
+Off by default. Without these two secrets the `/funding` endpoints answer 503 and
+everything else deploys and runs exactly as before, so skip this section entirely
+unless you want the onboarding demo live.
+
+**Test keys only.** The API refuses anything but `sk_test_…` by prefix — a live key
+would take a real charge for a demo-chain token.
+
+```bash
+# Stripe Dashboard → Developers → API keys (TEST mode)
+printf '%s' 'sk_test_…' | gcloud secrets create verex-stripe-secret-key-${DB_NAME} \
+    --replication-policy=automatic --data-file=-
+```
+
+Then register the webhook, because the secret you need comes from doing so:
+
+1. Stripe Dashboard → Developers → Webhooks → **Add endpoint**
+2. URL: `https://<verex-api Cloud Run URL>/webhooks/stripe`
+3. Event: **`checkout.session.completed`** (that one only)
+4. Copy the signing secret it shows (`whsec_…`)
+
+```bash
+printf '%s' 'whsec_…' | gcloud secrets create verex-stripe-webhook-secret-${DB_NAME} \
+    --replication-policy=automatic --data-file=-
+```
+
+Re-run the deploy. It prints `▶ Stripe funding: enabled` and points
+`VEREX_WEB_URL` at the deployed web origin so Checkout returns the browser to
+the right place — its default is `http://localhost:3000`, which on Cloud Run
+would bounce a paying user to their own machine.
+
+**Create both or neither.** The deploy fails if only the key exists: a checkout
+whose webhook cannot be verified takes the payment and mints nothing.
+
+**No publishable key is needed.** Verex uses hosted Checkout — the browser goes to
+`checkout.stripe.com`, so no Stripe.js runs on our pages.
+
+### Verifying it
+
+Pay with `4242 4242 4242 4242`, any future expiry, any CVC. Then:
+
+- `/funding` shows the **on-chain jUSD** balance and the deposit with its mint tx
+- a row stuck on *"mint queued"* means the charge landed but the mint did not —
+  `curl -X POST <api>/funding/settle` retries it, and is safe to call
+  repeatedly (each deposit is claimed before minting, so it cannot mint twice)
+
+The money is never lost by a failed mint, only delayed: the `Deposit` row is
+committed with the Stripe event, and settling is a separate retryable step.
+
 ## 5. Optional: local verification before the cloud
 
 To try the app against the real chain from your machine first: fill `packages/api/.env`
@@ -189,7 +239,7 @@ slow: real chained confirmations, ~2–15s each).
 - **On-chain**: each market's `questionId` is a deterministic hash of its slug, so
   re-seeding an **already-seeded backbone** reverts with `"condition already prepared"`.
   One real seed per deployed backbone — after that, always `SKIP_SEED=1` (§7).
-- Exception: demo-wallet USDC balances are **topped up**, not reset.
+- Exception: demo-wallet jUSD balances are **topped up**, not reset.
 
 ## 6. Sanity-check the deploy config
 

@@ -1,7 +1,7 @@
 // User-created markets, funded by the operator (design rev 2, Task B).
 //
 // POST /market-groups accepts the form, runs a pre-flight solvency check
-// on the operator's USDC, writes a CREATING group row, and returns 202
+// on the operator's jUSD, writes a CREATING group row, and returns 202
 // with a CREATE_GROUP job id. The job does everything on-chain — per
 // outcome: prepareCondition → registerToken → splitPosition(L) — then
 // writes the member rows, posts the opening MM ladders, and flips the
@@ -41,7 +41,7 @@ const UMA_BOND = parseUnits("0.01", 18);
 /// a two-hour wait before anyone can see resolution work isn't a demo.
 const UMA_LIVENESS = 3600n;
 /// Mock-oracle variants (local anvil) — see prisma/seed.ts's twins.
-const UMA_BOND_MOCK = parseUnits("10", 6); // 10 USDC
+const UMA_BOND_MOCK = parseUnits("10", 6); // 10 jUSD
 const UMA_LIVENESS_MOCK = 300n;
 /// Minimum length for resolution criteria. Not a formatting rule — this text
 /// is the entire basis on which a UMA voter decides, and a one-word answer
@@ -129,7 +129,7 @@ export async function createMarketGroup(req: CreateGroupRequest): Promise<Create
   if (!(closesAt.getTime() > Date.now())) throw httpError("resolution date must be in the future", 400);
   const liquidity = req.liquidityPerOutcome ?? LIQUIDITY_DEFAULT;
   if (!(liquidity >= 1 && liquidity <= LIQUIDITY_MAX)) {
-    throw httpError(`liquidity per outcome must be 1..${LIQUIDITY_MAX} USDC`, 400);
+    throw httpError(`liquidity per outcome must be 1..${LIQUIDITY_MAX} jUSD`, 400);
   }
   if (!Number.isInteger(req.creatorIndex) || req.creatorIndex < 0 || req.creatorIndex > 9) {
     throw httpError("creatorIndex must be 0..9", 400);
@@ -185,18 +185,18 @@ export async function createMarketGroup(req: CreateGroupRequest): Promise<Create
     resolutionCriteria = req.resolutionCriteria.trim();
   }
 
-  // Pre-flight solvency: the operator funds L×N USDC of inventory. On a
-  // test chain the shortfall is simply minted (MockUSDC); a real deployment
+  // Pre-flight solvency: the operator funds L×N jUSD of inventory. On a
+  // test chain the shortfall is simply minted (JUSD); a real deployment
   // rejects with the numbers instead.
   const liquidityE6 = parseUnits(String(liquidity), 6);
   const totalE6 = liquidityE6 * BigInt(labels.length);
-  const operatorBalance = await chain.usdcAs(0).balanceOf(chain.operator);
+  const operatorBalance = await chain.jusdAs(0).balanceOf(chain.operator);
   if (operatorBalance < totalE6) {
     try {
-      await chain.usdcAs(0).mint(chain.operator, totalE6 - operatorBalance);
+      await chain.jusdAs(0).mint(chain.operator, totalE6 - operatorBalance);
     } catch {
       throw httpError(
-        `operator can't fund this market: required ${formatUnits(totalE6, 6)} USDC, ` +
+        `operator can't fund this market: required ${formatUnits(totalE6, 6)} jUSD, ` +
           `available ${formatUnits(operatorBalance, 6)}`,
         400,
       );
@@ -262,10 +262,10 @@ function umaArgs(
     resolutionCriteria: p.resolutionCriteria,
     closesAt: new Date(p.closesAt),
     // Real oracle: WETH, because UMA only accepts bond currencies on its
-    // AddressWhitelist and Verex's MockUSDC is not on it. Mock oracle: no
-    // whitelist, so the bond is USDC the demo wallets already hold, and
+    // AddressWhitelist and Verex's JUSD is not on it. Mock oracle: no
+    // whitelist, so the bond is jUSD the demo wallets already hold, and
     // liveness drops to 5 minutes so the dispute window is clickable.
-    rewardToken: chain.umaOracleMock ? chain.usdcAddr : UMA_SEPOLIA.weth,
+    rewardToken: chain.umaOracleMock ? chain.jusdAddr : UMA_SEPOLIA.weth,
     reward: UMA_REWARD,
     bond: chain.umaOracleMock ? UMA_BOND_MOCK : UMA_BOND,
     liveness: chain.umaOracleMock ? UMA_LIVENESS_MOCK : UMA_LIVENESS,
@@ -294,11 +294,11 @@ registerHandler("CREATE_GROUP", {
 
     // The seed approves the CTF for exactly its own inventory, so runtime
     // splits need a fresh allowance — top it up once, generously.
-    const usdc = chain.usdcAs(0);
+    const jusd = chain.jusdAs(0);
     const needed = liquidityE6 * BigInt(total) * 2n;
-    const allowance = await usdc.allowance(chain.operator, chain.ctfAddr);
+    const allowance = await jusd.allowance(chain.operator, chain.ctfAddr);
     if (allowance < needed) {
-      await usdc.approve(chain.ctfAddr, parseUnits("1000000000", 6));
+      await jusd.approve(chain.ctfAddr, parseUnits("1000000000", 6));
     }
 
     for (const [i, o] of p.outcomes.entries()) {
@@ -321,7 +321,7 @@ registerHandler("CREATE_GROUP", {
         const onchain = await createBinaryMarketOnChain({
           ct,
           exchange,
-          usdcAddr: chain.usdcAddr,
+          jusdAddr: chain.jusdAddr,
           operator: chain.operator,
           questionKey: `verex:${memberSlug}:${job.id}`,
           inventoryE6: liquidityE6 * 2n, // both labels share one condition
@@ -362,7 +362,7 @@ registerHandler("CREATE_GROUP", {
       const onchain = await createBinaryMarketOnChain({
         ct,
         exchange,
-        usdcAddr: chain.usdcAddr,
+        jusdAddr: chain.jusdAddr,
         operator: chain.operator,
         questionKey: `verex:${memberSlug}:${job.id}`,
         inventoryE6: liquidityE6,

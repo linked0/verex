@@ -38,10 +38,10 @@ production must never share contracts, an operator key, or liquidity with test/s
 ## Recommended direction
 
 Each environment gets its **own** independently deployed CTF backbone (own
-`USDC_ADDR`/`CTF_ADDR`/`EXCHANGE_ADDR`, own operator key, own demo mnemonic):
+`JUSD_ADDR`/`CTF_ADDR`/`EXCHANGE_ADDR`, own operator key, own demo mnemonic):
 
 - **Local anvil** — already isolated by nature. `seed.ts` deploys a brand-new backbone on
-  every `pnpm --filter @verex/api db:reset` (no `USDC_ADDR` etc. set locally), so this
+  every `pnpm --filter @verex/api db:reset` (no `JUSD_ADDR` etc. set locally), so this
   needs no change.
 - **Cloud test server** — deploy its own dedicated backbone: `forge script
   DeployCTF.s.sol --broadcast` against the same Sepolia RPC/operator, update

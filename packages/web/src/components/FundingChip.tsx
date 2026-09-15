@@ -1,9 +1,9 @@
 "use client";
 
-// Header USDCX chip (onboarding screen B): the Stripe-funded internal
-// balance, next to the on-chain USDC one. USDCX is a test-ledger credit,
-// not crypto — the tooltip and the /funding page both say so. Wallets that
-// never onboarded show "Add funds" instead of a number.
+// Header jUSD chip (onboarding screen B). It used to show a second,
+// Stripe-funded "USDCX" balance beside the on-chain one; a card payment now
+// mints jUSD, so there is one number to show and it is the real one
+// (jay, 2026-09-15). Wallets that have never funded show "Add funds".
 
 import * as React from "react";
 import Link from "next/link";
@@ -47,7 +47,7 @@ export function FundingChip() {
       {balance?.funded ? (
         <span className="tabular-nums">
           ${balance.amount.toLocaleString(intl, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          <span className="ml-1 hidden text-xs text-muted-foreground lg:inline">USDCX</span>
+          <span className="ml-1 hidden text-xs text-muted-foreground lg:inline">jUSD</span>
         </span>
       ) : (
         <span className="hidden sm:inline">{t("funding.addFunds")}</span>

@@ -12,7 +12,7 @@ import {UmaCtfAdapter} from "../src/UmaCtfAdapter.sol";
 ///      address — so the adapter must exist before any market that uses it,
 ///      and redeploying it orphans every market already pointing at the old
 ///      one. Keeping it out of the backbone script means you can add UMA to an
-///      environment that is already live, without touching MockUSDC / CTF /
+///      environment that is already live, without touching JUSD / CTF /
 ///      CTFExchange and without invalidating the markets they already carry.
 ///
 /// @dev THIS SCRIPT ONLY DEPLOYS. It does not initialize any question — that

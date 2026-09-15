@@ -44,9 +44,9 @@ Fallback if this feels cluttered later: the same Resolve panel can be lifted int
    currently nothing stops trading a resolved market against stale operator inventory.
 3. `POST /redeem` — body `{accountIndex, slug}`.
    - Guards: market `RESOLVED`; index 1–9.
-   - On-chain: as the user, `ct.redeem(usdc, conditionId, [1n, 2n])` (both index sets —
+   - On-chain: as the user, `ct.redeem(jusd, conditionId, [1n, 2n])` (both index sets —
      losing tokens redeem for 0, so one call clears the position).
-   - Returns USDC received (balance delta), for a toast in the UI.
+   - Returns jUSD received (balance delta), for a toast in the UI.
 
 ### Web (market page)
 
@@ -59,7 +59,7 @@ Fallback if this feels cluttered later: the same Resolve panel can be lifted int
 
 - New route `packages/web/src/app/portfolio/page.tsx` + **Portfolio** link in SiteNav.
 - Client page using the existing `useWallet()` context + `GET /wallet/:index`:
-  - Header: demo wallet #, address, USDC balance.
+  - Header: demo wallet #, address, jUSD balance.
   - Positions table: market title (link), outcome, tokens, current price, value.
   - Resolved markets: value column shows the payout (winner: tokens × $1, loser: $0) and
     a **Redeem** button → `POST /redeem` → refresh balances.
@@ -73,14 +73,14 @@ Fallback if this feels cluttered later: the same Resolve panel can be lifted int
 | # | Item | Verify |
 |---|---|---|
 | 1 | `/resolve` route + DB update + trade guard | curl: resolve → 200; second resolve → 4xx; trade on resolved → 400 |
-| 2 | `/redeem` route | curl: winner redeems → USDC up by token count; loser → 0 |
+| 2 | `/redeem` route | curl: winner redeems → jUSD up by token count; loser → 0 |
 | 3 | Wallet picker: add operator #0 | UI shows admin entry; #0 hides TradePanel |
 | 4 | Market page: ResolvePanel + RESOLVED badge | resolve via UI; badge + chart end-state |
 | 5 | Portfolio page + nav + Redeem buttons | buy on #1 → portfolio shows position; resolve → redeem → balance check |
 
 End-to-end demo script (the acceptance test): wallet #1 buys YES on a market → operator
 #0 resolves YES on the market page → wallet #1's portfolio shows the win → Redeem →
-USDC balance increases by the token count. All on the running local stack.
+jUSD balance increases by the token count. All on the running local stack.
 
 ## Out of scope
 

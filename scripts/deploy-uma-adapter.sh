@@ -81,7 +81,7 @@ fi
 
 say "3/4 · Bond currency (WETH)"
 # Not a blocker for the DEPLOY, but the adapter is useless without it: every
-# proposal posts finalFee + bond in WETH, and MockUSDC is not whitelisted.
+# proposal posts finalFee + bond in WETH, and JUSD is not whitelisted.
 WETH_BAL="$(cast call "$WETH" 'balanceOf(address)(uint256)' "$OPERATOR" --rpc-url "$RPC_URL" | awk '{print $1}')"
 echo "  $(cast to-unit "$WETH_BAL" ether) WETH"
 if [[ "$WETH_BAL" == "0" ]]; then

@@ -32,7 +32,7 @@ lending) composes with them automatically.
 |---|------|-------|
 | 1 | **Wrapper research** (~0.5d) | Survey wrapped-1155 patterns (Polymarket ecosystem adapters, generic ERC-1155→20 wrappers); per-outcome wrapper (1 ERC-20 per YES/NO of a condition) is the standard shape |
 | 2 | **`WrappedOutcome` contract PoC** | wrap/unwrap between CTF 1155 balance and an ERC-20; Foundry tests for the round trip + redeem-after-resolution path |
-| 3 | **External-listing demo** | seed a testnet Uniswap pool with wrapped-YES ↔ USDC; show a swap executed by a party that knows nothing about Verex — composability proven |
+| 3 | **External-listing demo** | seed a testnet Uniswap pool with wrapped-YES ↔ jUSD; show a swap executed by a party that knows nothing about Verex — composability proven |
 | 4 | **(you) Scope decision** | Is external composability in scope before S6, or post-roadmap? It *competes for liquidity* with the internal hybrid AMM ([hybrid-amm-clob.md](hybrid-amm-clob.md)) — see trade-off below |
 
 ## 4. Trade-offs / open questions

@@ -26,7 +26,7 @@ CTF does **NOT**:
 
 ## 2. The Five Functions You Actually Use
 
-For a binary YES/NO market with USDC collateral, these are all you need:
+For a binary YES/NO market with jUSD collateral, these are all you need:
 
 ### 2.1 `prepareCondition(oracle, questionId, outcomeSlotCount)`
 
@@ -50,16 +50,16 @@ User deposits collateral, gets back a complete set of outcome tokens.
 
 ```solidity
 function splitPosition(
-    IERC20 collateralToken,    // e.g. USDC address
+    IERC20 collateralToken,    // e.g. jUSD address
     bytes32 parentCollectionId, // bytes32(0) for top-level positions
     bytes32 conditionId,
     uint[] calldata partition,  // [1, 2] for binary YES/NO
-    uint amount                 // collateral amount (e.g. 100 USDC)
+    uint amount                 // collateral amount (e.g. 100 jUSD)
 ) external;
 ```
 
 - **Effect**: pulls `amount` collateral from caller, mints `amount` of each outcome token to caller.
-- For 100 USDC + binary partition → caller gets 100 YES tokens + 100 NO tokens. Net cost: 100 USDC; net value: still worth 100 USDC (since YES + NO = 1 USDC after resolution regardless of outcome).
+- For 100 jUSD + binary partition → caller gets 100 YES tokens + 100 NO tokens. Net cost: 100 jUSD; net value: still worth 100 jUSD (since YES + NO = 1 jUSD after resolution regardless of outcome).
 - Emits: `PositionSplit(stakeholder, collateralToken, parentCollectionId, conditionId, partition, amount)`
 
 ### 2.3 `mergePositions(collateral, parentCollectionId, conditionId, partition, amount)` — **UNMINT**
@@ -123,14 +123,14 @@ positionId = uint256( keccak256(abi.encodePacked(collateralToken, collectionId))
 collectionId = keccak256(abi.encodePacked(parentCollectionId, conditionId, indexSet))
 ```
 
-For a binary YES/NO market with USDC and no parent (top-level position):
+For a binary YES/NO market with jUSD and no parent (top-level position):
 
 ```solidity
 bytes32 conditionId   = keccak256(abi.encode(oracle, questionId, 2));
 bytes32 yesCollection = keccak256(abi.encode(bytes32(0), conditionId, 1));  // indexSet=1 → YES
 bytes32 noCollection  = keccak256(abi.encode(bytes32(0), conditionId, 2));  // indexSet=2 → NO
-uint256 yesTokenId    = uint256(keccak256(abi.encode(USDC, yesCollection)));
-uint256 noTokenId     = uint256(keccak256(abi.encode(USDC, noCollection)));
+uint256 yesTokenId    = uint256(keccak256(abi.encode(jUSD, yesCollection)));
+uint256 noTokenId     = uint256(keccak256(abi.encode(jUSD, noCollection)));
 ```
 
 **Why "indexSet"?** It's a bitmap. For binary outcomes:
@@ -165,13 +165,13 @@ From [`AssetOperations.sol`](https://github.com/Polymarket/ctf-exchange/blob/mai
 
 - **`parentCollectionId = bytes32(0)` always** — Polymarket only does top-level positions, no nested conditions.
 - **`partition = [1, 2]` always** — only binary markets.
-- **`_mint(conditionId, amount)`** = `IConditionalTokens.splitPosition(USDC, 0x0, conditionId, [1, 2], amount)` — exchange splits its own collateral when needed for filling orders.
-- **`_merge(conditionId, amount)`** = `IConditionalTokens.mergePositions(USDC, 0x0, conditionId, [1, 2], amount)` — exchange merges to free collateral.
-- **Token ID 0 special-cased** = collateral (USDC). All other token IDs are ERC-1155 outcome tokens.
+- **`_mint(conditionId, amount)`** = `IConditionalTokens.splitPosition(jUSD, 0x0, conditionId, [1, 2], amount)` — exchange splits its own collateral when needed for filling orders.
+- **`_merge(conditionId, amount)`** = `IConditionalTokens.mergePositions(jUSD, 0x0, conditionId, [1, 2], amount)` — exchange merges to free collateral.
+- **Token ID 0 special-cased** = collateral (jUSD). All other token IDs are ERC-1155 outcome tokens.
 
-This split/merge pattern is the engine that lets the exchange settle YES↔USDC trades atomically: when buyer wants YES and seller has only USDC, the exchange can split USDC into [YES, NO] complete sets, give YES to buyer, and either give NO back to seller or merge it on subsequent trades.
+This split/merge pattern is the engine that lets the exchange settle YES↔jUSD trades atomically: when buyer wants YES and seller has only jUSD, the exchange can split jUSD into [YES, NO] complete sets, give YES to buyer, and either give NO back to seller or merge it on subsequent trades.
 
-**Implication for Verex S2**: we adopt the same conventions (parentCollectionId = 0, partition = [1, 2], collateral = USDC) so Polymarket Exchange works unmodified.
+**Implication for Verex S2**: we adopt the same conventions (parentCollectionId = 0, partition = [1, 2], collateral = jUSD) so Polymarket Exchange works unmodified.
 
 ## 6. CTF vs Polymarket Exchange — boundary
 
@@ -182,7 +182,7 @@ This split/merge pattern is the engine that lets the exchange settle YES↔USDC 
 
 For our v2 backbone, both layers are **deployed but unmodified** in S2. The only place we customize is:
 - **Oracle**: we register our own admin address (S2) → later replace with UMA adapter (S6)
-- **Collateral**: USDC mock token (S2) → real USDC on testnet/mainnet later
+- **Collateral**: jUSD mock token (S2) → real jUSD on testnet/mainnet later
 - **Operator/admin** of Polymarket Exchange: us
 
 ## 7. Open Questions
@@ -190,10 +190,10 @@ For our v2 backbone, both layers are **deployed but unmodified** in S2. The only
 Things the docs don't make 100% explicit. Each entry is **question + verification approach + (provisional answer where source-readable)**. Items whose answers are still TBD will be confirmed by the S2.1 Foundry test or by deferred work in a later step.
 
 1. **Loser redeem behavior** — does `redeemPositions` revert or return 0 for an `indexSet` with no winning tokens?
-   - **✅ Confirmed (test: `test_LoserRedeemReturnsZero`)**: returns 0 USDC, **no revert**. The loser's outcome tokens are burned regardless. UX-friendly — exact match for our v1 `claim()` design pattern.
+   - **✅ Confirmed (test: `test_LoserRedeemReturnsZero`)**: returns 0 jUSD, **no revert**. The loser's outcome tokens are burned regardless. UX-friendly — exact match for our v1 `claim()` design pattern.
 
 2. **Splitting after resolution** — can you call `splitPosition` after the condition is resolved?
-   - **✅ Confirmed (test: `test_SplitAfterResolveAllowed`)**: yes, no revert. Tokens are minted normally; user can then redeem winning side immediately. Economically a wash (you put in 1 USDC → can get back at most 1 USDC) but technically allowed. Our SDK wrapper should warn (not block) if called post-resolve.
+   - **✅ Confirmed (test: `test_SplitAfterResolveAllowed`)**: yes, no revert. Tokens are minted normally; user can then redeem winning side immediately. Economically a wash (you put in 1 jUSD → can get back at most 1 jUSD) but technically allowed. Our SDK wrapper should warn (not block) if called post-resolve.
 
 3. **Reentrancy surface** — `splitPosition` / `mergePositions` and the ERC-1155 receiver hook.
    - **✅ Confirmed (test: `test_SplitFromContractWithReceiver_Succeeds`)**: hook fires on the caller side (the receiver of newly-minted ERC-1155 tokens). CTF's own state writes happen before the hook (correct CEI), so CTF isn't vulnerable. **Risk is on our side**: if our caller-contract (MM Agent v1, AA wallet) has logic in `onERC1155BatchReceived`, that logic runs synchronously inside the split call — our hook implementation must be reentrancy-safe.
@@ -241,7 +241,7 @@ Things the docs don't make 100% explicit. Each entry is **question + verificatio
 | Step | What it touches |
 |------|----------------|
 | **S2.2** Polymarket Exchange import | Deploys `ConditionalTokens` + `CTFExchange` to anvil; exchange's constructor takes the CTF address |
-| **S2.3** USDC mock | An ERC-20 we control on anvil; passed as `collateralToken` in every CTF call |
+| **S2.3** jUSD mock | An ERC-20 we control on anvil; passed as `collateralToken` in every CTF call |
 | **S2.4** SDK transition | Wraps `prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` + EIP-712 order signing for Exchange |
 | **S2.5** MM Agent v0 | Calls `splitPosition` to source initial inventory (mint complete sets), then posts both YES and NO orders |
 | **S2.6** CLI | New commands: `verex condition prepare`, `verex split`, `verex merge`, `verex order sign`, `verex order fill`, `verex redeem` |

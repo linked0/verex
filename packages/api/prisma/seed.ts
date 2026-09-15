@@ -4,9 +4,9 @@
 //   1. Resolves the CTF backbone and stores its addresses in ChainConfig:
 //      VEREX_DEPLOY_TARGET=staging|prod|devnet reads the committed entry in
 //      packages/contracts/deployments.json (after an on-chain code preflight);
-//      local (the default) deploys fresh via forge, or reuses USDC_ADDR/
+//      local (the default) deploys fresh via forge, or reuses JUSD_ADDR/
 //      CTF_ADDR/EXCHANGE_ADDR from the shell env / packages/contracts/.env.
-//   2. One-time exchange setup: operator allowlist + USDC approvals.
+//   2. One-time exchange setup: operator allowlist + jUSD approvals.
 //   3. Per market: prepareCondition → registerToken → split operator
 //      inventory, then writes the Market/Outcome rows + synthetic price
 //      history for the chart.
@@ -25,7 +25,7 @@ import { keccak256, toHex, parseUnits, encodeFunctionData, zeroAddress } from "v
 import {
   createCTClient,
   createExchangeClient,
-  createUsdcClient,
+  createJusdClient,
   createUmaAdapterClient,
   UMA_SEPOLIA,
   type Address,
@@ -51,7 +51,7 @@ const FOUNDRY_PATH = `${process.env.HOME}/.foundry/bin:${process.env.PATH}`;
 // 로딩 순서와 **출처 기록**은 ../src/env.ts 한 곳에 있다. import 하는 것만으로
 // <repo>/.env → packages/api/.env 두 겹이 이미 얹힌다(우선순위는 그 파일 참고).
 // 여기서는 배포 산출 주소를 위해 contracts 를 한 겹 더 얹는다.
-// USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
+// JUSD_ADDR/CTF_ADDR/EXCHANGE_ADDR are deliberately not part of packages/api/.env
 // (one-time deploy outputs, not persistent API config — see docs/runbooks/
 // deploy.md §5) — but if they're saved in packages/contracts/.env
 // after a deploy, pick them up from there too. dotenv never overrides a key
@@ -75,15 +75,15 @@ if (!["local", "staging", "prod", "devnet"].includes(DEPLOY_TARGET)) {
 
 const prisma = new PrismaClient();
 
-/// Operator liquidity per market (YES+NO inventory) and USDC buffer for
+/// Operator liquidity per market (YES+NO inventory) and jUSD buffer for
 /// buying tokens back when users sell.
-const INVENTORY_PER_MARKET = parseUnits("10000", 6); // 10,000 USDC
+const INVENTORY_PER_MARKET = parseUnits("10000", 6); // 10,000 jUSD
 /// Group members get lighter inventory — there are N of them per group and
 /// the MM ladder caps at 2k tokens anyway.
-const INVENTORY_PER_MEMBER = parseUnits("2000", 6); // 2,000 USDC
-const OPERATOR_USDC_BUFFER = parseUnits("100000", 6); // 100,000 USDC
-/// Starting balance for demo wallets #1-5 (matches AUTO_FAUCET_USDC in src/trade.ts).
-const DEMO_WALLET_USDC = parseUnits("1000", 6); // 1,000 USDC
+const INVENTORY_PER_MEMBER = parseUnits("2000", 6); // 2,000 jUSD
+const OPERATOR_JUSD_BUFFER = parseUnits("100000", 6); // 100,000 jUSD
+/// Starting balance for demo wallets #1-5 (matches AUTO_FAUCET_JUSD in src/trade.ts).
+const DEMO_WALLET_JUSD = parseUnits("1000", 6); // 1,000 jUSD
 
 // ── The one UMA-resolved seed market (see §4b).
 //
@@ -98,10 +98,10 @@ const UMA_SEED_BOND = parseUnits("0.01", 18); // WETH, 18dp
 /// something a person will actually sit through.
 const UMA_SEED_LIVENESS = 3600n;
 /// Mock-oracle variants (local anvil). The mock has no currency whitelist, so
-/// the bond is plain USDC — demo wallets already hold it — and liveness drops
+/// the bond is plain jUSD — demo wallets already hold it — and liveness drops
 /// to 5 minutes: long enough to click "dispute", short enough that the
 /// undisputed path is also demonstrable without warping the chain.
-const UMA_SEED_BOND_MOCK = parseUnits("10", 6); // 10 USDC
+const UMA_SEED_BOND_MOCK = parseUnits("10", 6); // 10 jUSD
 const UMA_SEED_LIVENESS_MOCK = 300n;
 const UMA_SEED = {
   slug: "uma-eth-above-6k-2026",
@@ -355,7 +355,7 @@ for (const g of GROUPS) {
 }
 
 interface Backbone {
-  usdc: Address;
+  jusd: Address;
   ctf: Address;
   exchange: Address;
   /// Optional per environment — only set once runbook §2b has been run.
@@ -395,7 +395,7 @@ function manifestBackbone(target: string): Backbone {
     );
   }
   return {
-    usdc: entry.usdc,
+    jusd: entry.jusd,
     ctf: entry.ctf,
     exchange: entry.exchange,
     umaAdapter: entry.umaAdapter,
@@ -412,7 +412,7 @@ function parseDeployOutput(out: string): Backbone {
     return m[1] as Address;
   };
   return {
-    usdc: grab("MockUSDC"),
+    jusd: grab("JUSD"),
     ctf: grab("ConditionalTokens"),
     exchange: grab("CTFExchange"),
   };
@@ -465,7 +465,7 @@ async function mainDbOnly() {
   await prisma.chainConfig.deleteMany();
   const ZERO = "0x0000000000000000000000000000000000000000";
   await prisma.chainConfig.create({
-    data: { id: 1, chainId: 0, rpcUrl: "none", usdcAddr: ZERO, ctfAddr: ZERO, exchangeAddr: ZERO, operator: ZERO },
+    data: { id: 1, chainId: 0, rpcUrl: "none", jusdAddr: ZERO, ctfAddr: ZERO, exchangeAddr: ZERO, operator: ZERO },
   });
 
   for (const m of MARKETS) {
@@ -558,7 +558,7 @@ async function main() {
     "VEREX_CHAIN_ID",
     "VEREX_DEPLOY_TARGET",
     "VEREX_OPERATOR_KEY",
-    "USDC_ADDR",
+    "JUSD_ADDR",
     "CTF_ADDR",
     "EXCHANGE_ADDR",
     "SEED_DB_ONLY",
@@ -587,9 +587,9 @@ async function main() {
   let backbone: Backbone;
   if (DEPLOY_TARGET !== "local") {
     backbone = manifestBackbone(DEPLOY_TARGET);
-    if (process.env.USDC_ADDR && process.env.USDC_ADDR !== backbone.usdc) {
+    if (process.env.JUSD_ADDR && process.env.JUSD_ADDR !== backbone.jusd) {
       console.warn(
-        `    (ignoring USDC_ADDR/CTF_ADDR/EXCHANGE_ADDR from env — the manifest wins for target '${DEPLOY_TARGET}')`,
+        `    (ignoring JUSD_ADDR/CTF_ADDR/EXCHANGE_ADDR from env — the manifest wins for target '${DEPLOY_TARGET}')`,
       );
     }
     // Preflight: all three addresses must hold contract code on this RPC —
@@ -606,9 +606,9 @@ async function main() {
       }
     }
     console.log(`[1] using '${DEPLOY_TARGET}' backbone from deployments.json (preflight OK)`);
-  } else if (process.env.USDC_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
+  } else if (process.env.JUSD_ADDR && process.env.CTF_ADDR && process.env.EXCHANGE_ADDR) {
     backbone = {
-      usdc: process.env.USDC_ADDR as Address,
+      jusd: process.env.JUSD_ADDR as Address,
       ctf: process.env.CTF_ADDR as Address,
       exchange: process.env.EXCHANGE_ADDR as Address,
     };
@@ -666,7 +666,7 @@ async function main() {
     backbone.umaAdapter = grab("UmaCtfAdapter");
     backbone.umaMock = true;
   }
-  console.log(`    USDC ${backbone.usdc}\n    CTF ${backbone.ctf}\n    Exchange ${backbone.exchange}`);
+  console.log(`    jUSD ${backbone.jusd}\n    CTF ${backbone.ctf}\n    Exchange ${backbone.exchange}`);
   if (backbone.umaAdapter) {
     console.log(`    UmaCtfAdapter ${backbone.umaAdapter} (oracle ${backbone.umaOracle}${backbone.umaMock ? ", MOCK jury" : ""})`);
   }
@@ -675,7 +675,7 @@ async function main() {
   const operatorWallet = makeWalletClient(0);
   const ct = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: operatorWallet });
   const exchange = createExchangeClient({ address: backbone.exchange, publicClient: pc, walletClient: operatorWallet });
-  const usdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: operatorWallet });
+  const jusd = createJusdClient({ address: backbone.jusd, publicClient: pc, walletClient: operatorWallet });
   // Null unless this environment has an adapter — every UMA branch below keys
   // off this rather than off the address, so "no adapter" degrades to a normal
   // operator-only seed instead of an error.
@@ -756,7 +756,7 @@ async function main() {
     }
   }
 
-  console.log("[2] operator setup (allowlist + approvals + USDC buffer)...");
+  console.log("[2] operator setup (allowlist + approvals + jUSD buffer)...");
   await exchange.addOperator(operator);
   await ct.setApprovalForAll(backbone.exchange, true); // exchange pulls YES/NO on fills
   const memberCount = GROUPS.reduce((a, g) => a + g.outcomes.length, 0);
@@ -765,15 +765,15 @@ async function main() {
   const marketCount = MARKETS.length + (umaAdapterClient ? 1 : 0);
   const totalInventory =
     INVENTORY_PER_MARKET * BigInt(marketCount) + INVENTORY_PER_MEMBER * BigInt(memberCount);
-  const totalMint = OPERATOR_USDC_BUFFER + totalInventory;
-  await usdc.mint(operator, totalMint);
-  await usdc.approve(backbone.ctf, totalInventory); // splits pull via CTF
-  await usdc.approve(backbone.exchange, OPERATOR_USDC_BUFFER); // fills pull the operator's USDC (MM bids) via the exchange
+  const totalMint = OPERATOR_JUSD_BUFFER + totalInventory;
+  await jusd.mint(operator, totalMint);
+  await jusd.approve(backbone.ctf, totalInventory); // splits pull via CTF
+  await jusd.approve(backbone.exchange, OPERATOR_JUSD_BUFFER); // fills pull the operator's jUSD (MM bids) via the exchange
 
   // Pre-fund + pre-approve demo wallets #1-5. Funding is a top-up (not blind
   // mint) so re-running the seed against a reused backbone doesn't inflate
   // balances — the trade-time auto-faucet in src/trade.ts stays as a safety
-  // net either way. Approvals (USDC → exchange, CT → exchange) mirror what
+  // net either way. Approvals (jUSD → exchange, CT → exchange) mirror what
   // executeTrade would otherwise do lazily on a wallet's first trade
   // (trade.ts's BUY/SELL branches) — doing it here means a demo BUY is
   // always a single fillOrder confirmation, not up to three chained ones.
@@ -782,23 +782,23 @@ async function main() {
   const DEMO_APPROVAL = parseUnits("1000000000", 6); // effectively unlimited, same as trade.ts's approve
   for (let i = 1; i <= 5; i++) {
     const user = accountAddress(i);
-    const bal = await usdc.balanceOf(user);
-    if (bal < DEMO_WALLET_USDC) await usdc.mint(user, DEMO_WALLET_USDC - bal);
+    const bal = await jusd.balanceOf(user);
+    if (bal < DEMO_WALLET_JUSD) await jusd.mint(user, DEMO_WALLET_JUSD - bal);
 
     const userWallet = makeWalletClient(i);
-    const userUsdc = createUsdcClient({ address: backbone.usdc, publicClient: pc, walletClient: userWallet });
+    const userJusd = createJusdClient({ address: backbone.jusd, publicClient: pc, walletClient: userWallet });
     const userCt = createCTClient({ address: backbone.ctf, publicClient: pc, walletClient: userWallet });
-    await userUsdc.approve(backbone.exchange, DEMO_APPROVAL);
+    await userJusd.approve(backbone.exchange, DEMO_APPROVAL);
     await userCt.setApprovalForAll(backbone.exchange, true);
-    // Mock oracle: dispute bonds are pulled in USDC, so pre-approve it the
+    // Mock oracle: dispute bonds are pulled in jUSD, so pre-approve it the
     // same way trades are — a dispute should be one confirmation, not two.
     if (backbone.umaMock && backbone.umaOracle) {
-      await userUsdc.approve(backbone.umaOracle, DEMO_APPROVAL);
+      await userJusd.approve(backbone.umaOracle, DEMO_APPROVAL);
     }
   }
-  // The operator proposes answers on mock-oracle markets, bonding USDC too.
+  // The operator proposes answers on mock-oracle markets, bonding jUSD too.
   if (backbone.umaMock && backbone.umaOracle) {
-    await usdc.approve(backbone.umaOracle, DEMO_APPROVAL);
+    await jusd.approve(backbone.umaOracle, DEMO_APPROVAL);
   }
 
   // 3. Reset DB content and store chain config
@@ -816,7 +816,7 @@ async function main() {
       id: 1,
       chainId: CHAIN_ID,
       rpcUrl: RPC_URL,
-      usdcAddr: backbone.usdc,
+      jusdAddr: backbone.jusd,
       ctfAddr: backbone.ctf,
       exchangeAddr: backbone.exchange,
       operator,
@@ -852,7 +852,7 @@ async function main() {
     const onchain = await createBinaryMarketOnChain({
       ct,
       exchange,
-      usdcAddr: backbone.usdc,
+      jusdAddr: backbone.jusd,
       operator,
       questionKey: `verex:${args.slug}:${seedRun}`,
       inventoryE6: args.inventoryE6,
@@ -862,9 +862,9 @@ async function main() {
             title: args.title,
             resolutionCriteria: args.uma!.resolutionCriteria,
             closesAt: new Date(args.closesAt),
-            // The mock has no whitelist, so its bond is plain USDC; the real
+            // The mock has no whitelist, so its bond is plain jUSD; the real
             // oracle only takes whitelisted currencies (WETH).
-            rewardToken: backbone.umaMock ? backbone.usdc : UMA_SEPOLIA.weth,
+            rewardToken: backbone.umaMock ? backbone.jusd : UMA_SEPOLIA.weth,
             // reward 0: a non-zero reward would have to be held by the ADAPTER
             // before initialize, so a seeded market can't pay one without a
             // funding step the seed has no business performing.

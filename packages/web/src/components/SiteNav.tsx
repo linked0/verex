@@ -112,7 +112,7 @@ export function SiteNav() {
               {isAdmin ? (
                 t("nav.admin")
               ) : summary ? (
-                `$${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })}`
+                `$${summary.jusd.toLocaleString(intl, { maximumFractionDigits: 0 })}`
               ) : (
                 // A balance is worse wrong than absent — while the new wallet
                 // loads, show a placeholder rather than the last one's number.

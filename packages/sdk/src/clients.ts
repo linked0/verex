@@ -1,12 +1,12 @@
 import type { PublicClient, WalletClient } from "viem";
 import * as ct from "./ct";
 import * as exchange from "./exchange";
-import * as usdc from "./usdc";
+import * as jusd from "./jusd";
 import type { Address, Hex, Order } from "./types";
 
 /// Thin client that pre-binds a PublicClient (+ optional WalletClient) and a
 /// `ConditionalTokens` address. Forwards to the flat helpers in `./ct` and
-/// `./usdc`. Use the flat helpers directly when one-off, or this client when
+/// `./jusd`. Use the flat helpers directly when one-off, or this client when
 /// the same address gets passed around (CLI, MM agent).
 export interface CTClient {
   address: Address;
@@ -126,8 +126,8 @@ export function createExchangeClient(args: {
   };
 }
 
-/// Same pattern for `MockUSDC` (or any ERC-20 with `mint`).
-export interface UsdcClient {
+/// Same pattern for `JUSD` (or any ERC-20 with `mint`).
+export interface JusdClient {
   address: Address;
   balanceOf: (account: Address) => Promise<bigint>;
   allowance: (owner: Address, spender: Address) => Promise<bigint>;
@@ -135,11 +135,11 @@ export interface UsdcClient {
   approve: (spender: Address, amount: bigint) => Promise<Hex>;
 }
 
-export function createUsdcClient(args: {
+export function createJusdClient(args: {
   address: Address;
   publicClient: PublicClient;
   walletClient?: WalletClient;
-}): UsdcClient {
+}): JusdClient {
   const { address, publicClient, walletClient } = args;
   const requireWallet = () => {
     if (!walletClient) throw new Error("walletClient required for write op");
@@ -148,9 +148,9 @@ export function createUsdcClient(args: {
 
   return {
     address,
-    balanceOf: (account) => usdc.getBalance(publicClient, address, account),
-    allowance: (owner, spender) => usdc.getAllowance(publicClient, address, owner, spender),
-    mint: (to, amount) => usdc.mint(publicClient, requireWallet(), address, to, amount),
-    approve: (spender, amount) => usdc.approve(publicClient, requireWallet(), address, spender, amount),
+    balanceOf: (account) => jusd.getBalance(publicClient, address, account),
+    allowance: (owner, spender) => jusd.getAllowance(publicClient, address, owner, spender),
+    mint: (to, amount) => jusd.mint(publicClient, requireWallet(), address, to, amount),
+    approve: (spender, amount) => jusd.approve(publicClient, requireWallet(), address, spender, amount),
   };
 }

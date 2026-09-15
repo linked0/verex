@@ -119,7 +119,7 @@ From the roadmap §1.4, step S6. Read aloud: **"at least one market per adapter.
 
 It is the *milestone* — the completion test — for the oracle step. S6 counts as done when **each
 oracle adapter has resolved at least one real market end-to-end**: request → propose → liveness →
-settle → `reportPayouts` → a winner actually redeems USDC. Not "the contract compiles", not "the
+settle → `reportPayouts` → a winner actually redeems jUSD. Not "the contract compiles", not "the
 unit tests pass" — a real market, really resolved, really paid out.
 
 It's deliberately a *floor*, not a coverage target. It doesn't mean "migrate every market to
@@ -138,7 +138,7 @@ the UMA adapter**, with the Chainlink half satisfied only if we build it.
 | `ancillaryBytesLimit` | `8192` bytes |
 | `YES_OR_NO_QUERY` supported | ✅ true |
 | Bond currency (chosen) | Sepolia WETH `0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9`, final fee `0.001` |
-| Verex MockUSDC whitelisted? | ❌ `false` — cannot be used for bonds |
+| Verex JUSD whitelisted? | ❌ `false` — cannot be used for bonds |
 
 ## How UMA and Verex actually connect (the wiring)
 

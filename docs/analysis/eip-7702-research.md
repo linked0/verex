@@ -61,9 +61,9 @@ await client.sendTransaction({
     abi: batchDelegateAbi,
     functionName: 'execute',
     args: [[
-      // Step 1: USDC approve
+      // Step 1: jUSD approve
       {
-        target: USDC_ADDRESS,
+        target: JUSD_ADDRESS,
         callData: encodeApprove(MARKET_ADDRESS, parseEther('100'))
       },
       // Step 2: 예측시장 포지션 생성

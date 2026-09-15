@@ -25,7 +25,7 @@ loser's bond pays the winner.
 |---|---|---|
 | Oracle | `MockOptimisticOracleV2` | UMA's real `OptimisticOracleV2` on Sepolia |
 | Verdicts | jury of demo wallets #1–5 | UMA's DVM (staked voters, ~2-day rounds) |
-| Bond | **10 USDC** — no whitelist, no WETH dance | 0.011 WETH (bond + final fee) |
+| Bond | **10 jUSD** — no whitelist, no WETH dance | 0.011 WETH (bond + final fee) |
 | Liveness | **5 minutes** | 1 hour |
 | Adapter | `UmaCtfAdapter` — **the same contract, byte for byte** | `UmaCtfAdapter` |
 
@@ -125,14 +125,14 @@ Only your own row offers Vote buttons; the others read "voted …" or "not
 voted". Steps 5–6 say *anyone* because finalize and resolve decide nothing —
 they count ballots and copy the result, so any wallet may send them.
 
-Expect: `GET /wallet/1` is **down exactly 10 USDC** (its lost bond, paid to the
+Expect: `GET /wallet/1` is **down exactly 10 jUSD** (its lost bond, paid to the
 proposer), and `GET /wallet/2` is **up 10**. The RESOLVED badge appears; winners
 redeem in Portfolio.
 
 **Scenario 2 — dispute upheld.** Same steps, opposite jury: propose YES as #2,
 dispute as #1, then vote the **majority No**. Verdict **No** — the market
 settles against the proposer, whose bond pays the disputer: `GET /wallet/1`
-ends **up 10 USDC** net (bonded 10, got 20 back), and the proposer is down 10.
+ends **up 10 jUSD** net (bonded 10, got 20 back), and the proposer is down 10.
 
 **Scenario 3 — dead end.** Propose, dispute — then **cast no votes**. Expect,
 indefinitely (even long after the countdown would have expired):

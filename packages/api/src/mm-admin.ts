@@ -51,7 +51,7 @@ export interface MmStatus {
   config: { paused: boolean; spreadBps: number; maxSpreadBps: number };
   global: {
     operator: string;
-    /// Operator's on-chain USDC balance.
+    /// Operator's on-chain jUSD balance.
     treasuryUsd: number;
     /// Σ of open books' b·ln(n) caps — collateral spoken for.
     committedUsd: number;
@@ -60,14 +60,14 @@ export interface MmStatus {
   markets: MmMarketStatus[];
 }
 
-/// Net USDC the operator has collected from book fills, per market: a user
+/// Net jUSD the operator has collected from book fills, per market: a user
 /// BUY pays the operator, a user SELL is paid by it. Same maker join as
 /// mm.operatorNetSold so cash and q describe the same fills.
 async function operatorCash(marketIds: string[]): Promise<Map<string, number>> {
   if (marketIds.length === 0) return new Map();
   const rows = await prisma.$queryRaw<{ marketId: string; cash: number }[]>`
     SELECT t."marketId" AS "marketId",
-           SUM(CASE WHEN t."side" = 'BUY' THEN t."usdcAmount" ELSE -t."usdcAmount" END)::float8 AS "cash"
+           SUM(CASE WHEN t."side" = 'BUY' THEN t."jusdAmount" ELSE -t."jusdAmount" END)::float8 AS "cash"
     FROM "Trade" t
     JOIN "Order" o ON o."id" = t."makerOrderId"
     WHERE o."makerIndex" = 0
@@ -209,7 +209,7 @@ export async function mmStatus(): Promise<MmStatus> {
   const treasury =
     chain.chainId === 0
       ? 0
-      : Number(formatUnits(await chain.usdcAs(0).balanceOf(chain.operator as `0x${string}`), 6));
+      : Number(formatUnits(await chain.jusdAs(0).balanceOf(chain.operator as `0x${string}`), 6));
   const committed = [...books.values()].reduce((a, b) => a + lmsrMaxLoss(b.b, b.n), 0);
 
   return {

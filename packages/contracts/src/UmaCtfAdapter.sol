@@ -82,7 +82,7 @@ contract UmaCtfAdapter {
     ///        entire basis on which a human decides the answer, so it must carry
     ///        its own resolution criteria — a bare question with no rules is how
     ///        a market ends up settled "unresolvable".
-    /// @param rewardToken Must be on UMA's AddressWhitelist. Verex's MockUSDC is
+    /// @param rewardToken Must be on UMA's AddressWhitelist. Verex's JUSD is
     ///        NOT; Sepolia WETH (0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9) is,
     ///        and is self-service via deposit().
     /// @param reward Paid to whoever proposes an answer. May be 0.

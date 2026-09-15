@@ -6,8 +6,8 @@
 > and `docs/history/README.md` for the milestone log.
 
 ## TL;DR — current state
-- Main line is the **v2 CTF backbone** (Polymarket CTFExchange + Gnosis ConditionalTokens + MockUSDC). v1 parimutuel lives in the `planning` branch only.
-- **34/34** Foundry tests pass; SDK vitest 3/3 pass; E2E demo works on anvil (BUY @ $0.60 → resolve → redeem → +40 USDC).
+- Main line is the **v2 CTF backbone** (Polymarket CTFExchange + Gnosis ConditionalTokens + JUSD). v1 parimutuel lives in the `planning` branch only.
+- **34/34** Foundry tests pass; SDK vitest 3/3 pass; E2E demo works on anvil (BUY @ $0.60 → resolve → redeem → +40 jUSD).
 - Next milestone is **S2.5 (MM Agent v0)**, currently blocked on two decisions + one test gap.
 
 ## 1. Blockers — fix/verify before S2.5

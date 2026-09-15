@@ -11,7 +11,7 @@ import {CTFExchange} from "ctf-exchange/exchange/CTFExchange.sol";
 import {IConditionalTokens} from "ctf-exchange/exchange/interfaces/IConditionalTokens.sol";
 import {Order, Side, SignatureType} from "ctf-exchange/exchange/libraries/OrderStructs.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 
 /// @notice S2 keystone milestone — CTF order fill end-to-end on anvil-shaped
 ///         setup. Proves the orderbook integration works before SDK/CLI/MM
@@ -20,7 +20,7 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///         What's exercised:
 ///           - EIP-712 typed-data sign of an Order by an EOA maker
 ///           - CTFExchange.fillOrder by an authorized operator
-///           - BUY-side asset movement: maker pays USDC, receives CT (YES)
+///           - BUY-side asset movement: maker pays JUSD, receives CT (YES)
 ///           - Partial fill state in orderStatus
 ///           - Signature / expiry / nonce revert paths
 ///
@@ -32,7 +32,7 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 contract CTFFillOrderTest is Test {
     // ── Deployed contracts ──
     IConditionalTokens internal ctf;
-    MockUSDC internal usdc;
+    JUSD internal jusd;
     CTFExchange internal exchange;
 
     // ── Test market: "Will Brazil win the 2026 World Cup?" ──
@@ -43,13 +43,13 @@ contract CTFFillOrderTest is Test {
     uint256 internal noPositionId;
 
     // ── Actors ──
-    // Maker: signs orders off-chain (EIP-712), funds them with USDC.
+    // Maker: signs orders off-chain (EIP-712), funds them with JUSD.
     // We need its private key to call vm.sign, so we derive both pk + addr.
     uint256 internal makerPk = uint256(keccak256("maker"));
     address internal maker;
 
     // Operator: msg.sender for fillOrder. Holds CT inventory (pre-split) and
-    // collects USDC from the maker's BUY. In S6+ this becomes the MM Agent.
+    // collects JUSD from the maker's BUY. In S6+ this becomes the MM Agent.
     address internal operator = makeAddr("operator");
 
     // ─────────────────────────────────────────────────────────────────────
@@ -59,13 +59,13 @@ contract CTFFillOrderTest is Test {
     function setUp() public {
         maker = vm.addr(makerPk);
 
-        // 1. Deploy CTF + USDC + Exchange (deployer == this contract).
+        // 1. Deploy CTF + JUSD + Exchange (deployer == this contract).
         ctf = IConditionalTokens(_deployCTF());
-        usdc = new MockUSDC();
+        jusd = new JUSD();
         // (proxyFactory, safeFactory) = (0, 0) — disables Polymarket's AA
         // signature paths. Mirrors DeployCTF.s.sol. EOA path is the only
         // enabled signature type until S7 brings AA back.
-        exchange = new CTFExchange(address(usdc), address(ctf), address(0), address(0));
+        exchange = new CTFExchange(address(jusd), address(ctf), address(0), address(0));
 
         // 2. Prepare a binary YES/NO condition + compute position IDs.
         //    Use CTHelpers (via CTF) for the IDs — don't recompute the EC
@@ -74,8 +74,8 @@ contract CTFFillOrderTest is Test {
         conditionId = _conditionId(oracle, questionId, 2);
         bytes32 yesCollection = ctf.getCollectionId(bytes32(0), conditionId, 1);
         bytes32 noCollection = ctf.getCollectionId(bytes32(0), conditionId, 2);
-        yesPositionId = ctf.getPositionId(IERC20(address(usdc)), yesCollection);
-        noPositionId = ctf.getPositionId(IERC20(address(usdc)), noCollection);
+        yesPositionId = ctf.getPositionId(IERC20(address(jusd)), yesCollection);
+        noPositionId = ctf.getPositionId(IERC20(address(jusd)), noCollection);
 
         // 3. Register the YES token on the Exchange. Trading is gated on
         //    registry — fillOrder reverts with InvalidTokenId otherwise.
@@ -86,39 +86,39 @@ contract CTFFillOrderTest is Test {
         exchange.addOperator(operator);
 
         // 5. Pre-fund operator with CT inventory so it can settle BUY orders.
-        //    Operator splits 1000 USDC -> 1000 YES + 1000 NO.
+        //    Operator splits 1000 JUSD -> 1000 YES + 1000 NO.
         _mintAndSplit(operator, 1000e6);
     }
 
     // ─────────────────────────────────────────────────────────────────────
     // Happy-path: BUY order, full fill
-    //   maker wants 100 YES at price 0.60  =>  pays 60 USDC, receives 100 YES
+    //   maker wants 100 YES at price 0.60  =>  pays 60 JUSD, receives 100 YES
     // ─────────────────────────────────────────────────────────────────────
 
     function test_FillOrder_Buy_FullFill() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
 
         // Operator must approve CT (ERC-1155) to the exchange so it can pull.
         _approveCtfForAll(operator, address(exchange));
 
         Order memory order = _buildBuyOrder({
             tokenId: yesPositionId,
-            makerAmount: 60e6,    // USDC paid
+            makerAmount: 60e6,    // JUSD paid
             takerAmount: 100e6,   // YES received (CT uses same 6 dec as collateral)
             nonce: 0
         });
         _sign(order);
 
-        uint256 makerUsdcBefore = usdc.balanceOf(maker);
-        uint256 operatorUsdcBefore = usdc.balanceOf(operator);
+        uint256 makerJusdBefore = jusd.balanceOf(maker);
+        uint256 operatorJusdBefore = jusd.balanceOf(operator);
 
         vm.prank(operator);
         exchange.fillOrder(order, 60e6); // fillAmount in maker-amount terms
 
-        assertEq(usdc.balanceOf(maker), makerUsdcBefore - 60e6, "maker USDC debited");
-        assertEq(usdc.balanceOf(operator), operatorUsdcBefore + 60e6, "operator USDC credited");
+        assertEq(jusd.balanceOf(maker), makerJusdBefore - 60e6, "maker JUSD debited");
+        assertEq(jusd.balanceOf(operator), operatorJusdBefore + 60e6, "operator JUSD credited");
         assertEq(_balance1155(maker, yesPositionId), 100e6, "maker received 100 YES");
         assertEq(_balance1155(operator, yesPositionId), 1000e6 - 100e6, "operator YES debited");
         // Operator's NO inventory untouched — only YES side moved.
@@ -126,15 +126,15 @@ contract CTFFillOrderTest is Test {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Partial fill: same order, fill only 30 USDC of 60.
-    //   maker pays 30 USDC, receives 50 YES (pro-rata of 100)
-    //   order remains open for the remaining 30 USDC.
+    // Partial fill: same order, fill only 30 JUSD of 60.
+    //   maker pays 30 JUSD, receives 50 YES (pro-rata of 100)
+    //   order remains open for the remaining 30 JUSD.
     // ─────────────────────────────────────────────────────────────────────
 
     function test_FillOrder_Buy_PartialFill() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
         _approveCtfForAll(operator, address(exchange));
 
         Order memory order = _buildBuyOrder(yesPositionId, 60e6, 100e6, 0);
@@ -145,14 +145,14 @@ contract CTFFillOrderTest is Test {
         exchange.fillOrder(order, 30e6);
 
         assertEq(_balance1155(maker, yesPositionId), 50e6, "half fill -> 50 YES");
-        assertEq(usdc.balanceOf(maker), 30e6, "30 USDC remaining for maker");
+        assertEq(jusd.balanceOf(maker), 30e6, "30 JUSD remaining for maker");
 
         // Fill the rest in a second call.
         vm.prank(operator);
         exchange.fillOrder(order, 30e6);
 
         assertEq(_balance1155(maker, yesPositionId), 100e6, "full fill after second call");
-        assertEq(usdc.balanceOf(maker), 0, "all 60 USDC spent");
+        assertEq(jusd.balanceOf(maker), 0, "all 60 JUSD spent");
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -160,9 +160,9 @@ contract CTFFillOrderTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_FillOrder_RevertsOnBadSignature() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
         _approveCtfForAll(operator, address(exchange));
 
         Order memory order = _buildBuyOrder(yesPositionId, 60e6, 100e6, 0);
@@ -182,9 +182,9 @@ contract CTFFillOrderTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_FillOrder_RevertsOnExpired() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
         _approveCtfForAll(operator, address(exchange));
 
         Order memory order = _buildBuyOrder(yesPositionId, 60e6, 100e6, 0);
@@ -204,9 +204,9 @@ contract CTFFillOrderTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_FillOrder_RevertsForNonOperator() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
 
         Order memory order = _buildBuyOrder(yesPositionId, 60e6, 100e6, 0);
         _sign(order);
@@ -223,9 +223,9 @@ contract CTFFillOrderTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_GasSnapshot_FillOrder_Buy() public {
-        usdc.mint(maker, 60e6);
+        jusd.mint(maker, 60e6);
         vm.prank(maker);
-        usdc.approve(address(exchange), type(uint256).max);
+        jusd.approve(address(exchange), type(uint256).max);
         _approveCtfForAll(operator, address(exchange));
 
         Order memory order = _buildBuyOrder(yesPositionId, 60e6, 100e6, 0);
@@ -275,16 +275,16 @@ contract CTFFillOrderTest is Test {
     }
 
     function _mintAndSplit(address who, uint256 amount) internal {
-        usdc.mint(who, amount);
+        jusd.mint(who, amount);
         vm.prank(who);
-        usdc.approve(address(ctf), amount);
+        jusd.approve(address(ctf), amount);
 
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1;
         partition[1] = 2;
 
         vm.prank(who);
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), conditionId, partition, amount);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), conditionId, partition, amount);
     }
 
     function _conditionId(address _oracle, bytes32 _questionId, uint256 outcomeSlotCount)

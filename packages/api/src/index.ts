@@ -35,6 +35,7 @@ import {
   createCheckout,
   fundingLedger,
   fundingSummary,
+  settlePendingDeposits,
   handleStripeWebhook,
   resolveFundingUser,
 } from "./funding";
@@ -67,7 +68,7 @@ app.get("/config", async () => {
       // wants the CTF and the collateral. `conditionId` it already has from
       // the market; the index sets for a binary condition are always [1, 2].
       ctf: chain.ctfAddr,
-      usdc: chain.usdcAddr,
+      jusd: chain.jusdAddr,
       // 참여자 패널(rabbit 콘솔)이 operator 잔고를 보여주려면 주소가 필요하다
       // (jay, 2026-09-02). 주소는 비밀이 아니다 — 모든 시드 tx 의 서명자로 이미 공개다.
       operator: chain.operator,
@@ -84,7 +85,7 @@ app.get("/config", async () => {
       chainId: 0,
       exchange: null,
       ctf: null,
-      usdc: null,
+      jusd: null,
       operator: null,
       tradingEnabled: false,
       umaAvailable: false,
@@ -418,7 +419,7 @@ app.post("/trade", async (req, reply) => {
       return reply.status(400).send({ error: "no liquidity at this price — try a smaller amount" });
     }
     notifyTelegram(
-      `🔮 💱 Verex — trade: ${r.side} ${r.outcome} on ${body.slug} — ${r.totalUsdc.toFixed(2)} USDC (account #${body.accountIndex})`
+      `🔮 💱 Verex — trade: ${r.side} ${r.outcome} on ${body.slug} — ${r.totalJusd.toFixed(2)} jUSD (account #${body.accountIndex})`
     );
     return {
       txHash: null, // settles asynchronously — poll jobId
@@ -426,7 +427,7 @@ app.post("/trade", async (req, reply) => {
       settlement: r.settlement,
       side: r.side,
       outcome: r.outcome,
-      usdcAmount: r.totalUsdc,
+      jusdAmount: r.totalJusd,
       tokenAmount: r.totalTokens,
       price: r.avgPrice,
       newYesPrice: r.newYesPrice,
@@ -588,7 +589,7 @@ app.post("/redeem", async (req, reply) => {
   }
 });
 
-// Demo wallet: address, USDC balance, on-chain positions. Index 0 (the
+// Demo wallet: address, jUSD balance, on-chain positions. Index 0 (the
 // operator) returns address + balance only — identity display, no
 // portfolio.
 app.get("/wallet/:index", async (req, reply) => {
@@ -636,13 +637,13 @@ app.get("/jobs/:id", async (req, reply) => {
   return job;
 });
 
-// Demo faucet: mint test USDC to a demo wallet.
+// Demo faucet: mint test jUSD to a demo wallet.
 app.post("/faucet", async (req, reply) => {
   const { accountIndex, address } = (req.body ?? {}) as { accountIndex?: number; address?: string };
   // V-B: an external maker has to arrive already funded — `checkExternalFunds`
   // will not mint into a wallet on its behalf mid-order. This is how it gets
   // funded in the first place, and it is testnet-only by construction: the
-  // token is MockUSDC, whose `mint` anyone can call.
+  // token is JUSD, whose `mint` anyone can call.
   //
   // The arbitrary-address form is also how the J2 agent EOA — a wallet verex
   // holds no key for — gets its starting balance (2026-08-27, jay).
@@ -654,26 +655,28 @@ app.post("/faucet", async (req, reply) => {
     if (address !== undefined) {
       if (!isAddress(address)) return reply.status(400).send({ error: "address is not a valid 0x address" });
       const r = await faucetTo(getAddress(address) as Address);
-      notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.usdc.toFixed(2)} USDC`);
+      notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.jusd.toFixed(2)} jUSD`);
       return r;
     }
     if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
       return reply.status(400).send({ error: "accountIndex must be 1..9, or send an address" });
     }
     const r = await faucet(accountIndex!);
-    notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.usdc.toFixed(2)} USDC`);
+    notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.jusd.toFixed(2)} jUSD`);
     return r;
   } catch (e) {
     return reply.status(503).send({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 
-// ── Funding (Stripe test mode → internal USDCX ledger) ─────────────────────
-// The USDCX balance is an internal test-ledger credit, not redeemable
-// crypto; see src/funding.ts. Test keys only — the module refuses live ones.
+// ── Funding (Stripe test mode → a jUSD mint) ───────────────────────────────
+// A card payment mints jUSD to the payer, so the card buys the token the
+// chain settles in; see src/funding.ts. Test keys only — the module refuses
+// live ones, because minting a demo token against a real charge would be
+// something else entirely.
 
-// Create a Checkout Session and return its hosted URL. The balance is NOT
-// credited here — only the webhook credits, after Stripe confirms payment.
+// Create a Checkout Session and return its hosted URL. Nothing is minted
+// here — only the webhook mints, after Stripe confirms payment.
 app.post("/funding/checkout", async (req, reply) => {
   try {
     const body = (req.body ?? {}) as { accountIndex?: number; address?: string; amount?: number };
@@ -707,7 +710,8 @@ app.register(async (scope) => {
       );
       if (r.credited) {
         notifyTelegram(
-          `🔮 💳 Verex — funded: ${r.credited.userId} +$${r.credited.amount.toFixed(2)} USDCX (Stripe test mode)`,
+          `🔮 💳 Verex — funded: ${r.credited.userId} +${r.credited.amount.toFixed(2)} jUSD` +
+            (r.txHash ? ` (minted ${r.txHash.slice(0, 10)}…)` : " — mint PENDING, will retry"),
         );
       }
       return r;
@@ -718,8 +722,8 @@ app.register(async (scope) => {
   });
 });
 
-// USDCX balance for the header chip. Same dual identity as /wallet/:index —
-// a demo-wallet index or a bare 0x address.
+// jUSD balance for the header chip, read from the chain. Same dual identity
+// as /wallet/:index — a demo-wallet index or a bare 0x address.
 app.get("/funding/balance/:user", async (req, reply) => {
   try {
     const raw = (req.params as { user: string }).user;
@@ -732,7 +736,7 @@ app.get("/funding/balance/:user", async (req, reply) => {
   }
 });
 
-// The mini ledger: deposits, trade debits/credits, redemption payouts.
+// Deposit history: what was paid, and the mint that settled it.
 app.get("/funding/ledger/:user", async (req, reply) => {
   try {
     const raw = (req.params as { user: string }).user;
@@ -742,6 +746,19 @@ app.get("/funding/ledger/:user", async (req, reply) => {
     return { entries: await fundingLedger(user) };
   } catch (e: any) {
     return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "ledger failed" });
+  }
+});
+
+// Retry any deposit that was paid for but never minted. Idempotent, and
+// safe to call from anywhere: settleDeposit claims each row before minting,
+// so two concurrent callers cannot double-mint. Normally nothing to do — the
+// webhook settles inline; this exists for when that mint failed.
+app.post("/funding/settle", async (req, reply) => {
+  try {
+    return await settlePendingDeposits();
+  } catch (e: any) {
+    req.log.error(e);
+    return reply.status(e?.statusCode ?? 500).send({ error: e?.message ?? "settle failed" });
   }
 });
 

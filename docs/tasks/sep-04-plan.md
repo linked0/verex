@@ -146,7 +146,7 @@ execution detail lives here and the cross-repo plan links to it):
 
 | # | Step | Watch for |
 |---|---|---|
-| 1 | **Fund the reward token.** `deposit()` on Sepolia WETH `0x7b79995e…98E7f9`; make sure the adapter holds it / has approval for the reward | **MockUSDC will not work** — it is not on UMA's `AddressWhitelist`, and `UmaCtfAdapter`'s own `@param rewardToken` docblock says so. Whether `reward: 0` sidesteps the whitelist entirely is **unverified** — check it during the smoke probe |
+| 1 | **Fund the reward token.** `deposit()` on Sepolia WETH `0x7b79995e…98E7f9`; make sure the adapter holds it / has approval for the reward | **JUSD will not work** — it is not on UMA's `AddressWhitelist`, and `UmaCtfAdapter`'s own `@param rewardToken` docblock says so. Whether `reward: 0` sidesteps the whitelist entirely is **unverified** — check it during the smoke probe |
 | 2 | **Fresh staging seed** including **≥1 short-dated UMA market** — pass a small `liveness` to `initialize` (`0` keeps UMA's 7200s default) | This is the step that deletes `Trade`/`PricePoint`/`Outcome`/`Market`. Nothing an external agent has done on staging survives it — hence "before the first staging run". Expect the one-time LMSR price jump noted above |
 | 3 | **Propose** an answer, posting the bond | Real UMA charges a **final fee** per currency on top of the bond (0.001 WETH here); the mock's is zero, so a bond that works on anvil can be short here |
 | 4 | **Wait out liveness** — real wall-clock time, no `evm_increaseTime` | The reason J2's R-G polls instead of awaiting inline |
@@ -159,7 +159,7 @@ and can fail here:
 
 | | `MockOptimisticOracleV2` | UMA on Sepolia |
 |---|---|---|
-| **Collateral** | `requestPrice` just does a `transferFrom` — no check | Reward token must be on UMA's `AddressWhitelist`. **MockUSDC is not**; Sepolia WETH `0x7b79995e…98E7f9` is. `UmaCtfAdapter`'s own docblock says so. Whether `reward: 0` sidesteps it is **unverified** |
+| **Collateral** | `requestPrice` just does a `transferFrom` — no check | Reward token must be on UMA's `AddressWhitelist`. **JUSD is not**; Sepolia WETH `0x7b79995e…98E7f9` is. `UmaCtfAdapter`'s own docblock says so. Whether `reward: 0` sidesteps it is **unverified** |
 | **Final fee** | zero — the only stake is the bond | charged per currency on top of the bond, so locally-correct bond amounts can be wrong |
 | **Liveness** | `DEFAULT_LIVENESS` 7200s, skippable with `evm_increaseTime` | real wall-clock time. Any code that awaits settlement inline passes locally and hangs here |
 | **Disputes** | an on-chain jury: `vote` / `finalizeVote`, settles immediately | escalates to the DVM — a ~2-day staked commit/reveal round testnet does not reliably provide |
@@ -204,11 +204,11 @@ step**.
 | **W6.1** | External signed orders | `POST /orders` and `POST /trade` accept a client-supplied `SignedOrder` with an arbitrary `maker`. Verify EIP-712 server-side and fail fast; the Exchange re-verifies at match. Migration: `Order.makerIndex` nullable |
 | **W6.2** | Funding stops being the API's job | `ensureFunds` faucets and approves *on behalf of* the maker — impossible for a key we do not hold. For external makers it **reads and rejects**: insufficient balance or allowance is a 400, not something the server silently fixes. Add an address-scoped faucet for testnet convenience. **Note (2026-08-26):** that faucet turned out to have a second consumer — rabbit funds the *owner's smart account* with it before the agent draws its mandate, so the address it funds is often not a trader at all |
 | **W6.3** | Address-scoped reads | `/wallet/:address` — balance, positions, open orders, redeems, history. Today all `/wallet/:index` |
-| **W6.4** | External redeem | Verex holds no key for the holder, so it **cannot send** `redeemPositions` — the endpoint records instead of executing. The holder redeems for itself and reports the tx; verex verifies the receipt's `PayoutRedemption` (redeemer + conditionId) before writing the REDEEM row. `/config` gained `ctf` + `usdc` so the holder can build the call. Note the asymmetry: **trading costs an external maker no gas** (`book.ts:694` — the operator sends `matchOrders`), but **redeeming does** |
+| **W6.4** | External redeem | Verex holds no key for the holder, so it **cannot send** `redeemPositions` — the endpoint records instead of executing. The holder redeems for itself and reports the tx; verex verifies the receipt's `PayoutRedemption` (redeemer + conditionId) before writing the REDEEM row. `/config` gained `ctf` + `jusd` so the holder can build the call. Note the asymmetry: **trading costs an external maker no gas** (`book.ts:694` — the operator sends `matchOrders`), but **redeeming does** |
 
 **W6.5 — the gap W6 creates, still open (2026-08-25).** Funds are checked **at placement**.
 A demo wallet cannot betray that check because verex holds its key; an external maker can — place
-a resting limit order, withdraw the USDC, and leave a book entry that looks live and can never
+a resting limit order, withdraw the jUSD, and leave a book entry that looks live and can never
 settle. Two sizes of fix: **re-check funds at match time** (cheap, inside the existing
 transaction), or let [W5](#w5) catch it after the fact. Not fixed yet — recorded so it is a
 decision rather than a surprise. Also the reason [V3.2](../features/README.md#v3)'s drop rationale

@@ -41,7 +41,7 @@ export const chain: Doc = {
                   [
                     "**SDK**",
                     "`packages/sdk`",
-                    "Typed viem clients — one per contract (`CTClient`, `ExchangeClient`, `UsdcClient`, `UmaAdapterClient`). The API never handles raw ABIs; every chain call goes through these.",
+                    "Typed viem clients — one per contract (`CTClient`, `ExchangeClient`, `JusdClient`, `UmaAdapterClient`). The API never handles raw ABIs; every chain call goes through these.",
                   ],
                   [
                     "**Contracts**",
@@ -78,9 +78,9 @@ export const chain: Doc = {
                     "Atomic settlement. Takes two signed EIP-712 orders that the off-chain book matched and swaps outcome tokens against collateral in one transaction (`matchOrders`).",
                   ],
                   [
-                    "**MockUSDC**",
+                    "**JUSD**",
                     "Verex",
-                    "The demo dollar — a mintable ERC-20 with 6 decimals standing in for USDC, so wallets can be funded without a faucet queue.",
+                    "The demo dollar — a mintable ERC-20 with 6 decimals standing in for jUSD, so wallets can be funded without a faucet queue.",
                   ],
                   [
                     "**UmaCtfAdapter**",
@@ -114,7 +114,7 @@ export const chain: Doc = {
               table: {
                 head: ["Contract", "Address"],
                 rows: [
-                  ["MockUSDC", `[0xAc03…b6B6](${SCAN}/0xAc0328f49c4ED8ea1B1C1AaBb86441dD9682b6B6)`],
+                  ["JUSD", `[0xAc03…b6B6](${SCAN}/0xAc0328f49c4ED8ea1B1C1AaBb86441dD9682b6B6)`],
                   ["ConditionalTokens", `[0xEB10…Fb04](${SCAN}/0xEB100D76E2F3E3B5176593b5aAfbEB5a1d90Fb04)`],
                   ["CTFExchange", `[0xcB22…99Cf](${SCAN}/0xcB2271f5Eb6337a1938ab8a9190e12A9773599Cf)`],
                 ],
@@ -127,7 +127,7 @@ export const chain: Doc = {
               table: {
                 head: ["Contract", "Address"],
                 rows: [
-                  ["MockUSDC", `[0xF0AB…3edD](${SCAN}/0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD)`],
+                  ["JUSD", `[0xF0AB…3edD](${SCAN}/0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD)`],
                   ["ConditionalTokens", `[0xCa4d…aCBB](${SCAN}/0xCa4d32755Fa9a6A04bECF42D6FE501AFF0dcaCBB)`],
                   ["CTFExchange", `[0x19f3…DD22](${SCAN}/0x19f303463CFC1181D9111B1AEf6EE3115a89DD22)`],
                   ["UmaCtfAdapter", `[0x1B45…00AC](${SCAN}/0x1B45F820FBcc38e477F30d78e207622F24ab00AC)`],
@@ -205,7 +205,7 @@ export const chain: Doc = {
                   [
                     "**SDK**",
                     "`packages/sdk`",
-                    "타입이 있는 viem 클라이언트 — 컨트랙트마다 하나씩(`CTClient`, `ExchangeClient`, `UsdcClient`, `UmaAdapterClient`). API는 raw ABI를 직접 다루지 않고 모든 체인 호출을 이들을 통해 보냅니다.",
+                    "타입이 있는 viem 클라이언트 — 컨트랙트마다 하나씩(`CTClient`, `ExchangeClient`, `JusdClient`, `UmaAdapterClient`). API는 raw ABI를 직접 다루지 않고 모든 체인 호출을 이들을 통해 보냅니다.",
                   ],
                   [
                     "**컨트랙트**",
@@ -242,9 +242,9 @@ export const chain: Doc = {
                     "원자적 정산. 오프체인 호가창이 매칭한 서명된 EIP-712 주문 두 건을 받아 결과 토큰과 담보를 한 트랜잭션에서 교환합니다(`matchOrders`).",
                   ],
                   [
-                    "**MockUSDC**",
+                    "**JUSD**",
                     "Verex",
-                    "데모 달러 — USDC를 대신하는 6자리 소수점의 민트 가능한 ERC-20으로, 포싯 대기열 없이 지갑에 자금을 넣을 수 있게 합니다.",
+                    "데모 달러 — jUSD를 대신하는 6자리 소수점의 민트 가능한 ERC-20으로, 포싯 대기열 없이 지갑에 자금을 넣을 수 있게 합니다.",
                   ],
                   [
                     "**UmaCtfAdapter**",
@@ -278,7 +278,7 @@ export const chain: Doc = {
               table: {
                 head: ["컨트랙트", "주소"],
                 rows: [
-                  ["MockUSDC", `[0xAc03…b6B6](${SCAN}/0xAc0328f49c4ED8ea1B1C1AaBb86441dD9682b6B6)`],
+                  ["JUSD", `[0xAc03…b6B6](${SCAN}/0xAc0328f49c4ED8ea1B1C1AaBb86441dD9682b6B6)`],
                   ["ConditionalTokens", `[0xEB10…Fb04](${SCAN}/0xEB100D76E2F3E3B5176593b5aAfbEB5a1d90Fb04)`],
                   ["CTFExchange", `[0xcB22…99Cf](${SCAN}/0xcB2271f5Eb6337a1938ab8a9190e12A9773599Cf)`],
                 ],
@@ -291,7 +291,7 @@ export const chain: Doc = {
               table: {
                 head: ["컨트랙트", "주소"],
                 rows: [
-                  ["MockUSDC", `[0xF0AB…3edD](${SCAN}/0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD)`],
+                  ["JUSD", `[0xF0AB…3edD](${SCAN}/0xF0AB63E3E34c86978F049c1eFc04C144E9c13edD)`],
                   ["ConditionalTokens", `[0xCa4d…aCBB](${SCAN}/0xCa4d32755Fa9a6A04bECF42D6FE501AFF0dcaCBB)`],
                   ["CTFExchange", `[0x19f3…DD22](${SCAN}/0x19f303463CFC1181D9111B1AEf6EE3115a89DD22)`],
                   ["UmaCtfAdapter", `[0x1B45…00AC](${SCAN}/0x1B45F820FBcc38e477F30d78e207622F24ab00AC)`],

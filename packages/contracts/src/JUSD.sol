@@ -4,11 +4,22 @@
 // in DeployCTF.s.sol. Nothing here requires 0.8.24-specific features.
 pragma solidity ^0.8.15;
 
-/// @notice Minimal ERC-20 used as USDC mock in CTF tests / anvil deploys.
-///         6 decimals (matching real USDC). Open mint for test convenience.
-contract MockUSDC {
-    string public constant name = "Mock USDC";
-    string public constant symbol = "mUSDC";
+/// @notice jUSD — the Jayverse dollar, used as CTF collateral in tests and
+///         standalone anvil deploys. 6 decimals; open mint for test convenience.
+///
+///         This is a *local* copy, deliberately not an import of
+///         jayverse-token's JUSD.sol: that one is ^0.8.28 and pulls in
+///         OpenZeppelin's ERC20, which cannot share a compile unit with
+///         CTFExchange's pinned 0.8.15. On a shared chain (the devnet) do not
+///         deploy this at all — pass the canonical jUSD address via
+///         COLLATERAL_ADDRESS so there is exactly one jUSD per chain.
+///
+///         Previously `JUSD`/`jUSD`. Renamed once the devnet began forking
+///         Circle's real Sepolia jUSD, at which point two unrelated tokens
+///         answered to the same name (jay, 2026-09-15).
+contract JUSD {
+    string public constant name = "Jayverse USD";
+    string public constant symbol = "jUSD";
     uint8 public constant decimals = 6;
 
     uint256 public totalSupply;

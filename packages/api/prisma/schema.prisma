@@ -71,7 +71,7 @@ model ChainConfig {
   id           Int    @id @default(1)
   chainId      Int
   rpcUrl       String
-  usdcAddr     String
+  jusdAddr     String
   ctfAddr      String
   exchangeAddr String
   operator     String // account 0 — oracle, exchange operator, MM inventory
@@ -204,9 +204,9 @@ model Trade {
   outcome     Outcome   @relation(fields: [outcomeId], references: [id], onDelete: Cascade)
   user        String // trader address (demo anvil account)
   side        TradeSide
-  usdcAmount  Decimal   @db.Decimal(20, 6) // collateral paid/received
+  jusdAmount  Decimal   @db.Decimal(20, 6) // collateral paid/received
   tokenAmount Decimal   @db.Decimal(20, 6) // outcome tokens received/sold
-  price       Decimal   @db.Decimal(10, 6) // executed price (USDC per token)
+  price       Decimal   @db.Decimal(10, 6) // executed price (jUSD per token)
   txHash      String?
   settlement  SettlementStatus @default(CONFIRMED)
   /// Book fills: which orders produced this row (no FK — keep deletes simple).
@@ -246,7 +246,7 @@ model Order {
   maker       String // wallet address
   makerIndex  Int? // demo wallet index (0 = operator MM); null for an external maker verex holds no key for
   side        OrderSide
-  price       Decimal     @db.Decimal(10, 6) // USDC per share, 0.01..0.99
+  price       Decimal     @db.Decimal(10, 6) // jUSD per share, 0.01..0.99
   size        Decimal     @db.Decimal(20, 6) // outcome tokens
   sizeFilled  Decimal     @default(0) @db.Decimal(20, 6)
   status      OrderStatus @default(OPEN)
@@ -307,39 +307,37 @@ model PricePoint {
   @@index([marketId, at])
 }
 
-// ── Funding leg (Stripe test mode → internal USDCX ledger) ─────────────────
-// Design: rabbit docs/features/jayverse-onboarding-mm.md §6. A Stripe
-// Checkout (TEST mode) payment credits an internal "USDCX" balance the user
-// bets with. This is a ledger row, NOT redeemable crypto and NOT an on-chain
-// USDC holding — the chain leg keeps settling in MockUSDC exactly as before;
-// this ledger sits in front of it as the newcomer-facing spendable balance.
+// ── Funding leg (Stripe test mode → a jUSD mint) ───────────────────────────
+// Design: rabbit docs/features/jayverse-onboarding-mm.md §6. A Stripe Checkout
+// (TEST mode) payment now MINTS jUSD to the payer's address, so the card buys
+// the token the chain actually settles in — there is one balance in the system
+// and it is on-chain (jay, 2026-09-15).
+//
+// It replaced an internal "USDCX" credit that sat in front of the chain as a
+// parallel spendable balance. That design gave one user two balances, and the
+// one the UI showed was the one that was not real: the chain leg was funded by
+// an open mint that had nothing to do with what the user paid.
+//
+// A card charge and an on-chain mint cannot share a transaction, so Deposit is
+// the durable record of what is owed: the webhook commits it atomically with
+// the Stripe event (the unique sessionId IS the idempotency key), and settling
+// mints and stamps txHash afterwards. An unsettled row is a safe retry.
 
-enum LedgerKind {
-  DEPOSIT // Stripe Checkout credit (webhook-driven, test mode)
-  TRADE // book fill: BUY debits, SELL credits
-  REDEEM // post-resolution payout credit
-}
-
-/// A user's internal USDCX balance. Keyed by wallet address — the same
-/// string shape as Trade.user / Order.maker. No row = the user never
-/// onboarded through Stripe, and the order path skips the USDCX guard.
-model Balance {
-  userId    String   @id // wallet address
-  currency  String   @default("USDCX")
-  amount    Decimal  @default(0) @db.Decimal(20, 6)
-  updatedAt DateTime @updatedAt
-}
-
-/// One signed row per balance movement — what the mini-ledger UI reads.
-model LedgerEntry {
-  id        String     @id @default(cuid())
-  userId    String
-  kind      LedgerKind
-  delta     Decimal    @db.Decimal(20, 6) // signed: deposit +, BUY fill −, …
-  ref       String? // Stripe session id / taker order id / market slug
-  createdAt DateTime   @default(now())
+/// One paid Stripe Checkout session. Keyed by its own id; `userId` is the
+/// wallet address the jUSD is minted to, the same string shape as
+/// Trade.user / Order.maker. This is a receipt, not a balance — the balance
+/// is the user's on-chain jUSD.
+model Deposit {
+  id        String    @id @default(cuid())
+  userId    String // wallet address that receives the jUSD
+  amount    Decimal   @db.Decimal(20, 6) // USD paid == jUSD minted
+  sessionId String    @unique // Stripe Checkout session id — the idempotency key
+  txHash    String? // the mint, once it lands on-chain
+  settledAt DateTime? // null = paid but not yet minted; the retry queue
+  createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+  @@index([settledAt])
 }
 
 /// Processed Stripe checkout sessions — webhook idempotency. A retried or

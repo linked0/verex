@@ -328,7 +328,7 @@ workflow itself is the next deliverable.
 
 Phase A ships; the on-chain pool does not. The reasoning that decided it: every benefit Phase B
 provides — surviving operator downtime, censorship resistance, letting anyone verify the quote —
-is a benefit of *not having to trust the operator*. On Sepolia with test USDC there is no
+is a benefit of *not having to trust the operator*. On Sepolia with test jUSD there is no
 adversary to resist and nobody who can lose money, so those guarantees buy nothing yet. They
 become real on mainnet, and that is when to build it.
 
@@ -381,7 +381,7 @@ No chain migration; risk 3 is closed.
 
 **New constraint found while verifying — the bond currency cannot be Verex's own collateral.**
 `OptimisticOracleV2.requestPrice` requires the bond currency to be on UMA's `AddressWhitelist`,
-and Verex's staging MockUSDC (`0xF0AB…3edD`) returns `isOnWhitelist = false`. So
+and Verex's staging JUSD (`0xF0AB…3edD`) returns `isOnWhitelist = false`. So
 `UMAOptimisticOracleAdapter` must hold and post a **whitelisted** token, separate from the
 collateral the markets themselves trade in. Usable options on Sepolia:
 
@@ -422,7 +422,7 @@ A5 (operator-SPOF) closes on UMA alone.
 
 UMA charges two things per price request: a **final fee** (fixed, set by UMA per currency) and a
 **proposer bond** (we choose). Both must be paid in a currency on UMA's `AddressWhitelist` —
-which Verex's own MockUSDC is not on.
+which Verex's own JUSD is not on.
 
 | Candidate | Final fee | Can we obtain it ourselves? |
 |---|---|---|

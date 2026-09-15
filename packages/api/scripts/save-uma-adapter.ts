@@ -45,7 +45,7 @@ const ADAPTER_VIEWS = parseAbi([
 
 type Entry = {
   chainId: number;
-  usdc: string;
+  jusd: string;
   ctf: string;
   exchange: string;
   umaAdapter?: string;

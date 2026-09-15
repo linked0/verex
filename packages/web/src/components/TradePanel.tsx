@@ -36,7 +36,7 @@ export function TradePanel({ market }: { market: Market }) {
     side: "BUY" | "SELL";
     outcome: "Yes" | "No";
     tokensOut: number;
-    usdcOut: number;
+    jusdOut: number;
   } | null>(null);
 
   const yes = market.outcomes.find((o) => o.label === "Yes");
@@ -51,9 +51,9 @@ export function TradePanel({ market }: { market: Market }) {
     !!market.closesAt &&
     new Date(market.closesAt).getTime() <= Date.now();
 
-  // BUY: amount = USDC in → tokens out. SELL: amount = tokens in → USDC out.
+  // BUY: amount = jUSD in → tokens out. SELL: amount = tokens in → jUSD out.
   const tokensOut = price > 0 ? amt / price : 0;
-  const usdcOut = amt * price;
+  const jusdOut = amt * price;
   const position = summary?.positions.find(
     (p) => p.slug === market.slug && p.outcome === outcome,
   );
@@ -62,7 +62,7 @@ export function TradePanel({ market }: { market: Market }) {
     setBusy(true);
     setError(null);
     setResult(null);
-    setPending({ side, outcome, tokensOut, usdcOut });
+    setPending({ side, outcome, tokensOut, jusdOut });
     try {
       const r = await postTrade({
         slug: market.slug,
@@ -129,7 +129,7 @@ export function TradePanel({ market }: { market: Market }) {
         <div>
           <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
             {side === "BUY"
-              ? t("market.amountUsdc")
+              ? t("market.amountJusd")
               : t("market.tokensToSell", { outcome })}
           </label>
           <Input
@@ -183,7 +183,7 @@ export function TradePanel({ market }: { market: Market }) {
               </div>
               <div className="flex justify-between font-semibold">
                 <span>{t("market.youReceive")}</span>
-                <span className="tabular-nums">${usdcOut.toFixed(2)}</span>
+                <span className="tabular-nums">${jusdOut.toFixed(2)}</span>
               </div>
             </>
           )}
@@ -222,7 +222,7 @@ export function TradePanel({ market }: { market: Market }) {
                 side: t(pending.side === "BUY" ? "market.buy" : "market.sell"),
                 tokens: pending.tokensOut.toFixed(2),
                 outcome: pending.outcome,
-                usdc: pending.usdcOut.toFixed(2),
+                jusd: pending.jusdOut.toFixed(2),
               })}
             </div>
             <div className="mt-1 text-muted-foreground">{t("market.matching")}</div>
@@ -235,7 +235,7 @@ export function TradePanel({ market }: { market: Market }) {
                 side: t(result.side === "BUY" ? "market.buy" : "market.sell"),
                 tokens: result.tokenAmount.toFixed(2),
                 outcome: result.outcome,
-                usdc: result.usdcAmount.toFixed(2),
+                jusd: result.jusdAmount.toFixed(2),
               })}
               {result.price != null
                 ? t("market.avgPrice", { price: Math.round(result.price * 100) })
@@ -259,7 +259,7 @@ export function TradePanel({ market }: { market: Market }) {
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           {t("market.tradeNote")} {t("nav.demoWallet", { n: accountIndex })}
-          {summary ? ` · $${summary.usdc.toLocaleString(intl, { maximumFractionDigits: 0 })} USDC` : ""}
+          {summary ? ` · $${summary.jusd.toLocaleString(intl, { maximumFractionDigits: 0 })} jUSD` : ""}
         </p>
       </CardContent>
     </Card>

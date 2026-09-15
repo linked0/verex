@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {IConditionalTokens} from "ctf-exchange/exchange/interfaces/IConditionalTokens.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 import {UmaCtfAdapter} from "../src/UmaCtfAdapter.sol";
 import {IOptimisticOracleV2} from "../src/interfaces/IOptimisticOracleV2.sol";
 
@@ -140,8 +140,8 @@ contract MockOptimisticOracleV2 {
 contract UmaCtfAdapterTest is Test {
     IConditionalTokens internal ctf;
     MockOptimisticOracleV2 internal oo;
-    MockUSDC internal usdc; // collateral for the CTF condition
-    MockUSDC internal weth; // stands in for the whitelisted bond currency
+    JUSD internal jusd; // collateral for the CTF condition
+    JUSD internal weth; // stands in for the whitelisted bond currency
     UmaCtfAdapter internal adapter;
 
     address internal admin = makeAddr("admin");
@@ -161,8 +161,8 @@ contract UmaCtfAdapterTest is Test {
     function setUp() public {
         ctf = IConditionalTokens(_deployCTF());
         oo = new MockOptimisticOracleV2();
-        usdc = new MockUSDC();
-        weth = new MockUSDC();
+        jusd = new JUSD();
+        weth = new JUSD();
         adapter = new UmaCtfAdapter(address(ctf), address(oo), admin);
     }
 
@@ -345,16 +345,16 @@ contract UmaCtfAdapterTest is Test {
         bytes32 questionId = _initAndPropose(YES, 60);
         bytes32 conditionId = keccak256(abi.encodePacked(address(adapter), questionId, uint256(2)));
 
-        usdc.mint(alice, 100e6);
+        jusd.mint(alice, 100e6);
         vm.startPrank(alice);
-        usdc.approve(address(ctf), 100e6);
+        jusd.approve(address(ctf), 100e6);
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1; // YES
         partition[1] = 2; // NO
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), conditionId, partition, 100e6);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), conditionId, partition, 100e6);
         vm.stopPrank();
 
-        assertEq(usdc.balanceOf(alice), 0, "collateral locked");
+        assertEq(jusd.balanceOf(alice), 0, "collateral locked");
 
         vm.warp(block.timestamp + 61);
         adapter.resolve(questionId);
@@ -362,9 +362,9 @@ contract UmaCtfAdapterTest is Test {
         uint256[] memory winner = new uint256[](1);
         winner[0] = 1; // YES
         vm.prank(alice);
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, winner);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, winner);
 
-        assertEq(usdc.balanceOf(alice), 100e6, "winning side redeems the full pot");
+        assertEq(jusd.balanceOf(alice), 100e6, "winning side redeems the full pot");
     }
 
     // ── helpers ─────────────────────────────────────────────────────────

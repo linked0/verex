@@ -9,7 +9,6 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "./db";
 import { account, loadChain } from "./chain";
 import { enqueueJob, registerHandler } from "./worker";
-import { applyFundingDelta } from "./funding";
 import type { Address } from "@verex/sdk";
 
 function httpError(message: string, statusCode: number): Error {
@@ -363,7 +362,7 @@ const payoutRedemptionAbi = [
 /// Idempotent on `txHash` — reporting the same transaction twice records once.
 export async function recordExternalRedeem(
   req: ExternalRedeemRequest,
-): Promise<{ slug: string; usdcReceived: number; txHash: string; recorded: boolean }> {
+): Promise<{ slug: string; jusdReceived: number; txHash: string; recorded: boolean }> {
   const chain = await loadChain();
   if (chain.chainId === 0) throw httpError("redeem is disabled in this environment", 400);
   const holder = getAddress(req.address);
@@ -375,10 +374,10 @@ export async function recordExternalRedeem(
 
   const already = await prisma.trade.findFirst({
     where: { marketId: market.id, user: holder, side: "REDEEM", txHash },
-    select: { usdcAmount: true },
+    select: { jusdAmount: true },
   });
   if (already) {
-    return { slug: market.slug, usdcReceived: Number(already.usdcAmount), txHash, recorded: false };
+    return { slug: market.slug, jusdReceived: Number(already.jusdAmount), txHash, recorded: false };
   }
 
   const receipt = await chain.publicClient.getTransactionReceipt({ hash: txHash });
@@ -412,7 +411,7 @@ export async function recordExternalRedeem(
       outcomeId: winning.id,
       user: holder,
       side: "REDEEM",
-      usdcAmount: payout,
+      jusdAmount: payout,
       tokenAmount: payout, // winning tokens pay $1 each
       price: 1,
       txHash,
@@ -420,7 +419,7 @@ export async function recordExternalRedeem(
     },
   });
 
-  return { slug: market.slug, usdcReceived: payout, txHash, recorded: true };
+  return { slug: market.slug, jusdReceived: payout, txHash, recorded: true };
 }
 
 export interface RedeemResult {
@@ -428,7 +427,7 @@ export interface RedeemResult {
   slug: string;
   /// What the winning tokens should pay out (winning balance × $1) — the
   /// job writes the exact number once the chain confirms.
-  expectedUsdc: number;
+  expectedJusd: number;
   settlement: "PENDING";
 }
 
@@ -482,10 +481,10 @@ export async function redeemPosition(req: RedeemRequest): Promise<RedeemResult> 
   // Expected payout: winning-outcome balance × $1 (read-only, fast).
   const user = account(req.accountIndex).address as Address;
   const winning = market.outcomes.find((o) => o.id === market.resolvedOutcomeId);
-  let expectedUsdc = 0;
+  let expectedJusd = 0;
   if (winning) {
     const bal = await chain.ctAs(0).balanceOf(user, BigInt(winning.tokenId));
-    expectedUsdc = Number(formatUnits(bal, 6));
+    expectedJusd = Number(formatUnits(bal, 6));
   }
 
   const existing = await prisma.chainJob.findFirst({
@@ -500,11 +499,11 @@ export async function redeemPosition(req: RedeemRequest): Promise<RedeemResult> 
     select: { id: true },
   });
   if (existing) {
-    return { jobId: existing.id, slug: market.slug, expectedUsdc, settlement: "PENDING" };
+    return { jobId: existing.id, slug: market.slug, expectedJusd, settlement: "PENDING" };
   }
 
   const jobId = await enqueueJob("REDEEM", { marketId: market.id, accountIndex: req.accountIndex } satisfies RedeemPayload);
-  return { jobId, slug: market.slug, expectedUsdc, settlement: "PENDING" };
+  return { jobId, slug: market.slug, expectedJusd, settlement: "PENDING" };
 }
 
 registerHandler("REDEEM", {
@@ -516,7 +515,7 @@ registerHandler("REDEEM", {
       include: { outcomes: true },
     });
     const user = account(p.accountIndex).address as Address;
-    const usdc = chain.usdcAs(0);
+    const jusd = chain.jusdAs(0);
     const userCt = chain.ctAs(p.accountIndex);
 
     // Snapshot per-outcome holdings before the burn — becomes the REDEEM
@@ -532,11 +531,11 @@ registerHandler("REDEEM", {
         });
       }
     }
-    if (held.length === 0) return { txHashes: [], usdcReceived: 0 };
+    if (held.length === 0) return { txHashes: [], jusdReceived: 0 };
 
-    const before = await usdc.balanceOf(user);
-    const txHash = await userCt.redeem(chain.usdcAddr, market.conditionId as Hex, [1n, 2n]);
-    const after = await usdc.balanceOf(user);
+    const before = await jusd.balanceOf(user);
+    const txHash = await userCt.redeem(chain.jusdAddr, market.conditionId as Hex, [1n, 2n]);
+    const after = await jusd.balanceOf(user);
 
     await prisma.trade.createMany({
       data: held.map((h) => ({
@@ -544,7 +543,7 @@ registerHandler("REDEEM", {
         outcomeId: h.outcomeId,
         user,
         side: "REDEEM" as const,
-        usdcAmount: Number((h.tokens * h.payout).toFixed(6)),
+        jusdAmount: Number((h.tokens * h.payout).toFixed(6)),
         tokenAmount: h.tokens,
         price: h.payout,
         txHash,
@@ -552,15 +551,11 @@ registerHandler("REDEEM", {
       })),
     });
 
-    // Funding leg: a Stripe-onboarded wallet gets the payout as USDCX too —
-    // the ledger's REDEEM row closes the loop its DEPOSIT row opened. No-op
-    // for wallets without a funding account.
-    const payout = Number(held.reduce((a, h) => a + h.tokens * h.payout, 0).toFixed(6));
-    if (payout > 0) {
-      await prisma.$transaction((tx) => applyFundingDelta(tx, user, "REDEEM", payout, market.slug));
-    }
+    // No funding-ledger payout row here any more. Redemption pays the winner
+    // in jUSD on-chain, and that IS the balance — there is no second ledger
+    // left to mirror it into (jay, 2026-09-15).
 
-    return { txHashes: [txHash], usdcReceived: Number(formatUnits(after - before, 6)) };
+    return { txHashes: [txHash], jusdReceived: Number(formatUnits(after - before, 6)) };
   },
   // No compensation needed: a failed redeem moved nothing on-chain and
   // wrote nothing to the DB — the position simply remains redeemable.

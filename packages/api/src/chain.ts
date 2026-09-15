@@ -29,7 +29,7 @@ import {
   makeWalletClient as sdkMakeWalletClient,
   createCTClient,
   createExchangeClient,
-  createUsdcClient,
+  createJusdClient,
   createUmaAdapterClient,
   createUmaOracleClient,
   type AccountConfig,
@@ -38,7 +38,7 @@ import {
   type ExchangeClient,
   type UmaAdapterClient,
   type UmaOracleClient,
-  type UsdcClient,
+  type JusdClient,
 } from "@verex/sdk";
 import { prisma } from "./db";
 
@@ -157,7 +157,7 @@ export function makeWalletClient(index: number): WalletClient {
 export interface ChainCtx {
   chainId: number;
   rpcUrl: string;
-  usdcAddr: Address;
+  jusdAddr: Address;
   ctfAddr: Address;
   exchangeAddr: Address;
   operator: Address;
@@ -174,7 +174,7 @@ export interface ChainCtx {
   /// Clients bound to a wallet — pass the account index (0 = operator).
   ctAs: (index: number) => CTClient;
   exchangeAs: (index: number) => ExchangeClient;
-  usdcAs: (index: number) => UsdcClient;
+  jusdAs: (index: number) => JusdClient;
   /// Bound to a specific adapter address. Defaults to the environment's, but
   /// takes an override because a market must resolve through the adapter it
   /// was CREATED against, which may not be the current one.
@@ -198,7 +198,7 @@ export async function loadChain(): Promise<ChainCtx> {
   }
   if (
     cached &&
-    cached.usdcAddr === cfg.usdcAddr &&
+    cached.jusdAddr === cfg.jusdAddr &&
     cached.ctfAddr === cfg.ctfAddr &&
     cached.exchangeAddr === cfg.exchangeAddr &&
     cached.umaAdapterAddr === (cfg.umaAdapterAddr as Address | null) &&
@@ -241,7 +241,7 @@ export async function loadChain(): Promise<ChainCtx> {
   const ctx: ChainCtx = {
     chainId: cfg.chainId,
     rpcUrl: cfg.rpcUrl,
-    usdcAddr: cfg.usdcAddr as Address,
+    jusdAddr: cfg.jusdAddr as Address,
     ctfAddr: cfg.ctfAddr as Address,
     exchangeAddr: cfg.exchangeAddr as Address,
     operator: cfg.operator as Address,
@@ -261,9 +261,9 @@ export async function loadChain(): Promise<ChainCtx> {
         publicClient,
         walletClient: makeWalletClient(index),
       }),
-    usdcAs: (index) =>
-      createUsdcClient({
-        address: cfg.usdcAddr as Address,
+    jusdAs: (index) =>
+      createJusdClient({
+        address: cfg.jusdAddr as Address,
         publicClient,
         walletClient: makeWalletClient(index),
       }),

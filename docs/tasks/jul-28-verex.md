@@ -21,7 +21,7 @@ We only have binary markets but we should have multiple outcome market like who 
 ![create a market](../images/verex-ui/create-market.png)
 As you can see the screen shot, user can create a market with operator's fund support.
 
-- Operator's USDCs are used for creating Yes/No tokens.
+- Operator's jUSD are used for creating Yes/No tokens.
 - you can refer to my previous project's code but don't copy it as it is change something for avoiding copyright issue and more advanced algorithm. The path is /Users/jay/work/nostra-server.
 
 ### Faster Trading, Resolution, Redeem

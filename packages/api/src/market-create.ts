@@ -58,7 +58,7 @@ export interface UmaCreateArgs {
   resolutionCriteria: string;
   closesAt: Date;
   /// Bond/reward currency. Must be on UMA's AddressWhitelist — Verex's
-  /// MockUSDC is not; Sepolia WETH is.
+  /// JUSD is not; Sepolia WETH is.
   rewardToken: Address;
   /// Paid to whoever proposes an answer. If non-zero the ADAPTER must already
   /// hold this much: requestPrice pulls the reward from the caller, and the
@@ -74,7 +74,7 @@ export interface UmaCreateArgs {
 export async function createBinaryMarketOnChain(args: {
   ct: CTClient;
   exchange: ExchangeClient;
-  usdcAddr: Address;
+  jusdAddr: Address;
   operator: Address;
   /// Question key, e.g. "verex:eth-above-10k-2026:<nonce>" — hashed into the
   /// on-chain questionId on the OPERATOR path, and folded into the ancillary
@@ -87,7 +87,7 @@ export async function createBinaryMarketOnChain(args: {
   /// which is why callers pass a persisted id, not a timestamp per call.
   questionKey: string;
   /// Operator inventory to mint for this market (E6). splitPosition turns
-  /// this much USDC into equal Yes+No token inventory.
+  /// this much jUSD into equal Yes+No token inventory.
   inventoryE6: bigint;
   /// Omit for an operator-resolved market (the default).
   uma?: UmaCreateArgs;
@@ -97,7 +97,7 @@ export async function createBinaryMarketOnChain(args: {
     : await prepareViaOperator(args.ct, args.operator, args.questionKey);
   const { questionId, conditionId } = prepared;
 
-  const ids = await args.ct.getBinaryPositionIds(args.usdcAddr, conditionId);
+  const ids = await args.ct.getBinaryPositionIds(args.jusdAddr, conditionId);
 
   try {
     await args.exchange.registerToken(ids.yes, ids.no, conditionId);
@@ -105,11 +105,11 @@ export async function createBinaryMarketOnChain(args: {
     if (!/AlreadyRegistered/i.test(e?.message ?? String(e))) throw e;
   }
 
-  // Inventory is minted by splitting the operator's USDC, which is independent
+  // Inventory is minted by splitting the operator's jUSD, which is independent
   // of who resolves the market — this part is identical for both oracles.
   const held = await args.ct.balanceOf(args.operator, ids.yes);
   if (held < args.inventoryE6) {
-    await args.ct.splitBinary(args.usdcAddr, conditionId, args.inventoryE6 - held);
+    await args.ct.splitBinary(args.jusdAddr, conditionId, args.inventoryE6 - held);
   }
 
   return {

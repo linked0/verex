@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import {IConditionalTokens} from "ctf-exchange/exchange/interfaces/IConditionalTokens.sol";
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 
 /// @notice S2.1 milestone test — answers §7 open questions in
 ///         docs/analysis/gnosis-ctf-research.md by exercising CTF directly:
@@ -21,7 +21,7 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///         decision/design items, not exercised here.
 contract CTFCycleTest is Test {
     IConditionalTokens internal ctf;
-    MockUSDC internal usdc;
+    JUSD internal jusd;
 
     // Test market: "Will Brazil win the 2026 World Cup?"
     address internal oracle;
@@ -40,7 +40,7 @@ contract CTFCycleTest is Test {
         // source compiled into the artifact JSON; we deploy raw bytecode so
         // we can interact from our 0.8 test).
         ctf = IConditionalTokens(_deployCTF());
-        usdc = new MockUSDC();
+        jusd = new JUSD();
 
         // Prepare a binary YES/NO condition.
         ctf.prepareCondition(oracle, questionId, 2);
@@ -51,8 +51,8 @@ contract CTFCycleTest is Test {
         // does EC arithmetic for nested conditions that's hard to replicate.
         bytes32 yesCollection = ctf.getCollectionId(bytes32(0), conditionId, 1);
         bytes32 noCollection = ctf.getCollectionId(bytes32(0), conditionId, 2);
-        yesPositionId = ctf.getPositionId(IERC20(address(usdc)), yesCollection);
-        noPositionId = ctf.getPositionId(IERC20(address(usdc)), noCollection);
+        yesPositionId = ctf.getPositionId(IERC20(address(jusd)), yesCollection);
+        noPositionId = ctf.getPositionId(IERC20(address(jusd)), noCollection);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ contract CTFCycleTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_LoserRedeemReturnsZero() public {
-        // alice splits 100 USDC into 100 YES + 100 NO
+        // alice splits 100 JUSD into 100 YES + 100 NO
         _mintAndSplit(alice, 100e6);
 
         // Resolve YES wins
@@ -72,14 +72,14 @@ contract CTFCycleTest is Test {
         ctf.reportPayouts(questionId, payouts);
 
         // alice redeems NO (loser) — should return 0, not revert
-        uint256 balBefore = usdc.balanceOf(alice);
+        uint256 balBefore = jusd.balanceOf(alice);
         uint256[] memory loserIndexSets = new uint256[](1);
         loserIndexSets[0] = 2; // NO
 
         vm.prank(alice);
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, loserIndexSets);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, loserIndexSets);
 
-        assertEq(usdc.balanceOf(alice) - balBefore, 0, "loser redeem should yield 0 USDC");
+        assertEq(jusd.balanceOf(alice) - balBefore, 0, "loser redeem should yield 0 JUSD");
         // The NO tokens should have been burned.
         assertEq(_balance1155(alice, noPositionId), 0, "NO tokens burned even on loser redeem");
     }
@@ -110,8 +110,8 @@ contract CTFCycleTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_SplitFromContractWithReceiver_Succeeds() public {
-        ContractWithReceiver caller = new ContractWithReceiver(address(ctf), address(usdc), conditionId);
-        usdc.mint(address(caller), 100e6);
+        ContractWithReceiver caller = new ContractWithReceiver(address(ctf), address(jusd), conditionId);
+        jusd.mint(address(caller), 100e6);
         caller.split(100e6);
 
         assertEq(_balance1155(address(caller), yesPositionId), 100e6);
@@ -120,8 +120,8 @@ contract CTFCycleTest is Test {
     }
 
     function test_SplitFromContractWithoutReceiver_Reverts() public {
-        ContractWithoutReceiver caller = new ContractWithoutReceiver(address(ctf), address(usdc), conditionId);
-        usdc.mint(address(caller), 100e6);
+        ContractWithoutReceiver caller = new ContractWithoutReceiver(address(ctf), address(jusd), conditionId);
+        jusd.mint(address(caller), 100e6);
 
         // Q8: ERC-1155 mint to a contract that doesn't implement
         // onERC1155BatchReceived must revert per ERC-1155 spec.
@@ -134,16 +134,16 @@ contract CTFCycleTest is Test {
     // ─────────────────────────────────────────────────────────────────────
 
     function test_GasSnapshot_Split() public {
-        usdc.mint(alice, 100e6);
+        jusd.mint(alice, 100e6);
         vm.prank(alice);
-        usdc.approve(address(ctf), 100e6);
+        jusd.approve(address(ctf), 100e6);
 
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1;
         partition[1] = 2;
 
         vm.prank(alice);
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), conditionId, partition, 100e6);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), conditionId, partition, 100e6);
         // forge snapshot will record gas; no assertion needed.
     }
 
@@ -155,7 +155,7 @@ contract CTFCycleTest is Test {
         partition[1] = 2;
 
         vm.prank(alice);
-        ctf.mergePositions(IERC20(address(usdc)), bytes32(0), conditionId, partition, 100e6);
+        ctf.mergePositions(IERC20(address(jusd)), bytes32(0), conditionId, partition, 100e6);
     }
 
     function test_GasSnapshot_Redeem_BothIndexSets() public {
@@ -167,7 +167,7 @@ contract CTFCycleTest is Test {
         both[1] = 2;
 
         vm.prank(alice);
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, both);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, both);
     }
 
     function test_GasSnapshot_Redeem_OnlyWinner() public {
@@ -178,7 +178,7 @@ contract CTFCycleTest is Test {
         yesOnly[0] = 1;
 
         vm.prank(alice);
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, yesOnly);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, yesOnly);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ contract CTFCycleTest is Test {
 
         vm.prank(alice);
         uint256 gasBefore = gasleft();
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, both);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, both);
         uint256 combinedGas = gasBefore - gasleft();
 
         // Path 2: separate (fresh actor bob, fresh deployment via separate prep)
@@ -216,14 +216,14 @@ contract CTFCycleTest is Test {
         ctf.prepareCondition(oracle, q2, 2);
         bytes32 cid2 = _conditionId(oracle, q2, 2);
 
-        usdc.mint(bob, 100e6);
+        jusd.mint(bob, 100e6);
         vm.prank(bob);
-        usdc.approve(address(ctf), 100e6);
+        jusd.approve(address(ctf), 100e6);
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1;
         partition[1] = 2;
         vm.prank(bob);
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), cid2, partition, 100e6);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), cid2, partition, 100e6);
 
         vm.prank(oracle);
         uint256[] memory payouts = new uint256[](2);
@@ -238,12 +238,12 @@ contract CTFCycleTest is Test {
 
         vm.prank(bob);
         gasBefore = gasleft();
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), cid2, yesOnly);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), cid2, yesOnly);
         uint256 sep1 = gasBefore - gasleft();
 
         vm.prank(bob);
         gasBefore = gasleft();
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), cid2, noOnly);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), cid2, noOnly);
         uint256 sep2 = gasBefore - gasleft();
 
         emit log_named_uint("redeem([1,2]) combined", combinedGas);
@@ -264,30 +264,30 @@ contract CTFCycleTest is Test {
         _mintAndSplit(alice, 100e6);
         _resolveYes();
 
-        uint256 balBefore = usdc.balanceOf(alice);
+        uint256 balBefore = jusd.balanceOf(alice);
         uint256[] memory both = new uint256[](2);
         both[0] = 1;
         both[1] = 2;
         vm.prank(alice);
-        ctf.redeemPositions(IERC20(address(usdc)), bytes32(0), conditionId, both);
+        ctf.redeemPositions(IERC20(address(jusd)), bytes32(0), conditionId, both);
 
-        // YES paid 1 USDC per token (100), NO paid 0 → total 100.
-        assertEq(usdc.balanceOf(alice) - balBefore, 100e6);
+        // YES paid 1 JUSD per token (100), NO paid 0 → total 100.
+        assertEq(jusd.balanceOf(alice) - balBefore, 100e6);
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     function _mintAndSplit(address who, uint256 amount) internal {
-        usdc.mint(who, amount);
+        jusd.mint(who, amount);
         vm.prank(who);
-        usdc.approve(address(ctf), amount);
+        jusd.approve(address(ctf), amount);
 
         uint256[] memory partition = new uint256[](2);
         partition[0] = 1;
         partition[1] = 2;
 
         vm.prank(who);
-        ctf.splitPosition(IERC20(address(usdc)), bytes32(0), conditionId, partition, amount);
+        ctf.splitPosition(IERC20(address(jusd)), bytes32(0), conditionId, partition, amount);
     }
 
     function _resolveYes() internal {

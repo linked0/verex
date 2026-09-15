@@ -96,7 +96,7 @@ the archive.
 
 | | Item | Why it was deferred | When to revisit |
 |---|---|---|---|
-| **V3.1** | **LMSR phase B** — on-chain pool + smart routing + slo-mo fallback | G1 closed **NO** (jay, 2026-08-04): every benefit is a benefit of *not trusting the operator*, and on Sepolia with test USDC there is no adversary and nobody who can lose money | mainnet |
+| **V3.1** | **LMSR phase B** — on-chain pool + smart routing + slo-mo fallback | G1 closed **NO** (jay, 2026-08-04): every benefit is a benefit of *not trusting the operator*, and on Sepolia with test jUSD there is no adversary and nobody who can lose money | mainnet |
 | **V3.2** | **S5 indexer** | dropped 2026-08-03 — the justification did not survive reading the code; `SETTLE_MATCH` is already idempotent and `onFailed` compensates. Reframed as an **observability** tool, not a correctness one; a read-only DB-vs-chain consistency checker gets most of the value for none of the subsystem. **Second trigger, 2026-08-25:** the drop rested on *"the DB is written only by the API"*, and **W6 ends that** — an external holder can redeem, split or merge on CTF directly, and can move funds out from under a resting order. Still not a subsystem: the reframed read-only checker is the right size, and the first thing it should check is the resting-order gap in W6 | after V1 — the adapter adds on-chain state the DB mirrors, including disputes that can change an answer days later — **or** once external makers are live. **That trigger fired 2026-08-26: W6 is live**, so the read-only checker is now actionable (queued as W5 in the plan) |
 | **V3.3** | **`ChainlinkOracleAdapter`** | demoted to optional 2026-08-03 by counting the seed: **1 of 13** markets is Chainlink-answerable, **13 of 13** suit UMA's `YES_OR_NO_QUERY`. A strict subset of what UMA already covers | only to tick the "≥1 market per adapter" milestone, using `eth-above-10k-2026` |
 | **V3.4** | The **constrained admin override** inside the UMA adapter | pure UMA is the more principled default for a Sepolia demo; the override matters if mainnet is ever the goal. Note it does **not** fully close A5 — it makes the operator's lever exceptional, constrained, and visible on-chain instead of the only path | mainnet |
@@ -104,7 +104,7 @@ the archive.
 **One open question that survives from wave 2 and is not written down anywhere else:** who pays
 adapter gas, and who funds the bond. The bond currency is settled — **Sepolia WETH**
 `0x7b79995e…98E7f9`, chosen for self-service (we wrap it ourselves) over UMA's zero-final-fee
-USDC, which we cannot mint. Bond size (0.01 WETH) is an arbitrary demo knob.
+jUSD, which we cannot mint. Bond size (0.01 WETH) is an arbitrary demo knob.
 
 ### V4 — roadmap steps with no code at all ⬜ <a id="v4"></a>
 
@@ -180,14 +180,14 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 | Phase · Step | 핵심 산출물 | 마일스톤 |
 |------|------------|----------|
 | **Phase 1 — Scaffold** · **S1** ✅ | - [x] `Market` / `MarketFactory` parimutuel scaffold (학습 패스)<br>- [x] SDK 모양 (factory + market client 패턴, ABI sync)<br>- [x] CLI + commander demo<br>- [x] forge-std + foundry tooling | - [x] M1: forge test 17/17<br>- [x] M2: anvil 위 end-to-end CLI demo |
-| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/analysis/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] USDC mock collateral (anvil)<br>- [ ] **Manual oracle (Stage 1 of 3)** — operator EOA가 `prepareCondition(ourEOA, ...)` + `reportPayouts(...)` 직접 호출. Chainlink/UMA 도입 전까지 모든 마켓의 resolve 경로 (§2.2.7)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지<br>- [ ] Manual operator가 마켓을 resolve해서 winner가 redeem |
+| **Phase 1 — Core (CTF v2)** · **S2** | - [ ] **Gnosis CTF 분석 (~2일)** — `IConditionalTokens` 인터페이스 + 5 핵심 함수 (`prepareCondition` / `splitPosition` / `mergePositions` / `redeemPositions` / `reportPayouts`) + position ID 수학 + Polymarket Exchange가 CTF를 어떻게 호출하는지 → reading note `docs/analysis/gnosis-ctf-research.md`<br>- [ ] [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) import + Gnosis CTF (ERC-1155) 통합<br>- [ ] jUSD mock collateral (anvil)<br>- [ ] **Manual oracle (Stage 1 of 3)** — operator EOA가 `prepareCondition(ourEOA, ...)` + `reportPayouts(...)` 직접 호출. Chainlink/UMA 도입 전까지 모든 마켓의 resolve 경로 (§2.2.7)<br>- [ ] SDK 표면 전환 — `buyYes/buyNo` → `fillOrder/fillOrders` + `signOrder` (EIP-712)<br>- [ ] MM Agent v0 (paper-trading) — CLOB가 동작할 최소 maker<br>- [ ] CLI을 order-based flow로 갱신 | - [ ] **CTF mint → split → merge → redeem 한 사이클이 Foundry 테스트로 통과**<br>- [ ] CTF order fill end-to-end on anvil<br>- [ ] MM v0가 양방향 quote 유지<br>- [ ] Manual operator가 마켓을 resolve해서 winner가 redeem |
 | **Phase 1 — Web MVP** · **S3** | - [ ] Web `/markets` Polymarket-style feed (실 CTF 데이터)<br>- [ ] `/markets/[addr]` order book + buy UI<br>- [ ] `packages/mcp-server` 스캐폴딩 + 2 read tool 구현 (`list_markets`, `get_market`)<br>- [ ] ADR `0001-mcp-server-as-canonical-agent-interface.md` | - [ ] Metamask: order 서명 → fill → position 표시<br>- [ ] 두 지갑 시연 영상 |
 | **Phase 2 — Infra+Data** · **S4** | - [ ] `packages/api` Fastify (`/markets`, `/orders`, `/positions/:user`)<br>- [ ] Postgres 스키마 (Markets/Orders/Fills/Positions)<br>- [ ] 로컬 docker-compose | - [ ] API smoke 테스트 통과 |
 | **Phase 2 — Infra+Data** · **S5** | - [ ] Indexer (`OrderFilled`, `PositionsMerged`, `PayoutRedemption` → Postgres)<br>- [ ] Pub/Sub 로컬 에뮬레이터<br>- [ ] genesis 백필 | - [ ] 체인 ↔ DB 동기화 검증 |
 | **Phase 2 — Infra+Data** · **S6** | - [ ] **Chainlink adapter (Stage 2 of 3)** — `ChainlinkOracleAdapter.sol` 컨트랙트가 Chainlink price feed 읽고 endTime 후 `reportPayouts` 자동 호출. 숫자 기반 마켓 ("ETH > $4000 by date X") 용 (§2.2.7)<br>- [ ] **UMA adapter (Stage 3 of 3)** — `UMAOptimisticOracleAdapter.sol` 컨트랙트가 UMA `OptimisticOracleV2.requestPrice` 통합. 이벤트/뉴스 마켓 ("Did Brazil win?") 용 — Chainlink가 답할 수 없는 주관적 질문 (§2.2.7)<br>- [ ] MM Agent v1 (실거래 + 리스크 한도 + 서킷 브레이커) | - [ ] 적어도 한 마켓을 Chainlink adapter로 resolve<br>- [ ] 적어도 한 마켓을 UMA adapter로 resolve<br>- [ ] MM v1 paper → live 전환 체크리스트 통과 |
-| **Phase 3 — Advanced** · **S7** | - [ ] **AA 전략 결정 — ERC-4337 / EIP-7702 / hybrid (§11.4 B2)** → ADR `0002-aa-strategy.md`<br>- [ ] AA wallet 구현 + Web AA 통합<br>- [ ] **session key 권한 모델 확정** (§11.1 미결 1번)<br>- [ ] **One-click betting (production)** — `approve(USDC)` + `fillOrder` 1 서명 (§11.4 B3)<br>- [ ] **Auto-claim delegate 컨트랙트 + scheduler** (§11.4 B6) — 사용자 EOA에 대해 ONLY `redeemPositions` 허용하는 최소 delegate; backend scheduler가 resolved 마켓 watch하고 자동 트리거 | - [ ] 사용자가 AA wallet으로 베팅<br>- [ ] 1 서명으로 approve+fill 동작<br>- [ ] resolved 마켓의 winner가 수동 호출 없이 USDC 수령 |
+| **Phase 3 — Advanced** · **S7** | - [ ] **AA 전략 결정 — ERC-4337 / EIP-7702 / hybrid (§11.4 B2)** → ADR `0002-aa-strategy.md`<br>- [ ] AA wallet 구현 + Web AA 통합<br>- [ ] **session key 권한 모델 확정** (§11.1 미결 1번)<br>- [ ] **One-click betting (production)** — `approve(jUSD)` + `fillOrder` 1 서명 (§11.4 B3)<br>- [ ] **Auto-claim delegate 컨트랙트 + scheduler** (§11.4 B6) — 사용자 EOA에 대해 ONLY `redeemPositions` 허용하는 최소 delegate; backend scheduler가 resolved 마켓 watch하고 자동 트리거 | - [ ] 사용자가 AA wallet으로 베팅<br>- [ ] 1 서명으로 approve+fill 동작<br>- [ ] resolved 마켓의 winner가 수동 호출 없이 jUSD 수령 |
 | **Phase 3 — Advanced** · **S8** | - [ ] CCIP/LayerZero 크로스체인 참여<br>- [ ] MCP write-path tool 활성화 (`buy_yes/no`, `claim` — session key 경유)<br>- [ ] **Gasless onboarding (production)** (§11.4 B4) — Paymaster가 신규 지갑의 첫 N=5 거래 후원<br>- [ ] **Paymaster spend tracker** (§11.4 B7) — per-wallet 카운터 (off-chain DB 또는 on-chain mapping; S8 시작 시 결정) | - [ ] 다른 체인에서 베팅<br>- [ ] MCP로 베팅 시연<br>- [ ] 신규 유저가 ETH 0으로 베팅 완주<br>- [ ] N+1번째 거래에서 후원 중단 동작 확인 |
-| **Phase 3 — Advanced** · **S9** | - [ ] Stripe checkout → backend → mock USDC 지급<br>- [ ] GCP Cloud Run 배포 (API + MM Agent)<br>- [ ] GitHub Actions CI/CD | - [ ] Stripe 결제 → 베팅 가능<br>- [ ] staging 환경 가동 |
+| **Phase 3 — Advanced** · **S9** | - [ ] Stripe checkout → backend → mock jUSD 지급<br>- [ ] GCP Cloud Run 배포 (API + MM Agent)<br>- [ ] GitHub Actions CI/CD | - [ ] Stripe 결제 → 베팅 가능<br>- [ ] staging 환경 가동 |
 | **Phase 4 — Final** · **S10** | - [ ] ZK 탐색 (optional, 타임박스)<br>- [ ] UI polish<br>- [ ] 공개 demo 영상<br>- [ ] README 최종<br>- [ ] 회고 문서 (`docs/history/`) | - [ ] Demo Day |
 
 **총 예상**: ~25–35일 집중 작업 (캘린더로는 회복일 / 외부 대기 / 비-코딩 작업 포함해서 6–8주 정도가 현실적).
@@ -249,7 +249,7 @@ Verex는 다음을 목표로 하는 Web3 애플리케이션이다:
 
 - **[Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange)** — off-chain match · on-chain settle, EIP-712 signed orders
 - **[Gnosis Conditional Tokens Framework](https://docs.gnosis.io/conditionaltokens/) (CTF)** — outcome 토큰을 ERC-1155로 발행/병합/지급
-- **USDC** (또는 동급 ERC-20) — collateral
+- **jUSD** (또는 동급 ERC-20) — collateral
 - **UMA optimistic oracle** (S6 통합) — owner manual resolve 대체
 
 핵심 기능:
@@ -344,7 +344,7 @@ UI 레퍼런스 (한국어 로컬라이즈, 2026-05-07):
 
 선택된 AA 전략이 EIP-7702 또는 hybrid일 때 활성화:
 
-- **One-click betting** (S7) — `approve(USDC)` + `fillOrder` 1 서명. 기존 2~3 팝업 흐름 → 1 서명.
+- **One-click betting** (S7) — `approve(jUSD)` + `fillOrder` 1 서명. 기존 2~3 팝업 흐름 → 1 서명.
 - **Auto-claim** (S7) — resolved 마켓의 `redeemPositions`를 사용자가 잊어도 backend scheduler가 자동 호출. 사용자 EOA에 ONLY `redeemPositions` 허용하는 최소 delegate (audit-grade) 사용.
 - **Gasless onboarding** (S8) — 신규 사용자의 첫 N=5 거래를 Paymaster가 후원. ETH 0으로 첫 베팅 가능. Per-wallet spend tracker로 N번째 후 후원 중단.
 
@@ -357,7 +357,7 @@ UI 레퍼런스 (한국어 로컬라이즈, 2026-05-07):
 
 #### 2.2.10 Payment (Stripe)
 
-- Stripe → Backend → Test USDC 지급
+- Stripe → Backend → Test jUSD 지급
 - 목적: Web2 UX 제공
 
 #### 2.2.11 MM Agent (Market Maker, **신규 subproject**)
@@ -425,7 +425,7 @@ GitHub Actions.
 ### Phase 1: Core (Step 1~3)
 
 - **S1 (scaffold)** — parimutuel `Market`/`MarketFactory` + SDK + CLI. SDK/CLI 구조 검증을 위한 학습 패스. (`planning` 브랜치 history.)
-- **S2 (CTF v2 백본)** — [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) + Gnosis CTF (ERC-1155) + USDC mock + MM Agent v0 (paper) + SDK 표면 전환 (`fillOrder`)
+- **S2 (CTF v2 백본)** — [Polymarket CTF Exchange](https://github.com/Polymarket/ctf-exchange) + Gnosis CTF (ERC-1155) + jUSD mock + MM Agent v0 (paper) + SDK 표면 전환 (`fillOrder`)
 - **S3** — Web MVP (Polymarket-style 실데이터) + `packages/mcp-server` 스캐폴딩
 
 ### Phase 2: Infra + Data (Step 4~6)
@@ -451,7 +451,7 @@ GitHub Actions.
 
 ### 4.5 백엔드 버전 분리 (v1 / v2)
 
-> **Historical note (2026-05-11 갱신)**: 이전 plan은 Phase 1 (S1~3)을 v1 (fixed-price escrow), Phase 2 S6에 v2 (CTF) 전환으로 두었음. 운영자 prior CTF 경험을 반영해 **v2를 S2부터 메인 백본**으로 당김. S1의 parimutuel `Market`/`MarketFactory` 코드는 SDK/CLI 모양 검증용 학습 패스로 `planning` 브랜치 history에 보존 — 메인 라인은 S2의 CTF Exchange + Gnosis CTF + USDC.
+> **Historical note (2026-05-11 갱신)**: 이전 plan은 Phase 1 (S1~3)을 v1 (fixed-price escrow), Phase 2 S6에 v2 (CTF) 전환으로 두었음. 운영자 prior CTF 경험을 반영해 **v2를 S2부터 메인 백본**으로 당김. S1의 parimutuel `Market`/`MarketFactory` 코드는 SDK/CLI 모양 검증용 학습 패스로 `planning` 브랜치 history에 보존 — 메인 라인은 S2의 CTF Exchange + Gnosis CTF + jUSD.
 
 **무엇이 S1에서 S2로 carry over하나**
 
@@ -703,7 +703,7 @@ CTF Exchange는 이제 **S2 메인 백본** (§1.4 / §4 Phase 1). 더 이상 pl
 |---|------|----------|------------|------------|
 | B1 | 대상 체인의 EIP-7702 지원 상태 검증 (활성화 여부, RPC 호환성, viem 버전 요구사항). 대상 체인은 §2.2.1/§3에서 정해지는 배포 체인 | HIGH | Phase 3 S7 진입 전 | `docs/analysis/eip-7702-research.md` 갱신 |
 | B2 | AA 전략 결정: **(a) ERC-4337 only / (b) EIP-7702 only / (c) hybrid** | HIGH | S7 시작 시 | §2.2.8 본문 갱신 + ADR `docs/history/0002-aa-strategy.md` |
-| B3 | 배치 트랜잭션 PoC — USDC `approve` + `createPosition` 1 서명 | MEDIUM | S7 PoC 단계 | `packages/contracts/src/BatchExecutor.sol` (또는 외부 audited contract 채택) |
+| B3 | 배치 트랜잭션 PoC — jUSD `approve` + `createPosition` 1 서명 | MEDIUM | S7 PoC 단계 | `packages/contracts/src/BatchExecutor.sol` (또는 외부 audited contract 채택) |
 | B4 | Paymaster 가스 스폰서십 PoC — 신규 유저 첫 베팅 무가스 | MEDIUM | S7~S8 | `packages/api` 또는 외부 paymaster 서비스 통합 |
 | B5 | DelegateContract 선택 기준 + Revoke 패턴 audit-grade로 정리 | HIGH | 실거래 (testnet 이상) 진입 전 | `docs/security/eip-7702-delegate-policy.md` |
 | B6 | **Auto-claim delegate 컨트랙트** — 특정 사용자에 대해 ONLY `redeemPositions` 허용하는 최소 delegate. 다른 function selector 없음, audit-grade. + backend scheduler가 resolved 마켓 watch | HIGH | S7 mid-week (S7 AA wallet 구현 후) | `packages/contracts/src/AutoClaimDelegate.sol` + `packages/api`의 scheduler 모듈 |

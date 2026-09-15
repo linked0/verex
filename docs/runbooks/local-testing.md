@@ -38,7 +38,7 @@ exported alongside it. The anvil reachability check passes, because Alchemy answ
 env | grep VEREX      # must print nothing
 ```
 
-That one line is the whole guard. Same reason applies to `USDC_ADDR` / `CTF_ADDR` /
+That one line is the whole guard. Same reason applies to `JUSD_ADDR` / `CTF_ADDR` /
 `EXCHANGE_ADDR`: if all three are set, the seed silently reuses them as the local backbone
 instead of deploying, and dies mid-way with `returned no data ("0x")`.
 
@@ -58,8 +58,8 @@ pnpm --filter @verex/api dev           # :4000
 pnpm --filter @verex/web dev           # :3000
 ```
 
-`reset.sh` wipes the DB, re-applies every migration, deploys a fresh USDC/CTF/Exchange
-backbone, seeds 10 markets and 3 groups, and funds demo wallets #1–5 with 1,000 USDC each.
+`reset.sh` wipes the DB, re-applies every migration, deploys a fresh jUSD/CTF/Exchange
+backbone, seeds 10 markets and 3 groups, and funds demo wallets #1–5 with 1,000 jUSD each.
 
 **Expect:** `✅ Reset complete`. No `.env` edits and no server restarts — the API re-reads
 `ChainConfig` per call, so a running server picks up the new addresses. Refresh the browser.
@@ -415,7 +415,7 @@ the same CTF exchange as everything else.
 
 ## 7. Trading, end to end
 
-With demo wallets #1–5 at 1,000 USDC: buy, sell, check `/portfolio`, resolve a market as
+With demo wallets #1–5 at 1,000 jUSD: buy, sell, check `/portfolio`, resolve a market as
 the operator, redeem.
 
 **Expect** the resolved market to pay $1.00 per winning share and $0 per losing one, and

@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import "forge-std/Test.sol";
 import {IConditionalTokens} from "ctf-exchange/exchange/interfaces/IConditionalTokens.sol";
 
-import {MockUSDC} from "../src/MockUSDC.sol";
+import {JUSD} from "../src/JUSD.sol";
 import {UmaCtfAdapter} from "../src/UmaCtfAdapter.sol";
 import {MockOptimisticOracleV2} from "../src/MockOptimisticOracleV2.sol";
 import {IOptimisticOracleV2} from "../src/interfaces/IOptimisticOracleV2.sol";
@@ -15,7 +15,7 @@ import {IOptimisticOracleV2} from "../src/interfaces/IOptimisticOracleV2.sol";
 contract MockOptimisticOracleTest is Test {
     IConditionalTokens internal ctf;
     MockOptimisticOracleV2 internal oo;
-    MockUSDC internal usdc;
+    JUSD internal jusd;
     UmaCtfAdapter internal adapter;
 
     address internal operator = makeAddr("operator"); // proposer, adapter admin
@@ -34,7 +34,7 @@ contract MockOptimisticOracleTest is Test {
     int256 internal constant YES = 1 ether;
     int256 internal constant NO = 0;
     int256 internal constant UNRESOLVABLE = 0.5 ether;
-    uint256 internal constant BOND = 10e6; // 10 USDC
+    uint256 internal constant BOND = 10e6; // 10 JUSD
     uint256 internal constant LIVENESS = 3600;
 
     bytes32 internal questionId;
@@ -43,19 +43,19 @@ contract MockOptimisticOracleTest is Test {
     function setUp() public {
         ctf = IConditionalTokens(_deployCTF());
         oo = new MockOptimisticOracleV2();
-        usdc = new MockUSDC();
+        jusd = new JUSD();
         adapter = new UmaCtfAdapter(address(ctf), address(oo), operator);
 
         // Everyone who might post a bond holds and approves the currency.
         address[6] memory all = [operator, wallet1, wallet2, wallet3, wallet4, wallet5];
         for (uint256 i = 0; i < all.length; i++) {
-            usdc.mint(all[i], 100e6);
+            jusd.mint(all[i], 100e6);
             vm.prank(all[i]);
-            usdc.approve(address(oo), type(uint256).max);
+            jusd.approve(address(oo), type(uint256).max);
         }
 
         vm.prank(operator);
-        (questionId,) = adapter.initialize(ancillary, address(usdc), 0, BOND, LIVENESS);
+        (questionId,) = adapter.initialize(ancillary, address(jusd), 0, BOND, LIVENESS);
         requestTimestamp = adapter.getQuestion(questionId).requestTimestamp;
     }
 
@@ -82,8 +82,8 @@ contract MockOptimisticOracleTest is Test {
         assertEq(ctf.payoutNumerators(conditionId, 1), 0);
 
         // Proposer takes the disputer's whole bond; the disputer paid for being wrong.
-        assertEq(usdc.balanceOf(operator), 100e6 + BOND, "proposer wins the disputer's bond");
-        assertEq(usdc.balanceOf(wallet1), 100e6 - BOND, "disputer loses its bond");
+        assertEq(jusd.balanceOf(operator), 100e6 + BOND, "proposer wins the disputer's bond");
+        assertEq(jusd.balanceOf(wallet1), 100e6 - BOND, "disputer loses its bond");
     }
 
     // ── scenario 2: dispute upheld — the jury overturns the proposal ───────
@@ -107,8 +107,8 @@ contract MockOptimisticOracleTest is Test {
         assertEq(ctf.payoutNumerators(conditionId, 1), 1);
 
         // Fortunes reversed: disputer takes the proposer's bond.
-        assertEq(usdc.balanceOf(operator), 100e6 - BOND, "proposer loses its bond");
-        assertEq(usdc.balanceOf(wallet1), 100e6 + BOND, "disputer wins the proposer's bond");
+        assertEq(jusd.balanceOf(operator), 100e6 - BOND, "proposer loses its bond");
+        assertEq(jusd.balanceOf(wallet1), 100e6 + BOND, "disputer wins the proposer's bond");
     }
 
     // ── scenario 3: dispute as dead end — no jury, frozen forever ──────────
@@ -144,7 +144,7 @@ contract MockOptimisticOracleTest is Test {
         assertEq(ctf.payoutNumerators(conditionId, 1), 1, "unresolvable pays both sides");
 
         // Unresolvable != the proposed price, so the disputer counts as winner.
-        assertEq(usdc.balanceOf(wallet1), 100e6 + BOND);
+        assertEq(jusd.balanceOf(wallet1), 100e6 + BOND);
     }
 
     // ── the undisputed path still works: expiry pays the proposer back ─────
@@ -154,7 +154,7 @@ contract MockOptimisticOracleTest is Test {
         vm.warp(block.timestamp + LIVENESS + 1);
 
         adapter.resolve(questionId);
-        assertEq(usdc.balanceOf(operator), 100e6, "bond comes home on an honest, unchallenged proposal");
+        assertEq(jusd.balanceOf(operator), 100e6, "bond comes home on an honest, unchallenged proposal");
     }
 
     // ── guards ─────────────────────────────────────────────────────────────

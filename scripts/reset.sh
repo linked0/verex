@@ -6,8 +6,8 @@
 #   1. Checks anvil is reachable (the seed deploys contracts via forge).
 #   2. Ensures the local Postgres container (verex-pg) is running.
 #   3. `prisma migrate reset` — drops every table's data, re-applies migrations.
-#   4. Seed — deploys new USDC/CTF/Exchange, registers 10 markets, pre-funds
-#      demo wallets #1-5 with 1,000 USDC.
+#   4. Seed — deploys new jUSD/CTF/Exchange, registers 10 markets, pre-funds
+#      demo wallets #1-5 with 1,000 jUSD.
 #
 # The old contracts stay on anvil as orphaned leftovers (harmless — nothing
 # references them). A RUNNING API PICKS UP THE NEW ADDRESSES AUTOMATICALLY
@@ -105,6 +105,6 @@ fi
 
 cat <<'EOF'
 
-✅ Reset complete: fresh contracts, 10 OPEN markets, wallets #1-5 at 1,000 USDC.
+✅ Reset complete: fresh contracts, 10 OPEN markets, wallets #1-5 at 1,000 jUSD.
    The running API picks up the new contracts automatically — just refresh the web page.
 EOF
