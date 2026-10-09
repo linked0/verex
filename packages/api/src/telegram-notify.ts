@@ -1,4 +1,11 @@
-// Fire-and-forget Telegram notification for trade/faucet/resolve events.
+// Fire-and-forget Telegram notification — trades and Stripe funding only.
+//
+// Policy (jay, 2026-10-09): Verex pings only about the home page and trading.
+// Resolve / propose / dispute / jury / faucet / MM-config pings were removed:
+// they are our own demo clicks far more often than a visitor's, and they
+// buried the two signals that matter. Stripe funding stays as part of trading
+// — it is real money into a trading account and the only alert for a mint
+// left PENDING. Add a new call here only if it is one of those two kinds.
 // Missing config means notifications are simply off — never blocks or throws
 // into the caller, since a Telegram hiccup must never affect a real request.
 import { CHAIN_ID } from "./chain";

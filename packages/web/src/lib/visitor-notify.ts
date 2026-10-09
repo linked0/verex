@@ -8,10 +8,12 @@
 // TELEGRAM_CHAT_ID — see scripts/deploy.sh. Unset = notifications simply off.
 
 // Per-visitor debounce so a refresh or a quick back-and-forth doesn't fire repeatedly.
+// One hour (jay, 2026-10-09; was 5 minutes): the same visitor coming back within the
+// hour is one visit, not several.
 // In-memory and therefore per Cloud Run instance — with several instances the same visitor
 // could notify more than once per window. Acceptable for a low-traffic "someone looked at
 // the site" ping; not worth a shared store.
-const DEBOUNCE_MS = 5 * 60 * 1000;
+const DEBOUNCE_MS = 60 * 60 * 1000;
 const lastSeen = new Map<string, number>();
 
 export function notifyHomeVisit(ip: string): void {

@@ -213,7 +213,6 @@ app.post("/market-groups/:slug/resolve", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = req.body as { winnerSlug: string; accountIndex: number };
     const r = await resolveGroup({ groupSlug: slug, winnerSlug: body.winnerSlug, accountIndex: body.accountIndex });
-    notifyTelegram(`🔮 🏁 Verex — group resolved: ${slug} → winner ${r.winnerSlug}`);
     return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -449,7 +448,6 @@ app.post("/markets/:slug/resolve", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = req.body as { outcome: "Yes" | "No"; accountIndex: number };
     const r = await resolveMarket({ slug, outcome: body.outcome, accountIndex: body.accountIndex });
-    notifyTelegram(`🔮 🏁 Verex — market resolved: ${slug} → ${r.resolvedOutcome}`);
     return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -469,8 +467,6 @@ app.post("/markets/:slug/uma-resolve", async (req, reply) => {
   try {
     const { slug } = req.params as { slug: string };
     const r = await resolveMarketFromUma(slug);
-    const verdict = r.resolvedOutcome ?? "unresolvable (both sides redeem half)";
-    notifyTelegram(`🔮 🏁 Verex — UMA resolved: ${slug} → ${verdict}`);
     return r;
   } catch (e: any) {
     const status = e?.statusCode ?? 500;
@@ -504,7 +500,6 @@ app.post("/markets/:slug/uma-propose", async (req, reply) => {
       return reply.status(400).send({ error: "answer must be Yes, No or Unresolvable" });
     }
     const r = await umaPropose(slug, body.answer, Number(body.accountIndex ?? 0));
-    notifyTelegram(`🔮 📣 Verex — answer proposed on ${slug}: ${body.answer}`);
     return r;
   } catch (e: any) {
     req.log.error(e);
@@ -520,7 +515,6 @@ app.post("/markets/:slug/uma-dispute", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = (req.body ?? {}) as { accountIndex?: number };
     const r = await umaDispute(slug, Number(body.accountIndex));
-    notifyTelegram(`🔮 ⚔️ Verex — proposal disputed on ${slug} by wallet #${body.accountIndex}`);
     return r;
   } catch (e: any) {
     req.log.error(e);
@@ -553,7 +547,6 @@ app.post("/markets/:slug/uma-finalize", async (req, reply) => {
     const { slug } = req.params as { slug: string };
     const body = (req.body ?? {}) as { accountIndex?: number };
     const r = await umaFinalize(slug, Number(body.accountIndex ?? 0));
-    notifyTelegram(`🔮 🧑‍⚖️ Verex — jury verdict finalized on ${slug}`);
     return r;
   } catch (e: any) {
     req.log.error(e);
@@ -655,14 +648,12 @@ app.post("/faucet", async (req, reply) => {
     if (address !== undefined) {
       if (!isAddress(address)) return reply.status(400).send({ error: "address is not a valid 0x address" });
       const r = await faucetTo(getAddress(address) as Address);
-      notifyTelegram(`🔮 🚰 Verex — faucet claim: ${address} → +${r.jusd.toFixed(2)} jUSD`);
       return r;
     }
     if (!Number.isInteger(accountIndex) || accountIndex! < 1 || accountIndex! > 9) {
       return reply.status(400).send({ error: "accountIndex must be 1..9, or send an address" });
     }
     const r = await faucet(accountIndex!);
-    notifyTelegram(`🔮 🚰 Verex — faucet claim: account #${accountIndex} → +${r.jusd.toFixed(2)} jUSD`);
     return r;
   } catch (e) {
     return reply.status(503).send({ error: e instanceof Error ? e.message : String(e) });
@@ -791,11 +782,6 @@ app.post("/admin/mm/config", async (req, reply) => {
       slug: body.slug,
       spreadBps: body.spreadBps,
     });
-    notifyTelegram(
-      `🔮 🎛️ Verex — MM config: ${body.action}${body.slug ? ` (${body.slug})` : ""}${
-        body.spreadBps !== undefined ? ` → ${body.spreadBps} bps` : ""
-      }`,
-    );
     return r;
   } catch (e: any) {
     req.log.error(e);
